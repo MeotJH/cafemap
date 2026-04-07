@@ -5,7 +5,7 @@
   "display": "standalone",
   "background_color": "#F6F0E8",
   "theme_color": "#6F4E37",
-  "description": "카페맵 - 카페 후기 지도와 리뷰 랭킹",
+  "description": "카페맵 - 카페 후기, 지도, 리뷰 랭킹",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
   "icons": [
