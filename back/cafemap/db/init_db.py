@@ -59,6 +59,14 @@ BRAND_SEEDS: dict[str, dict[str, object]] = {
         "lat": 37.5547,
         "lng": 126.9706,
     },
+    "brand-mega": {
+        "name": "메가커피",
+        "logo_url": "",
+        "store_name": "메가MGC커피 강남역점",
+        "address": "서울 강남구 강남대로 396",
+        "lat": 37.4981,
+        "lng": 127.0276,
+    },
     "brand-local": {
         "name": "개인 카페",
         "logo_url": "",
@@ -68,6 +76,62 @@ BRAND_SEEDS: dict[str, dict[str, object]] = {
         "lng": 126.9257,
     },
 }
+
+COMMON_CAFE_MENU_SEEDS: tuple[tuple[str, str], ...] = (
+    ("아메리카노", "커피"),
+    ("디카페인 아메리카노", "커피"),
+    ("에스프레소", "커피"),
+    ("롱블랙", "커피"),
+    ("카페오레", "라떼"),
+    ("카페라떼", "라떼"),
+    ("바닐라 라떼", "라떼"),
+    ("헤이즐넛 라떼", "라떼"),
+    ("연유 라떼", "라떼"),
+    ("돌체 라떼", "라떼"),
+    ("흑당 라떼", "라떼"),
+    ("카푸치노", "라떼"),
+    ("카라멜 마끼아또", "라떼"),
+    ("모카 라떼", "라떼"),
+    ("카페모카", "라떼"),
+    ("화이트 모카", "라떼"),
+    ("아인슈페너", "시그니처"),
+    ("콜드브루", "콜드브루"),
+    ("콜드브루 라떼", "콜드브루"),
+    ("디카페인 콜드브루", "콜드브루"),
+    ("핸드드립", "핸드드립"),
+    ("드립커피", "핸드드립"),
+    ("시그니처 라떼", "시그니처"),
+    ("크림 라떼", "시그니처"),
+    ("슈페너 라떼", "시그니처"),
+    ("초코 라떼", "디저트음료"),
+    ("녹차 라떼", "디저트음료"),
+    ("말차 라떼", "디저트음료"),
+    ("고구마 라떼", "디저트음료"),
+    ("곡물 라떼", "디저트음료"),
+    ("밀크티", "디저트음료"),
+    ("얼그레이 밀크티", "디저트음료"),
+    ("차이 밀크티", "디저트음료"),
+    ("아이스티", "디저트음료"),
+    ("복숭아 아이스티", "디저트음료"),
+    ("레몬티", "디저트음료"),
+    ("자몽티", "디저트음료"),
+    ("유자차", "디저트음료"),
+    ("캐모마일 티", "디저트음료"),
+    ("페퍼민트 티", "디저트음료"),
+    ("얼그레이 티", "디저트음료"),
+    ("녹차", "디저트음료"),
+    ("레몬에이드", "디저트음료"),
+    ("자몽에이드", "디저트음료"),
+    ("청포도에이드", "디저트음료"),
+    ("블루레몬에이드", "디저트음료"),
+    ("딸기 스무디", "디저트음료"),
+    ("망고 스무디", "디저트음료"),
+    ("블루베리 스무디", "디저트음료"),
+    ("플레인 요거트 스무디", "디저트음료"),
+    ("프라페", "디저트음료"),
+    ("초코 프라페", "디저트음료"),
+    ("쿠키 프라페", "디저트음료"),
+)
 
 
 def init_db():
@@ -172,7 +236,84 @@ def _menu_seeds() -> list[Menu]:
                 category=category,
             )
         )
+    existing_keys = {(menu.brand_id, menu.name) for menu in menus}
+    for brand_id in BRAND_SEEDS:
+        for menu_name, category in COMMON_CAFE_MENU_SEEDS:
+            key = (brand_id, menu_name)
+            if key in existing_keys:
+                continue
+            existing_keys.add(key)
+            menus.append(
+                Menu(
+                    id=f"menu-{brand_id.removeprefix('brand-')}-{_menu_slug(menu_name)}",
+                    brand_id=brand_id,
+                    name=menu_name,
+                    image_url="",
+                    category=normalize_category(category),
+                )
+            )
     return menus
+
+
+def _menu_slug(name: str) -> str:
+    replacements = {
+        "아메리카노": "americano",
+        "디카페인": "decaf",
+        "에스프레소": "espresso",
+        "롱블랙": "longblack",
+        "카페오레": "cafeaulait",
+        "카페라떼": "cafelatte",
+        "라떼": "latte",
+        "바닐라": "vanilla",
+        "헤이즐넛": "hazelnut",
+        "연유": "condensedmilk",
+        "돌체": "dolce",
+        "흑당": "brownsugar",
+        "카푸치노": "cappuccino",
+        "카라멜": "caramel",
+        "마끼아또": "macchiato",
+        "모카": "mocha",
+        "카페모카": "cafemocha",
+        "화이트": "white",
+        "아인슈페너": "einspanner",
+        "콜드브루": "coldbrew",
+        "핸드드립": "handdrip",
+        "드립커피": "dripcoffee",
+        "시그니처": "signature",
+        "크림": "cream",
+        "슈페너": "spanner",
+        "초코": "choco",
+        "녹차": "greentea",
+        "말차": "matcha",
+        "고구마": "sweetpotato",
+        "곡물": "grain",
+        "밀크티": "milktea",
+        "얼그레이": "earlgrey",
+        "차이": "chai",
+        "복숭아": "peach",
+        "아이스티": "icetea",
+        "레몬티": "lemontea",
+        "자몽티": "grapefruittea",
+        "유자차": "yujatea",
+        "캐모마일": "chamomile",
+        "페퍼민트": "peppermint",
+        "레몬에이드": "lemonade",
+        "자몽에이드": "grapefruitade",
+        "청포도에이드": "greengrapeade",
+        "블루레몬에이드": "bluelemonade",
+        "딸기": "strawberry",
+        "망고": "mango",
+        "블루베리": "blueberry",
+        "스무디": "smoothie",
+        "플레인": "plain",
+        "요거트": "yogurt",
+        "프라페": "frappe",
+        "쿠키": "cookie",
+    }
+    slug = name.replace(" ", "-").lower()
+    for source, target in replacements.items():
+        slug = slug.replace(source, target)
+    return slug.strip("-")
 
 
 def _score_seed(category: str) -> dict[str, float]:

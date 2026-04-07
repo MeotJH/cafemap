@@ -51,90 +51,111 @@ class AuthStartPage extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton.filledTonal(
-                        onPressed: () {
-                          if (context.canPop()) {
-                            context.pop();
-                            return;
-                          }
-                          context.go('/ranking');
-                        },
-                        icon: const Icon(Icons.arrow_back),
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.8),
-                          foregroundColor: AppColors.textPrimary,
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton.filledTonal(
+                          onPressed: () {
+                            if (context.canPop()) {
+                              context.pop();
+                              return;
+                            }
+                            context.go('/ranking');
+                          },
+                          icon: const Icon(Icons.arrow_back),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.8,
+                            ),
+                            foregroundColor: AppColors.textPrimary,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 36),
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: Column(
-                          children: [
-                            const _AuthBrandMark(),
-                            const SizedBox(height: 28),
-                            Text(
-                              AppStrings.appName,
-                              textAlign: TextAlign.center,
-                              style: textTheme.displaySmall?.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              '내 취향에 맞는 카페와 메뉴를\n가볍게 탐색해보세요.',
-                              textAlign: TextAlign.center,
-                              style: textTheme.titleMedium?.copyWith(
-                                color: AppColors.textSecondary,
-                                height: 1.45,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-                            const Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                _FeaturePill(label: '카페랭킹'),
-                                _FeaturePill(label: '메뉴랭킹'),
-                                _FeaturePill(label: '지도 탐색'),
-                              ],
-                            ),
-                            const SizedBox(height: 56),
-                            _AuthButton(
-                              label: 'Google로 계속하기',
-                              onPressed: () => _signInWithGoogle(context, ref),
-                            ),
-                            const SizedBox(height: 14),
-                            TextButton(
-                              onPressed: () => context.go('/ranking'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.textSecondary,
-                                minimumSize: const Size.fromHeight(48),
-                              ),
-                              child: Text(
-                                '로그인 없이 둘러보기',
-                                style: textTheme.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w700,
+                      const SizedBox(height: 36),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: Column(
+                            children: [
+                              const _AuthBrandMark(),
+                              const SizedBox(height: 28),
+                              Text(
+                                AppStrings.appName,
+                                textAlign: TextAlign.center,
+                                style: textTheme.displaySmall?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -1.2,
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
+                              const SizedBox(height: 12),
+                              Text(
+                                '내 취향에 맞는 카페와 메뉴를\n가볍게 탐색해보세요.',
+                                textAlign: TextAlign.center,
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  height: 1.45,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              const Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _FeaturePill(
+                                    label: '카페랭킹',
+                                    route: '/ranking',
+                                  ),
+                                  _FeaturePill(
+                                    label: '메뉴랭킹',
+                                    route: '/menu-ranking',
+                                  ),
+                                  _FeaturePill(label: '지도 탐색', route: '/map'),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      const Spacer(),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 40),
+                              _AuthButton(
+                                label: 'Google로 계속하기',
+                                onPressed: () =>
+                                    _signInWithGoogle(context, ref),
+                              ),
+                              const SizedBox(height: 14),
+                              TextButton(
+                                onPressed: () => context.go('/ranking'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.textSecondary,
+                                  minimumSize: const Size.fromHeight(48),
+                                ),
+                                child: Text(
+                                  '로그인 없이 둘러보기',
+                                  style: textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -176,23 +197,27 @@ class _AuthBrandMark extends StatelessWidget {
 
 class _FeaturePill extends StatelessWidget {
   final String label;
+  final String route;
 
-  const _FeaturePill({required this.label});
+  const _FeaturePill({required this.label, required this.route});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w700,
+    return Material(
+      color: Colors.white.withValues(alpha: 0.72),
+      shape: StadiumBorder(side: BorderSide(color: AppColors.cardBorder)),
+      child: InkWell(
+        onTap: () => context.go(route),
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );

@@ -124,9 +124,10 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   Brand? _matchBrand(List<Brand> brands, String storeName) {
     final normalized = storeName.replaceAll(' ', '').toLowerCase();
     for (final brand in brands) {
-      final token = brand.name.replaceAll(' ', '').toLowerCase();
-      if (token.isNotEmpty && normalized.contains(token)) {
-        return brand;
+      for (final token in _brandMatchTokens(brand)) {
+        if (token.isNotEmpty && normalized.contains(token)) {
+          return brand;
+        }
       }
     }
     return null;
@@ -143,10 +144,18 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     final target = brandName.replaceAll(' ', '').toLowerCase();
     if (target.isEmpty) return null;
     for (final brand in brands) {
-      final normalized = brand.name.replaceAll(' ', '').toLowerCase();
-      if (normalized == target) return brand;
+      if (_brandMatchTokens(brand).contains(target)) return brand;
     }
     return null;
+  }
+
+  Set<String> _brandMatchTokens(Brand brand) {
+    final normalized = brand.name.replaceAll(' ', '').toLowerCase();
+    final tokens = <String>{normalized};
+    if (normalized.contains('메가')) {
+      tokens.addAll({'메가커피', '메가mgc커피'});
+    }
+    return tokens;
   }
 
   Future<void> _loadMenus(String brandId) async {
@@ -198,12 +207,12 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       await _showTopToast('브랜드를 선택해주세요.');
       return;
     }
-    final selectedMenu = _selectedMenu;
-    final menuName = selectedMenu?.name ?? _menuSearchController.text.trim();
-    if (menuName.isEmpty) {
-      await _showTopToast('메뉴명을 입력해주세요.');
+    final selectedMenu = _resolveSelectedMenu();
+    if (selectedMenu == null) {
+      await _showTopToast('표준 메뉴 목록에서 메뉴를 선택해주세요.');
       return;
     }
+    final menuName = selectedMenu.name;
     final storeName = widget.storeName ?? '';
     if (storeName.isEmpty) {
       await _showTopToast('카페를 선택해주세요.');
@@ -237,16 +246,16 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       if (!mounted) return;
       context.push('/review/${review.id}', extra: review);
     } on DioException catch (e, stackTrace) {
-      print('Error submitting review: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('Error submitting review: $e');
+      debugPrint('Stack trace: $stackTrace');
       final status = e.response?.statusCode;
       final detail = e.response?.data;
       await _showTopToast(
         '리뷰 제출 실패${status == null ? '' : ' ($status)'}: ${detail ?? e.message}',
       );
     } catch (e, stackTrace) {
-      print('Error submitting review: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('Error submitting review: $e');
+      debugPrint('Stack trace: $stackTrace');
       await _showTopToast('리뷰 제출에 실패했어요.');
     } finally {
       if (mounted) {
@@ -255,6 +264,20 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         });
       }
     }
+  }
+
+  Menu? _resolveSelectedMenu() {
+    final selected = _selectedMenu;
+    final typed = _menuSearchController.text.trim();
+    if (selected != null && selected.name == typed) {
+      return selected;
+    }
+    for (final menu in _menus) {
+      if (menu.name == typed) {
+        return menu;
+      }
+    }
+    return null;
   }
 
   Future<List<String>> _uploadSelectedImages(AuthContext auth) async {
@@ -463,7 +486,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: AppColors.primary.withOpacity(0.2),
+                        color: AppColors.primary.withValues(alpha: 0.2),
                       ),
                       color: AppColors.backgroundLight,
                     ),
@@ -605,7 +628,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                                   decoration: InputDecoration(
                                     hintText: _loadingMenus
                                         ? '메뉴 불러오는 중...'
-                                        : '메뉴 검색 또는 선택',
+                                        : '표준 메뉴 검색 후 선택',
                                     filled: true,
                                     fillColor: Colors.white,
                                     border: OutlineInputBorder(
@@ -656,7 +679,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                                         MediaQuery.of(context).size.width - 64,
                                     child: const Padding(
                                       padding: EdgeInsets.all(12),
-                                      child: Text('검색 결과가 없어요.'),
+                                      child: Text('등록된 표준 메뉴가 없어요.'),
                                     ),
                                   ),
                                 ),

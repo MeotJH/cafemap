@@ -87,22 +87,7 @@ def create_review(db: Session, payload, user_id: str):
     menu = _find_best_matching_menu(db, brand.id, payload.menuName)
 
     if menu is None:
-
-        menu = Menu(
-
-            id=f"menu-{uuid.uuid4().hex}",
-
-            brand_id=brand.id,
-
-            name=payload.menuName.strip(),
-
-            image_url="",
-
-            category=_classify_menu_category(normalized_input_menu),
-
-        )
-
-        db.add(menu)
+        raise ValueError("Menu must be selected from the standard menu list")
 
     menu_category = normalize_category(menu.category)
 
@@ -704,4 +689,3 @@ def _sanitize_image_urls(image_urls: list[str]) -> list[str]:
             raise ValueError("Invalid image URL")
 
     return cleaned
-
