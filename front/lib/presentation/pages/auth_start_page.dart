@@ -16,12 +16,7 @@ class AuthStartPage extends ConsumerWidget {
     try {
       final authController = ref.read(authControllerProvider);
       await authController.signInWithGoogle();
-      final auth = await authController.getAuthContext();
-      if (auth == null) {
-        throw StateError('인증 컨텍스트를 가져오지 못했습니다.');
-      }
-      // 로그인 성공 후 사용자 정보를 동기화한다.
-      await ref.read(authApiProvider).syncUser(auth);
+      await _syncSignedInUser(ref, authController);
       if (!context.mounted) return;
       context.go('/ranking');
     } on FirebaseAuthException catch (e) {
@@ -35,6 +30,38 @@ class AuthStartPage extends ConsumerWidget {
         context,
       ).showSnackBar(SnackBar(content: Text('Google 로그인 실패: $e')));
     }
+  }
+
+  Future<void> _signInWithKakao(BuildContext context, WidgetRef ref) async {
+    try {
+      final authController = ref.read(authControllerProvider);
+      await authController.signInWithKakao();
+      await _syncSignedInUser(ref, authController);
+      if (!context.mounted) return;
+      context.go('/ranking');
+    } on FirebaseAuthException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('카카오 로그인 실패: ${e.code}')));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('카카오 로그인 실패: $e')));
+    }
+  }
+
+  Future<void> _syncSignedInUser(
+    WidgetRef ref,
+    AuthController authController,
+  ) async {
+    final auth = await authController.getAuthContext();
+    if (auth == null) {
+      throw StateError('인증 컨텍스트를 가져오지 못했습니다.');
+    }
+    // 로그인 성공 후 사용자 정보를 동기화한다.
+    await ref.read(authApiProvider).syncUser(auth);
   }
 
   @override
@@ -132,8 +159,25 @@ class AuthStartPage extends ConsumerWidget {
                               const SizedBox(height: 40),
                               _AuthButton(
                                 label: 'Google로 계속하기',
+                                icon: SvgPicture.string(
+                                  _AuthButton.googleLogoSvg,
+                                  width: 24,
+                                  height: 24,
+                                ),
                                 onPressed: () =>
                                     _signInWithGoogle(context, ref),
+                              ),
+                              const SizedBox(height: 12),
+                              _AuthButton(
+                                label: '카카오로 계속하기',
+                                backgroundColor: const Color(0xFFFEE500),
+                                foregroundColor: const Color(0xFF191919),
+                                icon: const Icon(
+                                  Icons.chat_bubble_rounded,
+                                  size: 22,
+                                  color: Color(0xFF191919),
+                                ),
+                                onPressed: () => _signInWithKakao(context, ref),
                               ),
                               const SizedBox(height: 14),
                               TextButton(
@@ -214,9 +258,9 @@ class _FeaturePill extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ),
       ),
@@ -226,7 +270,7 @@ class _FeaturePill extends StatelessWidget {
 
 // 커스텀 로그인 버튼을 그리는 위젯이다.
 class _AuthButton extends StatelessWidget {
-  static const String _googleLogoSvg =
+  static const String googleLogoSvg =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
       '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>'
       '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>'
@@ -236,9 +280,18 @@ class _AuthButton extends StatelessWidget {
       '</svg>';
 
   final String label;
+  final Widget icon;
   final VoidCallback onPressed;
+  final Color backgroundColor;
+  final Color foregroundColor;
 
-  const _AuthButton({required this.label, required this.onPressed});
+  const _AuthButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.backgroundColor = Colors.white,
+    this.foregroundColor = AppColors.textPrimary,
+  });
 
   @override
   // 커스텀 로그인 버튼 스타일을 적용한다.
@@ -248,8 +301,8 @@ class _AuthButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.textPrimary,
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
           elevation: 2,
           shadowColor: AppColors.primary.withValues(alpha: 0.14),
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
@@ -262,14 +315,14 @@ class _AuthButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SvgPicture.string(_googleLogoSvg, width: 24, height: 24),
+            icon,
             const SizedBox(width: 12),
             Text(
               label,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
+                    fontWeight: FontWeight.w800,
+                    color: foregroundColor,
+                  ),
             ),
           ],
         ),

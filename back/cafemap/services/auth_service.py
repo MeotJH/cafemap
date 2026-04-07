@@ -1,3 +1,5 @@
+import base64
+import json
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -21,14 +23,45 @@ def resolve_auth_user(authorization: str | None) -> AuthUser | None:
     token = authorization.removeprefix("Bearer").strip()
     if not token:
         return None
+    if token.startswith("cafemap-auth:"):
+        return _resolve_cafemap_auth_token(token.removeprefix("cafemap-auth:"))
     if "|" in token:
         parts = token.split("|")
         uid = parts[0].strip() or "guest-user"
         email = parts[1].strip() if len(parts) > 1 else ""
         name = parts[2].strip() if len(parts) > 2 else ""
         picture = parts[3].strip() if len(parts) > 3 else ""
-        return AuthUser(uid=uid, email=email, name=name, picture=picture)
+        provider = parts[4].strip() if len(parts) > 4 else "google"
+        return AuthUser(
+            uid=uid,
+            email=email,
+            name=name,
+            picture=picture,
+            provider=provider,
+        )
     return AuthUser(uid=token, email="", name="", picture="")
+
+
+def _resolve_cafemap_auth_token(token: str) -> AuthUser | None:
+    try:
+        padding = "=" * (-len(token) % 4)
+        decoded = base64.urlsafe_b64decode(f"{token}{padding}").decode()
+        payload = json.loads(decoded)
+    except (ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    uid = str(payload.get("uid") or "").strip()
+    if not uid:
+        return None
+    return AuthUser(
+        uid=uid,
+        email=str(payload.get("email") or ""),
+        name=str(payload.get("name") or ""),
+        picture=str(payload.get("picture") or ""),
+        provider=str(payload.get("provider") or "firebase"),
+    )
 
 
 def get_user(db: Session, user_id: str) -> User | None:

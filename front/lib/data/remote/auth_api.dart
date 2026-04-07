@@ -1,11 +1,10 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/domain/entities/auth_context.dart';
 
 class AuthApi {
   AuthApi({Dio? dio})
-      : _dio =
-            dio ??
+      : _dio = dio ??
             Dio(
               BaseOptions(
                 connectTimeout: const Duration(seconds: 8),
@@ -28,8 +27,7 @@ class AuthApi {
 
   Map<String, String> _authHeaders(AuthContext auth) {
     return <String, String>{
-      'Authorization': 'Bearer ${auth.idToken}',
+      'Authorization': 'Bearer ${auth.toAuthorizationToken()}',
     };
   }
 }
-
