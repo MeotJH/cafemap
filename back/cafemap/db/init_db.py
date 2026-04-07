@@ -15,6 +15,7 @@ from cafemap.core.rating_dimensions import (
     scores_json_dumps,
     top_highlights,
 )
+from cafemap.core.config import SEED_ON_STARTUP
 from cafemap.db.session import Base, engine
 from cafemap.models.entities import (
     Brand,
@@ -139,7 +140,8 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     with Session(engine) as db:
         _migrate_scores_json_columns(db)
-        seed_if_empty(db)
+        if SEED_ON_STARTUP:
+            seed_if_empty(db)
 
 
 def _migrate_scores_json_columns(db: Session):
