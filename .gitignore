@@ -1,0 +1,18 @@
+.idea
+.DS_Store
+__pycache__/
+*.py[cod]
+back/request_curl
+
+# FVM Version Cache
+.fvm/
+
+
+
+back/.env
+front/.env
+front/.env.production
+front/.firebase/
+back/generated/
+
+LightsailDefaultKey-ap-northeast-2.pem

@@ -1,0 +1,11 @@
+from sqlalchemy.orm import Session
+
+from cafemap.repositories import brand_repository
+
+
+# ??? ???? ?? ????.
+
+
+def get_brands(db: Session):
+    # ??? ??? ????.
+    return brand_repository.fetch_brands(db)

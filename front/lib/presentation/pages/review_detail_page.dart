@@ -1,0 +1,414 @@
+﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:another_flushbar/flushbar.dart';
+import 'package:front/core/constants/app_colors.dart';
+import 'package:front/core/constants/app_strings.dart';
+import 'package:front/core/constants/rating_dimensions.dart';
+import 'package:front/core/utils/formatters.dart';
+import 'package:front/domain/entities/review.dart';
+import 'package:front/presentation/providers/auth_providers.dart';
+import 'package:front/presentation/providers/review_providers.dart';
+import 'package:go_router/go_router.dart';
+
+// 리뷰 상세 화면이다.
+class ReviewDetailPage extends ConsumerWidget {
+  final String reviewId;
+  final Review? initialReview;
+
+  const ReviewDetailPage({
+    super.key,
+    required this.reviewId,
+    this.initialReview,
+  });
+
+  Future<void> _showTopToast(BuildContext context, String message) {
+    return Flushbar<void>(
+      message: message,
+      duration: const Duration(seconds: 2),
+      flushbarPosition: FlushbarPosition.TOP,
+      backgroundColor: const Color(0xFF2A2A2A),
+      margin: const EdgeInsets.all(12),
+      borderRadius: BorderRadius.circular(10),
+      icon: const Icon(Icons.info_outline, color: Colors.white),
+    ).show(context);
+  }
+
+  Future<void> _onDestinationSelected(
+    BuildContext context,
+    WidgetRef ref,
+    int index,
+  ) async {
+    switch (index) {
+      case 0:
+        context.go('/ranking');
+        break;
+      case 1:
+        context.go('/map');
+        break;
+      case 2:
+        final user = ref.read(authStateProvider).asData?.value ??
+            ref.read(authControllerProvider).currentUser;
+        if (user == null) {
+          await _showTopToast(context, '내 활동은 로그인 후 확인할 수 있어요.');
+          if (context.mounted) context.go('/auth');
+          return;
+        }
+        context.go('/activity');
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reviewAsync = ref.watch(reviewDetailProvider(reviewId));
+
+    return Scaffold(
+      backgroundColor: AppColors.backgroundLight,
+      appBar: AppBar(
+        title: const Text('리뷰 상세'),
+        centerTitle: true,
+      ),
+      body: reviewAsync.when(
+        data: (review) => _ReviewDetailBody(review: review),
+        loading: () => initialReview == null
+            ? const Center(child: CircularProgressIndicator())
+            : _ReviewDetailBody(review: initialReview!),
+        error: (_, __) => initialReview == null
+            ? const Center(child: Text('리뷰를 불러오지 못했어요.'))
+            : _ReviewDetailBody(review: initialReview!),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        onDestinationSelected: (index) =>
+            _onDestinationSelected(context, ref, index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.emoji_events_outlined),
+            selectedIcon: Icon(Icons.emoji_events),
+            label: AppStrings.rankingTab,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: AppStrings.mapTab,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: AppStrings.activityTab,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewDetailBody extends StatelessWidget {
+  final Review review;
+
+  const _ReviewDetailBody({required this.review});
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _orderedEntries();
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                review.storeName,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                review.menuName,
+                style: const TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF09142A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${review.createdAt.year}년 ${review.createdAt.month}월 ${review.createdAt.day}일 작성',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFE8EDF3)),
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.star, size: 56, color: AppColors.ratingStar),
+                  const SizedBox(width: 10),
+                  Text(
+                    RatingFormatter.score(review.overall),
+                    style: const TextStyle(
+                      fontSize: 64,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '평균 별점',
+                style: TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 19,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFE8EDF3)),
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.analytics_rounded, color: AppColors.primary),
+                  SizedBox(width: 8),
+                  Text(
+                    '상세 항목 평가',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              ...entries.expand(
+                (entry) => [
+                  _ScoreRow(label: ratingLabel(entry.key), value: entry.value),
+                  const SizedBox(height: 18),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.primary.withOpacity(0.15),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.chat_bubble, size: 18, color: AppColors.primary),
+                    SizedBox(width: 6),
+                    Text(
+                      '코멘트',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  review.comment.isEmpty ? '肄붾찘?멸? ?놁뼱??' : review.comment,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    height: 1.5,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (review.imageUrls.isNotEmpty)
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                const Text(
+                  '泥⑤? ?ъ쭊',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 120,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: review.imageUrls.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final imageUrl = review.imageUrls[index];
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: GestureDetector(
+                          onTap: () => _openImageViewer(context, imageUrl),
+                          child: Image.network(
+                            imageUrl,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                              width: 120,
+                              height: 120,
+                              color: const Color(0xFFF3F4F6),
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.broken_image_outlined),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<MapEntry<String, double>> _orderedEntries() {
+    final preferred = dimensionsForCategory(review.menuCategory);
+    final result = <MapEntry<String, double>>[];
+
+    for (final key in preferred) {
+      final value = review.scores[key];
+      if (value != null) {
+        result.add(MapEntry(key, value));
+      }
+    }
+
+    for (final entry in review.scores.entries) {
+      if (!preferred.contains(entry.key)) {
+        result.add(entry);
+      }
+    }
+
+    return result;
+  }
+
+  void _openImageViewer(BuildContext context, String imageUrl) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.broken_image_outlined, color: Colors.white, size: 44),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ScoreRow extends StatelessWidget {
+  final String label;
+  final double value;
+
+  const _ScoreRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final safeValue = value.clamp(0.0, 5.0);
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF334155),
+                fontSize: 17,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '${safeValue.toStringAsFixed(1)} / 5.0',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: 12,
+            value: safeValue / 5.0,
+            backgroundColor: const Color(0xFFE7ECF2),
+            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+          ),
+        ),
+      ],
+    );
+  }
+}

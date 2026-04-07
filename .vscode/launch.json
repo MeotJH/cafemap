@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CAFEMAP (Chrome)",
+      "type": "dart",
+      "request": "launch",
+      "program": "front/lib/main.dart",
+      "cwd": "front",
+      "deviceId": "chrome"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+FROM python:3.10-slim
+
+WORKDIR /var/task
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Lambda Runtime Interface Client
+# (requirements.txt에 awslambdaric가 없으면 아래로 설치)
+RUN pip install --no-cache-dir awslambdaric
+
+# worker_lambda.py 안에 handler(event, context)가 있다고 가정
+CMD ["python", "-m", "awslambdaric", "lambda_worker.handler"]

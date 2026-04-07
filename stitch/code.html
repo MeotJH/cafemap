@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>치킨 맵 - 로그인</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary": "#000000",
+                        "outline-variant": "#c6c6cd",
+                        "on-primary-fixed-variant": "#793100",
+                        "surface-tint": "#9e4300",
+                        "on-tertiary-fixed-variant": "#38485d",
+                        "inverse-primary": "#ffb691",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e0e3e5",
+                        "on-tertiary-fixed": "#0b1c30",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#dbe2f9",
+                        "primary": "#000000",
+                        "primary-fixed": "#ffdbcb",
+                        "tertiary-fixed-dim": "#b7c8e1",
+                        "secondary-fixed-dim": "#bfc6dc",
+                        "on-error-container": "#93000a",
+                        "primary-container": "#341100",
+                        "outline": "#76777d",
+                        "primary-fixed-dim": "#ffb691",
+                        "surface-container": "#eceef0",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-primary-container": "#da5e00",
+                        "tertiary-container": "#0b1c30",
+                        "on-secondary-fixed": "#141b2c",
+                        "inverse-on-surface": "#eff1f3",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "surface-dim": "#d8dadc",
+                        "on-tertiary": "#ffffff",
+                        "surface": "#f7f9fb",
+                        "on-secondary-container": "#5c6477",
+                        "on-surface-variant": "#45474c",
+                        "error": "#ba1a1a",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed": "#d3e4fe",
+                        "on-background": "#191c1e",
+                        "on-tertiary-container": "#75859d",
+                        "secondary": "#565e71",
+                        "on-secondary-fixed-variant": "#3f4759",
+                        "inverse-surface": "#2d3133",
+                        "surface-container-low": "#f2f4f6",
+                        "on-surface": "#191c1e",
+                        "surface-bright": "#f7f9fb",
+                        "secondary-container": "#dbe2f9",
+                        "on-primary-fixed": "#341100",
+                        "surface-container-high": "#e6e8ea",
+                        "background": "#f7f9fb",
+                        "brand-orange": "#da5e00"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #f7f9fb;
+        }
+        body {
+            min-height: max(600px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-surface dark:bg-zinc-950 flex justify-between items-center w-full px-6 py-4 max-w-lg mx-auto">
+<button class="text-zinc-500 hover:opacity-80 transition-opacity active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<div class="font-manrope font-bold tracking-tight text-xl font-black text-zinc-900 dark:text-zinc-50 tracking-tighter">
+            Chicken <span class="text-brand-orange">Map</span>
+</div>
+<div class="w-6"></div> <!-- Spacer for center alignment -->
+</header>
+<main class="flex-grow flex flex-col items-center justify-center px-8 pt-24 pb-12 max-w-md mx-auto w-full">
+<!-- Hero Section -->
+<div class="text-center mb-10">
+<h1 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface mb-2 break-keep">
+                세상의 모든 치킨을 지도로 만나보세요
+            </h1>
+<p class="text-on-surface-variant text-sm font-medium">
+                내 주변 최고의 치킨 맛집 찾기
+            </p>
+</div>
+<!-- Social Login Stack - Google Only -->
+<div class="w-full space-y-3 mb-8">
+<button class="w-full h-14 rounded-full bg-white border border-outline-variant/30 text-on-surface font-bold flex items-center justify-center gap-3 hover:bg-surface-container-lowest transition-colors active:scale-[0.98] duration-200">
+<img alt="Google Logo" class="w-5 h-5" data-alt="clean minimal google g logo icon on a white background with vivid primary colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFX5AKIKDNDV9aWA56ou1dUU-tQC3mV1QLyjI5-o4frD7YnCdtqJIR6EgX--r9GfhySgUxEk_1HFa1PrgsKRs3AwRNA-LGJfHu5IsF1vCiNNj8SWHmVADWUKMvSS1mAq9nbo7Jl7AMXuRvszqLcYd3tkNQuV5jBVuiKwl3jLC-7xJu1s_XTpeKMFwMvYTpl32LpxYBannOYAIKFc9pEKDMWwJmhjNcyYeBXaZq2AhwZKyHOixbRqdI6TrPjTuoQKtdbILhA-7s7Naq"/>
+<span>Google 로그인</span>
+</button>
+</div>
+<!-- OR Divider -->
+<div class="w-full flex items-center gap-4 mb-8">
+<div class="h-[1px] flex-grow bg-outline-variant/30"></div>
+<span class="text-xs font-bold tracking-widest text-outline uppercase">또는</span>
+<div class="h-[1px] flex-grow bg-outline-variant/30"></div>
+</div>
+<!-- Traditional Login Form -->
+<form class="w-full space-y-4 mb-8">
+<div class="space-y-2">
+<input class="w-full h-14 px-6 rounded-xl bg-surface-container-highest border-none focus:ring-2 focus:ring-brand-orange/20 focus:bg-surface-container-lowest transition-all placeholder:text-outline/60 text-on-surface font-medium" placeholder="아이디" type="text"/>
+</div>
+<div class="space-y-2">
+<input class="w-full h-14 px-6 rounded-xl bg-surface-container-highest border-none focus:ring-2 focus:ring-brand-orange/20 focus:bg-surface-container-lowest transition-all placeholder:text-outline/60 text-on-surface font-medium" placeholder="비밀번호" type="password"/>
+</div>
+<button class="w-full h-14 rounded-full bg-brand-orange text-white font-bold text-lg shadow-lg shadow-brand-orange/10 hover:opacity-90 transition-opacity active:scale-[0.98] duration-200 mt-2" type="submit">
+                로그인
+            </button>
+</form>
+</main>
+<!-- Footer -->
+<footer class="pb-10 bg-transparent flex flex-col items-center space-y-4 w-full px-8">
+<div class="flex items-center space-x-6">
+<a class="font-manrope text-xs font-medium tracking-widest text-zinc-400 dark:text-zinc-600 hover:text-brand-orange dark:hover:text-brand-orange transition-colors underline-offset-4 hover:underline" href="#">회원가입</a>
+<div class="w-1 h-1 rounded-full bg-outline-variant/50"></div>
+<a class="font-manrope text-xs font-medium tracking-widest text-zinc-400 dark:text-zinc-600 hover:text-brand-orange dark:hover:text-brand-orange transition-colors underline-offset-4 hover:underline" href="#">아이디 찾기</a>
+<div class="w-1 h-1 rounded-full bg-outline-variant/50"></div>
+<a class="font-manrope text-xs font-medium tracking-widest text-zinc-400 dark:text-zinc-600 hover:text-brand-orange dark:hover:text-brand-orange transition-colors underline-offset-4 hover:underline" href="#">비밀번호 찾기</a>
+</div>
+<p class="font-manrope text-[10px] text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
+            © 2024 Chicken Map. All rights reserved.
+        </p>
+</footer>
+</body></html>

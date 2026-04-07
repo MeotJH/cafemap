@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "painting-diary-fd8b3"
+  },
+  "targets": {
+    "painting-diary-fd8b3": {
+      "hosting": {
+        "default": [
+          "chickenmap"
+        ]
+      }
+    }
+  }
+}

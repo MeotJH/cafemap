@@ -1,0 +1,2143 @@
+from datetime import datetime
+from sqlalchemy import select, text
+from sqlalchemy.orm import Session
+
+from chickenmap.db.session import Base, engine
+from chickenmap.models.entities import (
+    Brand,
+    BrandMenuAggregate,
+    Menu,
+    Review,
+    User,
+)
+
+
+# DB 초기화 및 목업 시드를 수행하는 모듈이다.
+
+
+def init_db():
+    # 테이블 생성 및 초기 데이터를 삽입한다.
+    Base.metadata.create_all(bind=engine)
+    with Session(engine) as db:
+        _migrate_scores_json_columns(db)
+        seed_if_empty(db)
+
+
+def _migrate_scores_json_columns(db: Session):
+    # 기존 SQLite DB에 집계용 JSON 컬럼을 추가한다.
+    if db.bind is None or db.bind.dialect.name != "sqlite":
+        return
+
+    targets = {
+        "review": ("scores_json", "overall", "user_id", "image_urls_json"),
+        "brand_menu_aggregate": ("scores_json",),
+        "store_aggregate": ("scores_json", "counts_json"),
+    }
+    for table_name, needed_columns in targets.items():
+        columns = db.execute(text(f"PRAGMA table_info('{table_name}')")).fetchall()
+        if not columns:
+            continue
+        column_names = {row[1] for row in columns}
+        for column_name in needed_columns:
+            if column_name in column_names:
+                continue
+            if column_name == "overall":
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        "ADD COLUMN overall FLOAT NOT NULL DEFAULT 0"
+                    )
+                )
+            elif column_name == "user_id":
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        "ADD COLUMN user_id VARCHAR NOT NULL DEFAULT 'user-seed'"
+                    )
+                )
+            elif column_name == "image_urls_json":
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        "ADD COLUMN image_urls_json VARCHAR NOT NULL DEFAULT '[]'"
+                    )
+                )
+            else:
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        f"ADD COLUMN {column_name} VARCHAR NOT NULL DEFAULT '{{}}'"
+                    )
+                )
+    db.commit()
+
+
+def _classify_kyochon_category(menu_name: str) -> str:
+    # 교촌 메뉴명을 기준으로 간단 분류한다.
+    if "후라이드" in menu_name:
+        return "후라이드"
+    if "간장" in menu_name or "소이" in menu_name:
+        return "간장"
+    if "레드" in menu_name or "마라" in menu_name or "양념" in menu_name:
+        return "양념"
+    if "허니" in menu_name:
+        return "양념"
+    return "기타"
+
+
+def _build_kyochon_official_menus() -> list[Menu]:
+    # 교촌 메뉴 페이지(<ul class="menuProduct">) 기준으로 구성한다.
+    rows: list[tuple[str, str, str]] = [
+        ("41130", "허니갈릭한마리", "/uploadFiles/TB_ITEM/NEW_허니갈릭한마리.png"),
+        ("41062", "마라레드한마리", "/uploadFiles/TB_ITEM/list-마라레드.png"),
+        ("41132", "허니갈릭윙박스", "/uploadFiles/TB_ITEM/허니갈릭윙박스_list.png"),
+        ("40992", "마라레드윙박스", "/uploadFiles/TB_ITEM/list_마라레드윙박스.png"),
+        ("40936", "간장윙박스", "/uploadFiles/TB_ITEM/list_간장윙박스.png"),
+        ("40937", "레드윙박스", "/uploadFiles/TB_ITEM/lsti_레드윙박스.png"),
+        ("40875", "허니윙박스", "/uploadFiles/TB_ITEM/list-허니윙(3).png"),
+        ("40890", "후라이드윙박스", "/uploadFiles/TB_ITEM/list-후라이드윙(3).png"),
+        ("40914", "양념치킨윙박스", "/uploadFiles/TB_ITEM/list_양념치킨윙.png"),
+        ("41131", "허니갈릭싱글윙", "/uploadFiles/TB_ITEM/NEW_허니갈릭싱글윙.png"),
+        ("40993", "마라레드싱글윙", "/uploadFiles/TB_ITEM/마라레드싱글윙_list.png"),
+        ("40801", "간장싱글윙", "/uploadFiles/TB_ITEM/list-간장싱글윙.png"),
+        ("40802", "레드싱글윙", "/uploadFiles/TB_ITEM/list-레드싱글윙.png"),
+        ("40864", "허니싱글윙", "/uploadFiles/TB_ITEM/list-허니싱글윙(3).png"),
+        ("40885", "후라이드싱글윙", "/uploadFiles/TB_ITEM/list-후라이드싱글윙(3).png"),
+        ("40915", "양념치킨싱글윙", "/uploadFiles/TB_ITEM/list-양념싱글윙.png"),
+        ("30161", "허니한마리", "/uploadFiles/TB_ITEM/교촌-허니-오리.png"),
+        ("30164", "허니콤보", "/uploadFiles/TB_ITEM/교촌-허니-콤보(1).png"),
+        ("38053", "허니순살", "/uploadFiles/TB_ITEM/list-허니순살.png"),
+        ("40877", "후라이드한마리", "/uploadFiles/TB_ITEM/list_후라이드한마리.png"),
+        ("40878", "양념치킨한마리", "/uploadFiles/TB_ITEM/list_양념치킨한마리.png"),
+        ("40879", "후라이드양념반반한마리", "/uploadFiles/TB_ITEM/list_후라이드양념반반한마리.png"),
+        ("40961", "후라이드순살", "/uploadFiles/TB_ITEM/list_후라이드순살.png"),
+        ("40962", "양념치킨순살", "/uploadFiles/TB_ITEM/list_양념순살.png"),
+        ("40963", "후라이드양념반반순살", "/uploadFiles/TB_ITEM/list_후라이드양념순살.png"),
+        ("40486", "허니옥수수순살", "/uploadFiles/TB_ITEM/list-허니옥수순살.png"),
+        ("40484", "허니옥수수한마리", "/uploadFiles/TB_ITEM/list-교촌옥수수오리지날.png"),
+        ("30098", "간장한마리", "/uploadFiles/TB_ITEM/간장한마리_list.png"),
+        ("30146", "간장콤보", "/uploadFiles/TB_ITEM/브랜드_list_15-10-231103.png"),
+        ("38390", "간장순살", "/uploadFiles/TB_ITEM/list-간장순살.png"),
+        ("30083", "간장스틱", "/uploadFiles/TB_ITEM/교촌스틱_list.png"),
+        ("30022", "레드한마리", "/uploadFiles/TB_ITEM/레드한마리_list.png"),
+        ("30030", "레드콤보", "/uploadFiles/TB_ITEM/브랜드_list_15-10-231098.png"),
+        ("38391", "레드순살", "/uploadFiles/TB_ITEM/list-레드순살.png"),
+        ("30018", "레드스틱", "/uploadFiles/TB_ITEM/레드스틱_list(0).png"),
+        ("30100", "반반한마리[간장+레드]", "/uploadFiles/TB_ITEM/반반한마리_list(3).png"),
+        ("41137", "반반한마리[마라레드+허니갈릭]", "/uploadFiles/TB_ITEM/NEW_반반한마리(마라레드+허니갈릭).png"),
+        ("41134", "반반한마리[레드+허니갈릭]", "/uploadFiles/TB_ITEM/NEW_반반한마리(레드+허니갈릭).png"),
+        ("41133", "반반한마리[간장+허니갈릭]", "/uploadFiles/TB_ITEM/NEW_반반한마리(간장+허니갈릭).png"),
+        ("41135", "반반한마리[간장+마라레드]", "/uploadFiles/TB_ITEM/list_간장_마라레드.png"),
+        ("41136", "반반한마리[레드+마라레드]", "/uploadFiles/TB_ITEM/list_레드_마라레드.png"),
+        ("30150", "반반콤보[간장+레드]", "/uploadFiles/TB_ITEM/브랜드_list_15-10-231107.png"),
+        ("38392", "반반순살[간장+레드]", "/uploadFiles/TB_ITEM/list-반반순살_(간장+레드).png"),
+        ("30086", "반반스틱[간장+레드]", "/uploadFiles/TB_ITEM/반반스틱_list.png"),
+        ("38414", "반반순살[레드+허니]", "/uploadFiles/TB_ITEM/list-반반순살(레드+허니).png"),
+        ("39270", "살살후라이드", "/uploadFiles/TB_ITEM/브랜드_list_15-10-221035.png"),
+        ("39271", "파채소이살살", "/uploadFiles/TB_ITEM/브랜드_list_15-10-221025.png"),
+        ("30148", "간장콤보[S]", "/uploadFiles/TB_ITEM/30148_교촌콤보s_list.png"),
+        ("38393", "간장순살[S]", "/uploadFiles/TB_ITEM/38393_교촌순살s_list.png"),
+        ("30084", "간장스틱[S]", "/uploadFiles/TB_ITEM/30084_교촌스틱s_list.png"),
+        ("30032", "레드콤보[S]", "/uploadFiles/TB_ITEM/레드콤보[S]_list.png"),
+        ("38394", "레드순살[S]", "/uploadFiles/TB_ITEM/38394_레드순살s_list.png"),
+        ("30020", "레드스틱[S]", "/uploadFiles/TB_ITEM/30020_레드스틱s_list.png"),
+        ("38055", "허니순살[S]", "/uploadFiles/TB_ITEM/허니순살s_list-(3).png"),
+    ]
+
+    return [
+        Menu(
+            id=f"menu-kyochon-official-{menu_id}",
+            brand_id="brand-kyochon",
+            name=name,
+            image_url=f"https://www.kyochon.com{image_path}",
+            category=_classify_kyochon_category(name),
+        )
+        for menu_id, name, image_path in rows
+    ]
+
+
+def _migrate_legacy_bbq_fried_menu(db: Session):
+    legacy_menu_id = "menu-bbq-fried"
+    canonical_menu_id = "menu-bbq-hwanggeum-olive-fried"
+    canonical_menu_name = "황금올리브치킨"
+    canonical_image_url = (
+        "https://static.bbqorder.co.kr/menu/"
+        "be246fc85975bcc13819c8184_ffa589a9-da4b-42dd-a04d-91dcfca7b74e.png"
+    )
+
+    canonical_menu = db.get(Menu, canonical_menu_id)
+    legacy_menu = db.get(Menu, legacy_menu_id)
+    if canonical_menu is None:
+        return
+
+    canonical_menu.name = canonical_menu_name
+    canonical_menu.image_url = canonical_image_url
+    canonical_menu.category = "후라이드"
+
+    if legacy_menu is None:
+        return
+
+    db.query(Review).filter(Review.menu_id == legacy_menu_id).update(
+        {Review.menu_id: canonical_menu_id},
+        synchronize_session=False,
+    )
+    db.query(BrandMenuAggregate).filter(
+        BrandMenuAggregate.menu_id == legacy_menu_id
+    ).update(
+        {BrandMenuAggregate.menu_id: canonical_menu_id},
+        synchronize_session=False,
+    )
+    db.delete(legacy_menu)
+
+
+def seed_if_empty(db: Session):
+    # 기준 데이터(브랜드/메뉴)는 없는 항목만 추가한다.
+    # 샘플 지점/집계/리뷰는 삽입하지 않는다.
+
+    brands = [
+        Brand(
+            id="brand-bbq",
+            name="BBQ",
+            logo_url="https://lh3.googleusercontent.com/aida-public/AB6AXuBm0bsKt3eeVGTfif4RUC_jbzMu3Q1sSDJQR_6HGfBPCmr0tm7C2x5pnZofeHeH8-BLGs5vpsvj9AbK4ly09yPDhCHAb5_bN4gvIYrbSFoKOxZSxjnB2-8DbNy_Xa6NK0FyMLwrE11wnQR1MwUePJvyIYvAYs08QfkiFCDJB4TJxB8DtL9ipETT73Nz81Xq7HlfIRsVZTb0kC-ZKxqr__93UfbFOnaXS9RBOdtssynznB4EqP7-b59OpCHyLoPBfoL-VMv3GqvZ3s4g",
+        ),
+        Brand(
+            id="brand-bhc",
+            name="BHC",
+            logo_url="https://lh3.googleusercontent.com/aida-public/AB6AXuB--TzmdRa1Qk4TLud9vdw3ttfoNDA9jvmqrRpZXMl-M0mBqUfhmK6oBUSJpnCTtUPXv7WZ2BdqhbKOiygM8XLK3yrh-Z4uSEs_32zrUiY5HiEJkV3gjrqnP4YC7PW-27BnB04EDputzwhqqZNU-DySujvbVtNEWIYiCStiqqrHAiA8PPGCO7oVlXcoWouI8GZKZxAwcKO-MkM2mtWE30IlddqmQPZ4lsrodTZns7v2g7DhxtYJtJXkb9mqdseRu_8bgJtm1GGsShUr",
+        ),
+        Brand(
+            id="brand-kyochon",
+            name="교촌",
+            logo_url="https://lh3.googleusercontent.com/aida-public/AB6AXuBUSMKs4gekdXjZzAzJqvZ9uyDG474nIQ2TK--TwGGWuig7P8a9nCjsX7BIDQaDkwrxlBjjxqpWMqGI8Dy83umlmAjIfAJMGc-TqN0Qx_st--DtzKGlukUYJKInbIpBOHLyAIZ79Ag8LFUbuEjeVP3aD51E8R0_VPDfRBDZpJ6lNUwWacrcpFAzjlQ-g-wUv_v3XbOwj7R7wGcTNyexV0Wmeri6Bjq_xzX1GffPjNc7EcSe2nfS9POGiA8lXkNQH3O78Cpj_u9Qrucq",
+        ),
+        Brand(id="brand-goobne", name="굽네치킨", logo_url=""),
+        Brand(id="brand-nene", name="네네치킨", logo_url=""),
+        Brand(id="brand-cheogatjib", name="처갓집양념치킨", logo_url=""),
+        Brand(id="brand-puradak", name="푸라닭", logo_url=""),
+        Brand(id="brand-60gye", name="60계치킨", logo_url=""),
+        Brand(id="brand-norang", name="노랑통닭", logo_url=""),
+        Brand(id="brand-jadam", name="자담치킨", logo_url=""),
+        Brand(id="brand-pericana", name="페리카나", logo_url=""),
+        Brand(id="brand-toreore", name="또래오래", logo_url=""),
+        Brand(id="brand-hosigi", name="호식이두마리치킨", logo_url=""),
+        Brand(id="brand-mexicana", name="멕시카나", logo_url=""),
+        Brand(id="brand-kkanbu", name="깐부치킨", logo_url=""),
+        Brand(id="brand-kfc", name="KFC", logo_url=""),
+        Brand(id="brand-gamtangyesucbulcikin", name="감탄계숯불치킨", logo_url=""),
+        Brand(id="brand-gastwiginhuraideu", name="갓튀긴후라이드", logo_url=""),
+        Brand(id="brand-gudorotongdalg", name="구도로통닭", logo_url=""),
+        Brand(id="brand-gugminmaneulcikin", name="국민마늘치킨", logo_url=""),
+        Brand(id="brand-geumdongidumaricikin", name="금동이두마리치킨", logo_url=""),
+        Brand(id="brand-gimsasgastongdalg", name="김삿갓통닭", logo_url=""),
+        Brand(id="brand-gimsunrye-sunsalcikingangjeong", name="김순례 순살치킨강정", logo_url=""),
+        Brand(id="brand-gimjonggusigmascikin-jeongibabekyu-yesnaltongdalg", name="김종구식맛치킨· 전기바베큐 옛날통닭", logo_url=""),
+        Brand(id="brand-gimjongyongnurungjitongdalg", name="김종용누룽지통닭", logo_url=""),
+        Brand(id="brand-ggeoguricikin", name="꺼구리치킨", logo_url=""),
+        Brand(id="brand-ggubeuraggosucbuldumaricikin", name="꾸브라꼬숯불두마리치킨", logo_url=""),
+        Brand(id="brand-naega-joseonyi-cikinigo-maegjuda", name="내가 조선의 치킨이고 맥주다", logo_url=""),
+        Brand(id="brand-nugunaholddagbanhandalg", name="누구나홀딱반한닭", logo_url=""),
+        Brand(id="brand-dasarang", name="다사랑", logo_url=""),
+        Brand(id="brand-dalgjangsuhuraideuhe", name="닭장수후라이드和", logo_url=""),
+        Brand(id="brand-didicikin", name="디디치킨", logo_url=""),
+        Brand(id="brand-ddangddangcikin", name="땅땅치킨", logo_url=""),
+        Brand(id="brand-ddobongitongdalg", name="또봉이통닭", logo_url=""),
+        Brand(id="brand-mapacikin", name="마파치킨", logo_url=""),
+        Brand(id="brand-mannyeondalggangjeong", name="만년닭강정", logo_url=""),
+        Brand(id="brand-mamseuteoci", name="맘스터치", logo_url=""),
+        Brand(id="brand-masdalgggo", name="맛닭꼬", logo_url=""),
+        Brand(id="brand-megsikancikin", name="멕시칸치킨", logo_url=""),
+        Brand(id="brand-mubwassnacondalg", name="무봤나촌닭", logo_url=""),
+        Brand(id="brand-bareuncikin", name="바른치킨", logo_url=""),
+        Brand(id="brand-babihu", name="바비후", logo_url=""),
+        Brand(id="brand-bueocikin", name="부어치킨", logo_url=""),
+        Brand(id="brand-buladeo-sucbulbabekyu", name="불아더 숯불바베큐", logo_url=""),
+        Brand(id="brand-sujjimdalg", name="수찜닭", logo_url=""),
+        Brand(id="brand-sunsalmangonggyeog", name="순살만공격", logo_url=""),
+        Brand(id="brand-sunsucikin", name="순수치킨", logo_url=""),
+        Brand(id="brand-ssangdungisucbuldumaricikin", name="쌍둥이숯불두마리치킨", logo_url=""),
+        Brand(id="brand-ausdalg", name="아웃닭", logo_url=""),
+        Brand(id="brand-ajukeo", name="아주커", logo_url=""),
+        Brand(id="brand-egeupapa", name="에그파파", logo_url=""),
+        Brand(id="brand-yeongdotongdalg", name="영도통닭", logo_url=""),
+        Brand(id="brand-obeunmaru", name="오븐마루", logo_url=""),
+        Brand(id="brand-obeunebbajindalg", name="오븐에빠진닭", logo_url=""),
+        Brand(id="brand-wangangjeong", name="완강정", logo_url=""),
+        Brand(id="brand-weldeomcikin", name="웰덤치킨", logo_url=""),
+        Brand(id="brand-inadalggangjeong", name="이나닭강정", logo_url=""),
+        Brand(id="brand-insaengcikin", name="인생치킨", logo_url=""),
+        Brand(id="brand-jiraldalgbal", name="지랄닭발", logo_url=""),
+        Brand(id="brand-jikoba", name="지코바", logo_url=""),
+        Brand(id="brand-jingangjeong", name="진강정", logo_url=""),
+        Brand(id="brand-jjangdalgcikin", name="짱닭치킨", logo_url=""),
+        Brand(id="brand-jjiunginesucbuldumaricikin", name="찌웅이네숯불두마리치킨", logo_url=""),
+        Brand(id="brand-ceogasjibpeulreoseukeijuncikin", name="처갓집플러스케이준치킨", logo_url=""),
+        Brand(id="brand-ceongnyeoncikin", name="청년치킨", logo_url=""),
+        Brand(id="brand-cireucireu", name="치르치르", logo_url=""),
+        Brand(id="brand-cimaegking", name="치맥킹", logo_url=""),
+        Brand(id="brand-cikinbaengi", name="치킨뱅이", logo_url=""),
+        Brand(id="brand-cikinseonsaeng", name="치킨선생", logo_url=""),
+        Brand(id="brand-cikinpameoseu", name="치킨파머스", logo_url=""),
+        Brand(id="brand-cilcilkenteoki", name="칠칠켄터키", logo_url=""),
+        Brand(id="brand-keunson1cikin2pija", name="큰손1치킨2피자", logo_url=""),
+        Brand(id="brand-tugaijeu-two-guys", name="투가이즈(TWO GUYS)", logo_url=""),
+        Brand(id="brand-peurangkinsucbulyangnyeomguicikin", name="프랑킨숯불양념구이치킨", logo_url=""),
+        Brand(id="brand-heodaegu-daegutongdalg", name="허대구 대구통닭", logo_url=""),
+        Brand(id="brand-hocikin", name="호치킨", logo_url=""),
+        Brand(id="brand-hwaragbabekyucikin", name="화락바베큐치킨", logo_url=""),
+        Brand(id="brand-hulralra", name="훌랄라", logo_url=""),
+
+    ]
+
+    default_menu_image = (
+        "https://lh3.googleusercontent.com/aida-public/AB6AXuCtHrpl_kdq1gxVSLR2xSgNEmvlM4PR0EMePlGa98ORm0cYIuXKHgr5ah2fnTQw9vGrx3WUjZWbYgqF-9htTsb_TkYd6V5h8F_HEe3Ef6IdcEe4VMk09rZOesy4DUjG3KEfopa0LrjFh2KgJgV27w4zC996dMPodcIszG49jIIXE-tvc6BKRfLZDHARlrl9ayQno11dAdFFdqeGByFQHiPlw2Zy2XZucbsN0w9mDQ_rWSMMJUXmGoHj4paV1636i0m4i21dq7kSraPY"
+    )
+
+    menus = [
+        Menu(
+            id="menu-bbq-hwanggeum-olive-fried",
+            brand_id="brand-bbq",
+            name="황금올리브치킨",
+            image_url="https://static.bbqorder.co.kr/menu/be246fc85975bcc13819c8184_ffa589a9-da4b-42dd-a04d-91dcfca7b74e.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-bhc-bburinkle",
+            brand_id="brand-bhc",
+            name="뿌링클",
+            image_url="https://lh3.googleusercontent.com/aida-public/AB6AXuCtS7WTy2RwhOpC0qrl1BeoOUrMj9rgj5H39CzVFDi8ldRRx7Gc26KTYB6WlEEZk3YIS96CHYZdRMAlbhU772u-maFdVSYkPx-fpPrfV0p0Mes0P4kZxqWUc57XhQWqbRHStJsH_jIiwdISti6wCm4PEha1qi3yK5ZsaTsua8wYsb7g1N8N13DFKv-ToeSwljfwyvq1sl5M6jNf9qDu6BSevE-QzGImEoHItshw6N22ROC5tO5xJqpnz_Ax99gYGyj2X6eBFYR8BgaQ",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-honey",
+            brand_id="brand-kyochon",
+            name="허니콤보",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/교촌-허니-콤보(1).png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-bbq-jamaica",
+            brand_id="brand-bbq",
+            name="자메이카 통다리",
+            image_url="https://lh3.googleusercontent.com/aida-public/AB6AXuCtHrpl_kdq1gxVSLR2xSgNEmvlM4PR0EMePlGa98ORm0cYIuXKHgr5ah2fnTQw9vGrx3WUjZWbYgqF-9htTsb_TkYd6V5h8F_HEe3Ef6IdcEe4VMk09rZOesy4DUjG3KEfopa0LrjFh2KgJgV27w4zC996dMPodcIszG49jIIXE-tvc6BKRfLZDHARlrl9ayQno11dAdFFdqeGByFQHiPlw2Zy2XZucbsN0w9mDQ_rWSMMJUXmGoHj4paV1636i0m4i21dq7kSraPY",
+            category="구이",
+        ),
+        Menu(
+            id="menu-kyochon-redcombo",
+            brand_id="brand-kyochon",
+            name="레드콤보",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/브랜드_list_15-10-231098.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-original",
+            brand_id="brand-kyochon",
+            name="교촌오리지날",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/list_후라이드한마리.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-kyochon-honey-garlic-whole",
+            brand_id="brand-kyochon",
+            name="허니갈릭한마리",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/NEW_허니갈릭한마리.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-mara-red-whole",
+            brand_id="brand-kyochon",
+            name="마라레드한마리",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/list-마라레드.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-honey-garlic-wing-box",
+            brand_id="brand-kyochon",
+            name="허니갈릭윙박스",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/허니갈릭윙박스_list.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-mara-red-wing-box",
+            brand_id="brand-kyochon",
+            name="마라레드윙박스",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/list_마라레드윙박스.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-soy-wing-box",
+            brand_id="brand-kyochon",
+            name="간장윙박스",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/list_간장윙박스.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-kyochon-red-wing-box",
+            brand_id="brand-kyochon",
+            name="레드윙박스",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/lsti_레드윙박스.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-honey-wing-box",
+            brand_id="brand-kyochon",
+            name="허니윙박스",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/list-허니윙(3).png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-fried-wing-box",
+            brand_id="brand-kyochon",
+            name="후라이드윙박스",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/list-후라이드윙(3).png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-kyochon-seasoned-wing-box",
+            brand_id="brand-kyochon",
+            name="양념치킨윙박스",
+            image_url="https://www.kyochon.com/uploadFiles/TB_ITEM/list_양념치킨윙.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-goobne-gochubasa",
+            brand_id="brand-goobne",
+            name="고추바사삭",
+            image_url=default_menu_image,
+            category="구이",
+        ),
+        Menu(
+            id="menu-goobne-volcano",
+            brand_id="brand-goobne",
+            name="볼케이노",
+            image_url=default_menu_image,
+            category="구이",
+        ),
+        Menu(
+            id="menu-goobne-original",
+            brand_id="brand-goobne",
+            name="오리지널",
+            image_url=default_menu_image,
+            category="구이",
+        ),
+        Menu(
+            id="menu-nene-snowwing",
+            brand_id="brand-nene",
+            name="스노윙치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-nene-shockinghot",
+            brand_id="brand-nene",
+            name="쇼킹핫치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-nene-fried",
+            brand_id="brand-nene",
+            name="후라이드치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-cheogatjib-supreme",
+            brand_id="brand-cheogatjib",
+            name="슈프림양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-cheogatjib-fried",
+            brand_id="brand-cheogatjib",
+            name="후라이드치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-cheogatjib-seasoned",
+            brand_id="brand-cheogatjib",
+            name="양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-puradak-blackalio",
+            brand_id="brand-puradak",
+            name="블랙알리오",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-puradak-gotchumayo",
+            brand_id="brand-puradak",
+            name="고추마요치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-puradak-blackalio-boneless",
+            brand_id="brand-puradak",
+            name="순살블랙알리오",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-60gye-gochu",
+            brand_id="brand-60gye",
+            name="고추치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-60gye-tiger",
+            brand_id="brand-60gye",
+            name="호랑이치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-60gye-crunch",
+            brand_id="brand-60gye",
+            name="크크크치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-norang-fried",
+            brand_id="brand-norang",
+            name="노랑후라이드",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-norang-garlic",
+            brand_id="brand-norang",
+            name="알싸한마늘치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-norang-kkanpung",
+            brand_id="brand-norang",
+            name="깐풍치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-jadam-mapsyullang",
+            brand_id="brand-jadam",
+            name="맵슐랭치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-jadam-fried",
+            brand_id="brand-jadam",
+            name="후라이드치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-jadam-seasoned",
+            brand_id="brand-jadam",
+            name="양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-pericana-seasoned",
+            brand_id="brand-pericana",
+            name="페리카나양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-pericana-fried",
+            brand_id="brand-pericana",
+            name="후라이드치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-pericana-halfhalf",
+            brand_id="brand-pericana",
+            name="반반치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-toreore-garlic-hot-half",
+            brand_id="brand-toreore",
+            name="갈릭반핫양념반",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-toreore-o-gok",
+            brand_id="brand-toreore",
+            name="오곡후라이드",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-toreore-hot-seasoned",
+            brand_id="brand-toreore",
+            name="핫양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-hosigi-fried",
+            brand_id="brand-hosigi",
+            name="후라이드치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-hosigi-seasoned",
+            brand_id="brand-hosigi",
+            name="양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-hosigi-soy",
+            brand_id="brand-hosigi",
+            name="간장치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-mexicana-fried",
+            brand_id="brand-mexicana",
+            name="후라이드치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-mexicana-seasoned",
+            brand_id="brand-mexicana",
+            name="양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-mexicana-spicy-seasoned",
+            brand_id="brand-mexicana",
+            name="매운양념치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-kkanbu-crispy",
+            brand_id="brand-kkanbu",
+            name="크리스피치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-kkanbu-garlic-soy",
+            brand_id="brand-kkanbu",
+            name="마늘간장치킨",
+            image_url=default_menu_image,
+            category="양념",
+        ),
+        Menu(
+            id="menu-kkanbu-boneless",
+            brand_id="brand-kkanbu",
+            name="순살치킨",
+            image_url=default_menu_image,
+            category="후라이드",
+        ),
+    ]
+
+    rtf_seed_menus = [
+        Menu(
+            id="menu-jadam-menu-70d7cb98",
+            brand_id="brand-jadam",
+            name="맵슐랭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ia9Ci49NNDyIwyJ574HI8GoKlQUIRDxa0GsvRPTQ.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-hot-56d27eac",
+            brand_id="brand-bhc",
+            name="HOT후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/witcoTs1tyPgLpBKCBv2if5HHmXFSXcqMd6hkU6d.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-goobne-menu-40e34188",
+            brand_id="brand-goobne",
+            name="오븐바사삭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/5IaHuybeBv6x8g3JMsY8cvVd5pIvzjFs1eQIfxwV.png",
+            category="구이",
+        ),
+        Menu(
+            id="menu-bhc-menu-e003bc27",
+            brand_id="brand-bhc",
+            name="레드킹",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/4GElFF3jAAJQSAJ1iN80BTuUhx82needo7SRDzZF.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-60gye-crunch",
+            brand_id="brand-60gye",
+            name="크크크치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/kkFOSmq69tGheBIXOAN7RkAsXhXf81KpQyn8oviN.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-bhc-bburinkle",
+            brand_id="brand-bhc",
+            name="뿌링클",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/WaTzGWIDEQILPjXddxUFaaO7lsuJeV7PCTYD6XAn.png",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-goobne-gochubasa",
+            brand_id="brand-goobne",
+            name="고추바사삭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/9NA7hlKS8GmW0l2m0DfAlwdtAt139arVMPs78l3H.png",
+            category="구이",
+        ),
+        Menu(
+            id="menu-kyochon-menu-6a4af5a0",
+            brand_id="brand-kyochon",
+            name="레드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/LNOpUTRjdPnviZSPPSBV04HjJVc9qcnIFacimJSs.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-9fec59d8",
+            brand_id="brand-puradak",
+            name="블랙마요",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/jtbAcL1uRQnK5UsXBzFUQPQCk2zrIOHnE2NvqDFQ.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-gotchumayo",
+            brand_id="brand-puradak",
+            name="고추마요 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/5ujZIh7OcbfqhIy4bNUSaL6BRi9ME7khRQ1LIGcB.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-goobne-original",
+            brand_id="brand-goobne",
+            name="오리지널",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/3duYMpIf1uyAa90Jj7DJTSpJM79PImigckY1vaEl.png",
+            category="구이",
+        ),
+        Menu(
+            id="menu-goobne-volcano",
+            brand_id="brand-goobne",
+            name="볼케이노",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/OnXC2tLOB6lQ6JRZXEhgwlxOo4giHV2BOztu6EKA.png",
+            category="구이",
+        ),
+        Menu(
+            id="menu-bbq-menu-b817f034",
+            brand_id="brand-bbq",
+            name="핫황금올리브치킨 크리스피",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Uc09gWRVCITcsIwk0KytY7cNMKHaVSQn6b4M2RgV.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-supreme",
+            brand_id="brand-cheogatjib",
+            name="슈프림 양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ytPDtAkYj7fHhPqbdNq9PIbQx30g9H9H1hjbtDt4.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-pericana-menu-c4343df5",
+            brand_id="brand-pericana",
+            name="양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Qx9Z2EosJ8imdqN3IF0FGdaFdeQHvFsSnXvkevBN.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-puradak-blackalio",
+            brand_id="brand-puradak",
+            name="블랙알리오",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/9cx7PcJ2gAuH2FOvBWQFowhYIrBmEUvuBlmLSpEO.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kfc-menu-27e942b8",
+            brand_id="brand-kfc",
+            name="핫크리스피치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/L7uaED6EeQ72ZNbvnAylScBVvR4gv0G7CpuSUD96.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-kyochon-menu-0dfbd4a6",
+            brand_id="brand-kyochon",
+            name="허니",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/CK8J04nQHUose2nt1u0913erwklf8yKmYMKJN57Z.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-60gye-tiger",
+            brand_id="brand-60gye",
+            name="호랑이치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/CEm2531pdF1ODoNMzjjgFzAeRY5ReBL5OjPff7ii.png",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-60gye-menu-b85d7236",
+            brand_id="brand-60gye",
+            name="후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/jTdmEV70mncrLxOTYho9zdZjzXpAIoAa5AOYtKSx.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-bbq-menu-b0d284d6",
+            brand_id="brand-bbq",
+            name="자메이카 통다리구이",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/UG9vSAZiG6I8TJGoJJ6RHg3taV65EHguWAnEQX6A.png",
+            category="구이",
+        ),
+        Menu(
+            id="menu-bhc-menu-c94ab568",
+            brand_id="brand-bhc",
+            name="맛초킹",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/18OSsEnIj6DUQKnlxQco4XthrwIIhOtWTaKADsy1.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-f3a546bc",
+            brand_id="brand-cheogatjib",
+            name="치즈슈프림 양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ENg2Cg1iUIzwAVNUDceP9fg6BkIealLihNqxnukj.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-b1b3bbf6",
+            brand_id="brand-obeunebbajindalg",
+            name="애간장녹는닭 빠네",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/QKn8XBCbtcLFGmGDdoWAtxhahGzzT2Dty5yLWSjY.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-puradak-menu-9ed687dc",
+            brand_id="brand-puradak",
+            name="콘소메이징",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/bi2b0XNyxGH5mDqwN9UuLgNrOW1DblP27IVy4yNf.png",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-jikoba-menu-33864af2",
+            brand_id="brand-jikoba",
+            name="양념구이",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/IuYFjHAFfqke1ANzIxt6JpUyOTlDai8M18ALxgAE.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-hosigi-menu-a0853529",
+            brand_id="brand-hosigi",
+            name="매운간장치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/sWRXyDaaVKqGQqvF6Laas6Wj2r5AiqmJ9RQCnoRc.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-goobne-menu-b88c4667",
+            brand_id="brand-goobne",
+            name="양념히어로",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/PUSgUm8lTHzN4lTSXHsvgQmBU8ejgmE2D5koxdmK.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-60gye-menu-51ecdffa",
+            brand_id="brand-60gye",
+            name="간지치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/DWOecIChRyiB0abjgjb9Vpszq6T827g8WBaNoaLw.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-c6092c7c",
+            brand_id="brand-cheogatjib",
+            name="트러플 슈프림 양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/VoDEDhfVLowMxVDzZeOG79owSarGsSkm0196vqes.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-menu-4a36d225",
+            brand_id="brand-kyochon",
+            name="리얼후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/fBYyPFjUh4FhSATsUXbNNHLC6oqphDJMD9A4JMZv.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-puradak-menu-437707e2",
+            brand_id="brand-puradak",
+            name="씬 후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/klwa65pvAeb1zUwJuVJFeReI7czXBZnVqNWcPbRS.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-norang-menu-d52fd1bf",
+            brand_id="brand-norang",
+            name="맵싸한 고추 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ATIP3mKMqHET7dutQTuR7rJ0aolFGMUBi8jb7vXH.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-goobne-menu-ac26b66d",
+            brand_id="brand-goobne",
+            name="마라 고추 바사삭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/lPlHntQ1F3KAjoc2GoHesoOXYws6iuSzTDZshEIz.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-menu-a7eecc96",
+            brand_id="brand-jadam",
+            name="소보로치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/naWh1HLYhDPze3Cdgn1FOA8UlVr1HgewGHgFSVGv.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-a13c6ac1",
+            brand_id="brand-puradak",
+            name="매드갈릭 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/vwnqDRodsvlE3eBnp92tLRISVxTdDnNsW7N0kkFb.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-994ee8cb",
+            brand_id="brand-kkanbu",
+            name="빠삭커리네치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/z64hs2LiBmMFvHqq9fGFNpUCNiTk0ijZRgBOMj7p.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-1e442bc0",
+            brand_id="brand-cheogatjib",
+            name="슈프림양념치킨 블랙라벨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/J8oN7FK7nefkddJCezv0zkomdIsr0h2q6IUQWe4k.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-pericana-menu-70ad5eef",
+            brand_id="brand-pericana",
+            name="핫데블치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ZZeiLxRffHkLgQwUhI0RO9F1QNSVIOYtpBrEyOHG.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-7417e2f2",
+            brand_id="brand-puradak",
+            name="마불로 악마",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/sJxpgBkbuDoJSd55MlG7sMC406Wl7YBLSkxxAp59.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-e7e033e1",
+            brand_id="brand-puradak",
+            name="김미바삭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/MdxE0bj4DnLT7Rg5R1XLiSws01vzq1zKw9RnsxjV.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-hosigi-menu-6d12e665",
+            brand_id="brand-hosigi",
+            name="수라깐풍치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/MoLlfsEZq7nEL3rcBEfxEaQeDhRvtupaPZ3j03Gp.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-985a4ff8",
+            brand_id="brand-puradak",
+            name="투움바 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/PJdtkem9toO3uVm2PlZZGKriQGSYbcxkD5naa7Ps.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-af87ca72",
+            brand_id="brand-puradak",
+            name="치즈인이유",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/QPsAjDr3iQjbZT1efh3GmElSrVhj04zSipjIJLGq.png",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-60gye-menu-cc3881d2",
+            brand_id="brand-60gye",
+            name="짜장계란치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/DbOo0YWmiv3PdAzeH9F3mxNTTnu3pYAoTFp88MTj.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-goobne-menu-edf04936",
+            brand_id="brand-goobne",
+            name="폭립",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/xQtrQpAq4DbjkdfezqzP7kaW3gdby13CTH7MKDCo.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-60gye-gochu",
+            brand_id="brand-60gye",
+            name="고추치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/mLLY6Adh0D5gMKdvsjJ67BUm69nY8b12h49SUo0s.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-kyochon-menu-a0f91294",
+            brand_id="brand-kyochon",
+            name="살살후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/l3r9H61HxdKnA0r9ZIURAcqiU9He7UWqxJqYJhe9.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-9e2b5c1c",
+            brand_id="brand-cheogatjib",
+            name="슈프림골드 양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/bDsC8aUVr82ppk4sRowB8YAnMJ5p5DuH9ZypFMw3.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-60gye-menu-edbe8550",
+            brand_id="brand-60gye",
+            name="하하핫치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/6xDED3UbAm08pBzFJQnq9bC6iL8q03Zx2AYQTTh2.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-2887da95",
+            brand_id="brand-nene",
+            name="어니언스노윙",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/YWYvFNVeGi4u4G6qiGSiqh6KGaA7CEJSIbr2NRaN.jpg",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-60gye-6-f455e446",
+            brand_id="brand-60gye",
+            name="6초치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/W27pj11K5IZKidU7qQZQ7rDqM1ERZRoGWG2BGnPu.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-menu-ba2519c9",
+            brand_id="brand-bhc",
+            name="하바네로 포테킹 후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/btMhA8Pzq8RXjRlROJmjkDezFZECVfC0AyWxeqEy.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-cheogatjib-xo-7ecee883",
+            brand_id="brand-cheogatjib",
+            name="XO양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/mGCMyDMVkj3Tj3S0hytRqq5HPF45gVfxSyiJBSI1.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-172674ab",
+            brand_id="brand-obeunebbajindalg",
+            name="애간장녹는닭 오리지널",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/atDV3swck17pIUqBdvjfPjOm2aRpLbydD5Oewlf6.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-6075ab6c",
+            brand_id="brand-obeunebbajindalg",
+            name="꼴까닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/m5UAY6wzFQhvTI10T5cvKwugvuug9V7K6ViywJCC.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-159e3abc",
+            brand_id="brand-obeunebbajindalg",
+            name="간즈앙치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/BBejxMLwLZqU2zSiJFTydUXgA4DQ9Pgh2q5C9Laa.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-99b24c7f",
+            brand_id="brand-nene",
+            name="크리미언치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/lK33TczaepC5liD1hDYZ3PaiuzOZ8Kbd0ZO6NOBk.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-9030375f",
+            brand_id="brand-puradak",
+            name="바질페스타",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/sLXHm1zEkrK3CwyeIKz0AOjOTFQESSmjZrlYW85y.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-goobne-menu-e1a7ecc2",
+            brand_id="brand-goobne",
+            name="불금치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/xvMZXU94jWQpiSfZw8axNy5yvIXtqDLZLHmjt1qc.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-mexicana-menu-52cee4b0",
+            brand_id="brand-mexicana",
+            name="치필링",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/8dJWZov4PEDVj8tmym5JxGFRGefNQ27Pd8V7FK7d.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-hosigi-menu-ce16fb8f",
+            brand_id="brand-hosigi",
+            name="스윗츠갈릭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/m13M6Tc7w0DLBbxDEFVaA7DYpQtD9lcFUYiZUKkc.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-ddangddangcikin-menu-47ebbcbc",
+            brand_id="brand-ddangddangcikin",
+            name="매콤찹스",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/mychn4gCzCIbHPQHhuKN0s26Wg1szwQXqUATPK3g.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jjangdalgcikin-menu-e82c2517",
+            brand_id="brand-jjangdalgcikin",
+            name="파닭 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/BRdFKYfqwcq2VIU1dGepdMFCfq4nLbe8I17NN0nh.jpg",
+            category="파닭",
+        ),
+        Menu(
+            id="menu-jjangdalgcikin-menu-240abc93",
+            brand_id="brand-jjangdalgcikin",
+            name="어니언 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/6ksKylcZKou87g89kAW1XJ9Rv4FwHixymTpDmAgd.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-54621134",
+            brand_id="brand-nene",
+            name="오리엔탈파닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/joDyS3bKDCAeyc4X8nZfbGNLyMUhOcBM8mU3WnNN.jpg",
+            category="파닭",
+        ),
+        Menu(
+            id="menu-nugunaholddagbanhandalg-menu-d95a2332",
+            brand_id="brand-nugunaholddagbanhandalg",
+            name="후레쉬쌈닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/6Ame6I6xSz1lzZ24XPAjRD0BBAFUarx56V8QEoEY.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-fried",
+            brand_id="brand-jadam",
+            name="후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/UmQQ6eNx4fm3EzXmR1vOdx2NBSmrDcgvFr3a7C4i.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-mexicana-menu-f58cd080",
+            brand_id="brand-mexicana",
+            name="뿌리새우치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/I8fzakRfDYyXsttwxGkiQ2iQl6Fqi3NWODeY3yOJ.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-73636dcb",
+            brand_id="brand-mamseuteoci",
+            name="치즈뿌치(체다)",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/VT1PlmcS0SaszqrWQlETA5xv2hdJeDl10kOmhSKB.png",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-pericana-menu-2ff346aa",
+            brand_id="brand-pericana",
+            name="후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/QRvuCJ2uB22xkfcBItbJmQeHfBztZOcMYOE10UIV.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-goobne-menu-328dc5f6",
+            brand_id="brand-goobne",
+            name="남해마늘바사삭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/AJTP8nxnvCefwn537KXccyFEifNZLLAuOhXIAAFY.png",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-a2026a4e",
+            brand_id="brand-kkanbu",
+            name="버버치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ILvAcHa2OddOxOO6w7s4RPVAgx25M7PZQZ2JR9xv.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jikoba-menu-470019c9",
+            brand_id="brand-jikoba",
+            name="소금구이",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Jh8r9oF5SkNKwedxBdBRZu4HKJ2G1papumaLH0TD.jpg",
+            category="구이",
+        ),
+        Menu(
+            id="menu-bbq-menu-780b0c19",
+            brand_id="brand-bbq",
+            name="자메이카 소떡만나치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/oyFYcaNhN3mFexIsfgUh9nwtuupPJwpkdH0mn7VP.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-menu-9296c7b2",
+            brand_id="brand-bhc",
+            name="바삭클",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/1M2Ns5kqSFlTc6GT0BY5IwRcpHkeNjAyKgyKocaW.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-kfc-menu-3b5b3574",
+            brand_id="brand-kfc",
+            name="오리지널치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/cGsNfQNICZxQpsC5udPQ1rkar3a5OngalvSi5LeO.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-toreore-menu-68d30172",
+            brand_id="brand-toreore",
+            name="골드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/JTLeq6kkKEBlEFrvkq06i2w7KAe1huVNmgjrRDan.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-menu-6d0982e4",
+            brand_id="brand-bhc",
+            name="후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ocuXZfD9PB1XY17WySCq98mHQosAMUJNw2MBxfLA.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-norang-menu-c758932b",
+            brand_id="brand-norang",
+            name="칼칼한 청양 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/icVB9SX46o19r9wUD57g4iZIxFTqd9TkL0qigmn3.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-megsikancikin-menu-af24d266",
+            brand_id="brand-megsikancikin",
+            name="매콤강정치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/VBPKEIuhAGUfC9CtgetfBPzT8HArXtA9EBDt13wl.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-ddobongitongdalg-menu-30e739ef",
+            brand_id="brand-ddobongitongdalg",
+            name="또봉이통닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/kTLcR4Byqus5rzj4WEzlDTsimUewpMxKdVWVWXso.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-b14d353b",
+            brand_id="brand-nene",
+            name="핫블링치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/jDnR07rRkkeVUox2kal7HXsrkLCxZ2z1k8fv5zs9.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-menu-3fc1eaef",
+            brand_id="brand-bhc",
+            name="골드킹",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/3wP8jpKLJ9K8x0f1ftJv2Yl5yUe1ElKSScnz6cW0.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-bbq-menu-9d56fa4e",
+            brand_id="brand-bbq",
+            name="극한왕갈비치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/A6SM9ldT5LGVW4R7ad23jjVpLf47kUpYXJsJrtRi.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-menu-f901d09f",
+            brand_id="brand-jadam",
+            name="스리라차치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/2gFy8xCvWO8s8DZITtcPqupIc2IGuhBhZMgbgCzT.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bareuncikin-menu-17c1716e",
+            brand_id="brand-bareuncikin",
+            name="대새레드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/0xyqwix0pYKWHio4u81SEz3SeNPpfbQ2X6eAvG47.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bareuncikin-menu-d0a31e3b",
+            brand_id="brand-bareuncikin",
+            name="레드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/yy3ccEtEgiAi8dAe2aQNtrpNU4uYfcMVp1mGilgB.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bareuncikin-menu-f1086325",
+            brand_id="brand-bareuncikin",
+            name="현미바삭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/DY1Bwd8ULjFp4bEn1KEPIIARikaG7EhMVm9XkQUX.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-mexicana-menu-b2b6a943",
+            brand_id="brand-mexicana",
+            name="치토스치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/DTAgsNJpjr8VG9ZH4YBJBUtR1TKODHUitgZDQ8m7.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-74eacb12",
+            brand_id="brand-obeunebbajindalg",
+            name="오리지널로스트",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/i5qj4OtSmHaNt2UWB0sWs6MxexTDvmO4mKc4yEPh.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-aec61e36",
+            brand_id="brand-puradak",
+            name="제너럴 핫 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/2jyDLvLEoluz56bevhS3ljt9MgnQvZgs0XdWHV9B.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-3a3c727e",
+            brand_id="brand-bbq",
+            name="크런치 순살크래커",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/YNIB4IXfRFVkYV5ZarO80USyON9pOnaOn4kvdaM8.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-55475ee5",
+            brand_id="brand-puradak",
+            name="푸라마불로",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/wFEdSRlrHq2EFSWMIHUwAS2xcU2MwhIgUWshG9PT.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-d6583d30",
+            brand_id="brand-bbq",
+            name="황금올리브치킨 블랙페퍼",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/BydMsICGwdLxeYRdoIphfFWMEQfzhXfKHi41eDnb.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-b66895fd",
+            brand_id="brand-kkanbu",
+            name="깐부통닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/fUamF7UNtzwSySeMPm6b9yKwWtx6slFfTUimhXw9.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-c0f8a828",
+            brand_id="brand-puradak",
+            name="파불로 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/6xDg0s8Fw5vrsWzmQ1EnJgowYco6BB7QuxBk1ML1.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-goobne-menu-aadef135",
+            brand_id="brand-goobne",
+            name="갈비천왕",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/0YPq96br4czqJJbuOoIQWtULe84qQKd4YcSJLEu7.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-db9dd890",
+            brand_id="brand-puradak",
+            name="블랙마불로",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/8LrxLMS6D0qhjihLkQpUtA7k1tGAorgXK0k3eb4j.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-cdc171d0",
+            brand_id="brand-puradak",
+            name="블랙투움바",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Ws9M47ysNm3Wow9CidHUeLEhWDbytOmeneusFVoT.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-puradak-menu-7cf09843",
+            brand_id="brand-puradak",
+            name="달콤양념 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/v2ieNMYTdqmWkHoHBOhTCF3peALYFeEikJfeS7yB.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-pericana-menu-9e4d23da",
+            brand_id="brand-pericana",
+            name="매운후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ikS3WsVFeNe9QVGW0ILOOvNRbNQZpkZmKSZ7zwpQ.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-pericana-menu-f4eeec9d",
+            brand_id="brand-pericana",
+            name="매운양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/nVQLFWJYfSTJAqdqkFx0NLGFyryjYxySskpzeNlX.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-pericana-menu-a2b6c497",
+            brand_id="brand-pericana",
+            name="마늘치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/vJRnftyTnkXZnfJ0uwobJ2WTXgGS8UZ0sVHNSeFk.jpg",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-pericana-menu-55cfe0fa",
+            brand_id="brand-pericana",
+            name="파닭치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Kfc9mFYHUg95i8pO1qjPXgN1o3RfZI70hmSwZsqD.jpg",
+            category="파닭",
+        ),
+        Menu(
+            id="menu-pericana-menu-935e4ccf",
+            brand_id="brand-pericana",
+            name="간장치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/EUbJlUpasc1OHibaWai4nxDSzXzFHwkGfw4ANYry.jpg",
+            category="간장",
+        ),
+        Menu(
+            id="menu-pericana-menu-241ef54f",
+            brand_id="brand-pericana",
+            name="핫칠리치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/syaWPxXI3RcpvBozamrhhehIgzOn6qwoOuF51qbQ.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-pericana-menu-78976531",
+            brand_id="brand-pericana",
+            name="허니콘",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/8d0HMxfHuNh14Q2ccaaXTGsgPojoJuZSMRtrO03N.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-goobne-menu-42155da1",
+            brand_id="brand-goobne",
+            name="맵단짠 칩킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/9GaSC9SidXy6ANSIDaNkRO7eDDYul4TvTv1hCM8v.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-goobne-menu-9718ff9f",
+            brand_id="brand-goobne",
+            name="치즈바사삭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ceICSzX89ijmyZG9p24CtqsZMtWmUaINA8hBAyy2.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-96ccb89c",
+            brand_id="brand-bbq",
+            name="황금올리브치킨™양념",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/sJRLaYl9gKQcuH1RpBU34Hgxs5vK3oZP2xuYPxhm.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-bbq-menu-f8689784",
+            brand_id="brand-bbq",
+            name="바삭갈릭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/bQ0FKs8Y7SkU5NPTLbXOeu0BSaWVUHPBbUBlY3JP.png",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-bbq-menu-82885367",
+            brand_id="brand-bbq",
+            name="단짝갈릭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/uM21xmuMjpQYUMM6VTBSEVD2d6TuqpTiLvXJP05Z.png",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-bbq-menu-203b873c",
+            brand_id="brand-bbq",
+            name="착착갈릭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/2nrSW3Cv2hjNZTjbpHDK1NUKdYgKNozeLZtC468A.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-s-926d6e79",
+            brand_id="brand-bbq",
+            name="파더's치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/0lptEnbmqEsz3kL2lIqzYSBh9r5KkF4kckOgBsMv.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-35b59509",
+            brand_id="brand-bbq",
+            name="황금올리브치킨 레드착착",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/uIIK6dwKtZbBdgiTrmSq0YNdR09jjxR8ChTfhFpb.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-1a36b5c1",
+            brand_id="brand-bbq",
+            name="황금올리브치킨 크런치 버터",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/rG7Vo7khVsZdeSSaxDDPpHhB77Fje9qOkxNdmxYU.png",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-bbq-menu-4d657bbf",
+            brand_id="brand-bbq",
+            name="매운양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/df6eFR9Kfa4bmaMGqwkZM6FE3lOhuNob3k3NChbh.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-bbq-menu-09e5787b",
+            brand_id="brand-bbq",
+            name="황올한 깐풍치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/3iGzUBVgmB5GxACa3MmpkJBtKb5o5ZVvDVdA0SsP.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-55cda1ff",
+            brand_id="brand-bbq",
+            name="소이갈릭스",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/RxNUmIMcd6IavNEL8VmXYml2f72OxaXgY7ltbxHN.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-f1ca7dc1",
+            brand_id="brand-bbq",
+            name="매달구",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/6WaQchfi6eS042pmj7aghq0NiOCUS9bD4crhpI9i.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bbq-menu-3e999955",
+            brand_id="brand-bbq",
+            name="스모크치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Lw4fkaVb77KoCXqSq0FKRzn0L143UxgxBwFAJ27e.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-kyochon-menu-bc905db4",
+            brand_id="brand-kyochon",
+            name="블랙시크릿",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/WUv8dCkVwKYhMiGrskVHCN1jfF4dzvqQsLSyqRvE.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-kyochon-menu-4b26a28b",
+            brand_id="brand-kyochon",
+            name="파채소이살살",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/cwHdTyPWdDMP4E84oJkdY9zVTtSidu1dgWcJWlui.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-menu-21a8a77d",
+            brand_id="brand-bhc",
+            name="마법클",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/rKBgwW3aDOuuBtN6gtyGbEhssGaAAvEw1j5EkDFP.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-menu-26a27dcb",
+            brand_id="brand-bhc",
+            name="더블팝 순살 양념",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/rBG39ybHtJUrOJeW30X0wJqi9AKZ9nEh4iVxjw4u.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-bhc-menu-3d5e5532",
+            brand_id="brand-bhc",
+            name="더블팝 순살 후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/nFNI9p0xe3jjEWAB6XFIICRsgvK26oJF7ltMquPy.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-bhc-menu-95c64ee6",
+            brand_id="brand-bhc",
+            name="고추장 직화구이",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/bLI1HAqcGfT7ZNWlY9dV86vTZbfaSGg5HsTdvJkL.png",
+            category="구이",
+        ),
+        Menu(
+            id="menu-bhc-menu-6dea987f",
+            brand_id="brand-bhc",
+            name="치퐁당 후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/53jneBZlLlP6HJ0JWSb17IY6sQK6YWii2gNRivMC.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-bhc-menu-ffbdb365",
+            brand_id="brand-bhc",
+            name="커리퀸",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/WwvXsLZTYl7F0zHPxO3bs4G4xlwpV5aaLAh5hUzi.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-bhc-menu-17bb32c4",
+            brand_id="brand-bhc",
+            name="포테킹 후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/FjwhozEQBp0bHroKOF9C6bVhMMiuzKB8jhCNAMuw.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-bhc-menu-11051bdc",
+            brand_id="brand-bhc",
+            name="양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Oh33FTRrYT6oMZPLDsCKvDiMudrdfZQPCmIo0rZB.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-nene-menu-eb7a680c",
+            brand_id="brand-nene",
+            name="레드마블치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/tT1syosYjokAlKQOXpiIbAV9PxMu5fCPFBjjrknI.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-adca917d",
+            brand_id="brand-nene",
+            name="코찡마요치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/TWlge1CJxTPc3BwVR3UNS9zMA7YEYkglGykSMOMc.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-2cbe7048",
+            brand_id="brand-nene",
+            name="청양마요치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/Lj6eOI8o9BBn98rM0vAd1IlmuSPb52jtz72tQyJr.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-2e7678a2",
+            brand_id="brand-nene",
+            name="레드마요치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/yAU0xL8PrFyDlxeGtnvX1VbtlhjPTwugWikDIFb6.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-2a38a899",
+            brand_id="brand-nene",
+            name="치즈스노윙",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/5lZFby8yaTNTAKGpJcY0nb10MrczFereNjO9jIfi.jpg",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-nene-menu-81bb81d8",
+            brand_id="brand-nene",
+            name="매콤치즈스노윙",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/zxYrqYub1uA4AoUyHN2vqiErQqjQdifcCMVuMwnv.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-e7a8861d",
+            brand_id="brand-nene",
+            name="소이갈릭치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/f9SuYPGYRQ56TDdWyU78N4BnH2uJEP5HYBWqLYri.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-7b62db9d",
+            brand_id="brand-nene",
+            name="소이크런치윙봉",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/sxdmdJznMUiyLP92Nqivik9B16avJM29QK5HZSKE.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-d14ff027",
+            brand_id="brand-nene",
+            name="후닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/PPRqv8qkmrkezm8wz4ndTDNjzG58heowKjgSD03Q.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-menu-24319be5",
+            brand_id="brand-nene",
+            name="핫후닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/5yHIWUPen3I0aLK2j4Fe1ViY7lEdQL2jI4W3o42D.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-nene-shockinghot",
+            brand_id="brand-nene",
+            name="쇼킹핫치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ASP8yUvZpUCqsZq7Wd2B0DcLurDW95D2twb5TsxQ.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-nene-menu-aad24a65",
+            brand_id="brand-nene",
+            name="네네마늘치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/8WmTuYCa6fPr9Q1jB4CRhvnCw6Py6aJXY0moHUYT.jpg",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-nene-menu-fe90b622",
+            brand_id="brand-nene",
+            name="양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/i75b5Ow9fMwFQ1Q54kK8rKXjyf4VwPldowO0OARJ.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-nene-menu-dde7de42",
+            brand_id="brand-nene",
+            name="네네순살닭강정",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ikbNMZsqkK51ikjuQolfXCu6Vsag7nK7Ljsixl5U.jpg",
+            category="닭강정",
+        ),
+        Menu(
+            id="menu-nene-menu-35a7b5c9",
+            brand_id="brand-nene",
+            name="후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/CuQFOuu4Pnds70L8bRrj6jQpw1bfBIlHWHwaO1up.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-nene-menu-55c30dcf",
+            brand_id="brand-nene",
+            name="핫후라이드",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/lqbZFxLJHZ00OOa3jgW1anlp7MhCFmp5p5NvgLr3.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-norang-menu-5c0ff9f4",
+            brand_id="brand-norang",
+            name="열불라조 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/alGqfuUJQ31dRczMO4RYHD4gnVoHdqSTAWrMpYGY.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-norang-menu-fc5b8bc8",
+            brand_id="brand-norang",
+            name="뿌리노랑 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/R3mvdJvBwF9esvGWZdhmRTA4V0V165B87gA62wml.png",
+            category="시즈닝",
+        ),
+        Menu(
+            id="menu-norang-menu-5c6eeb2e",
+            brand_id="brand-norang",
+            name="바삭 누룽지 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/EgRD1SQ4vu1ySXPIil5baiWADvtd7Bc2VNeOm3fN.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-norang-garlic",
+            brand_id="brand-norang",
+            name="알싸한 마늘 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/mICpnzOZiYGXCfzZHlXW7cggp7it7FAGNKht8uc8.png",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-norang-menu-8547d715",
+            brand_id="brand-norang",
+            name="엄청 큰 후라이드 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ESV0bXAjwHMC4XgPbxJSzeWM4AeZOV2xlzmH9qOA.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-norang-menu-4cc89f3e",
+            brand_id="brand-norang",
+            name="엄청 큰 깐풍 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/x5rabpihDTCzkr2iU1BbjyargjhAMnZKGxk89jDu.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-norang-menu-2d41824a",
+            brand_id="brand-norang",
+            name="엄청 큰 양념 치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/2s3OSIGbFzIUclxgNP4ORjk4tyYsmdFhG6Si5LQ9.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-norang-menu-12caba5f",
+            brand_id="brand-norang",
+            name="웰빙 파닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/r1DgebojhP2AAnuEikhAPazi9SXaMxWrQTERqGq8.png",
+            category="파닭",
+        ),
+        Menu(
+            id="menu-60gye-menu-c2655725",
+            brand_id="brand-60gye",
+            name="양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/wkJNhI7QuFHqdjxWdk7YTt9Vj51uU2f4B5k3eFr7.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-60gye-menu-07ccbf55",
+            brand_id="brand-60gye",
+            name="장스치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/pqbGuoCtT9EeTRrEbjdXenFWmd0sGDB5Wk3M4aPP.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-60gye-menu-d7faf52d",
+            brand_id="brand-60gye",
+            name="더매운고추치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/qDYdQ7tqMCgj67mLSGei8e0mljYORkCA9dlGXtvl.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-af288a7f",
+            brand_id="brand-mamseuteoci",
+            name="꿀간장누룽지치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/wdyXSTUdyeDOVfuKq7vgynjO9UBXdPEFfvX4Ldhs.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-32261dee",
+            brand_id="brand-mamseuteoci",
+            name="간장마늘치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/pr7uqe5Gh2u5zI1Gt5VVQWKOtRl0xQnfjZ4GsXM2.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-38a9bcd9",
+            brand_id="brand-mamseuteoci",
+            name="맘스양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/1YGqeQrrCLoEqYKGZh1rXfJOvvUP22KoBngneOT2.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-8ab47450",
+            brand_id="brand-mamseuteoci",
+            name="후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/1HcxJsBxPVmyHjKrJPQAOsiWSlNI24n4kXv7qzup.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-bc010bad",
+            brand_id="brand-mamseuteoci",
+            name="케이준떡강정",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/fSD1DCPduMaJ174FC7wEMsw4onJB0B6IP3whxWcU.png",
+            category="닭강정",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-65562ddf",
+            brand_id="brand-mamseuteoci",
+            name="간장마늘떡강정",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/tVjGiHkni5LKXSeB7wIv3y4aef8W1iyNYIYQVz5D.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-mamseuteoci-menu-b773a972",
+            brand_id="brand-mamseuteoci",
+            name="치파오떡강정",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/JmjNwjVHLijU2nWKBrtbK45dmJOuS5IgIVTyuPMH.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-100-313578db",
+            brand_id="brand-cheogatjib",
+            name="100% 청양산 고추치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/MLo7EnLU97DNhp7081zZtXlhkpRTWzVUl6h9reKC.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-fried",
+            brand_id="brand-cheogatjib",
+            name="후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/OQJoCFpVok0ZfJxcXMHggmpcaDXNHdJR2N3Wj5o6.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-e22a630e",
+            brand_id="brand-cheogatjib",
+            name="허니올리고당야채 양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/gNZq5QvuGELG2QdO1VV8p9HmJcpDerq5VHHClG9X.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-a4edd69e",
+            brand_id="brand-cheogatjib",
+            name="매운불 양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/2WOJ3LTB1blrmIxJSlf1LZz8Tuc6jmz6qgCqRQcu.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-5d7af5c0",
+            brand_id="brand-cheogatjib",
+            name="핫슈프림 양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/41wdKXdruJ3U69DkZGW9WzE6TvQxwpsSxeQPxPaL.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-90ff2c7c",
+            brand_id="brand-cheogatjib",
+            name="훈제치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/PAUF9dMGnC9zWA08mWIQhEBazCtI5CX0hlK1I2gM.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-2458b565",
+            brand_id="brand-cheogatjib",
+            name="와락치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/CJoE8NROR6msGM6C2tuI0JyuHX2VVDMLdLlSgg78.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-cf0b577c",
+            brand_id="brand-cheogatjib",
+            name="핫불훈제치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/2kbSnZWWJ1aL7tRltgdKZSus53jCo7n8GfX9jejy.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-cheogatjib-menu-d12abbca",
+            brand_id="brand-cheogatjib",
+            name="순살 닭강정",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/oag8H3iD48UBw6XID1qzT44V49EiWbJ0cqK4rw3L.png",
+            category="닭강정",
+        ),
+        Menu(
+            id="menu-jadam-menu-c756dbbc",
+            brand_id="brand-jadam",
+            name="불패치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/CxrIn7AqQT0oB90uXMcJy4oAvvgD9eBvtdSlajPx.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-menu-0c915e99",
+            brand_id="brand-jadam",
+            name="생그라나치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/KBHOdkqde8U7XOczd4ssghb1nnpTi3AnQ3lcO6Qq.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-menu-1a681bf7",
+            brand_id="brand-jadam",
+            name="치요링치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/dV0TppoBNvYspH9qI8gamMTVlk4VeymXaO7fLpJT.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-menu-3c1c021e",
+            brand_id="brand-jadam",
+            name="맵소이닭치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/kVVgJ2rfV4BNLXDjs0NzhhfZl5ODZGK41US9NA50.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-menu-bf1a9229",
+            brand_id="brand-jadam",
+            name="크리미양파치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/oBRa3MK40AMKdNLXjVz1hOOnGN7E8EsAydReFY1C.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-jadam-seasoned",
+            brand_id="brand-jadam",
+            name="양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/TqLUPWPD2wITc7o8H3HrVIMmkzLwz6t0SdtCDxRI.jpg",
+            category="양념",
+        ),
+        Menu(
+            id="menu-jadam-menu-98a7f7bc",
+            brand_id="brand-jadam",
+            name="간장치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/0ogeizEmWBrffdwu0sitHsY7KLOIQWE1Rc262Jgn.jpg",
+            category="간장",
+        ),
+        Menu(
+            id="menu-jadam-menu-208a2308",
+            brand_id="brand-jadam",
+            name="마늘치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/CTkCJZjJh5hTzM0FRvcQullTfgmMSE7AZduKAvac.jpg",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-jadam-menu-52c68cc6",
+            brand_id="brand-jadam",
+            name="핫후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/UoZftHdZRWLzikFekBlXMFoX8q1huZdm83SEtmaM.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-d37e55f6",
+            brand_id="brand-kkanbu",
+            name="숯불 핫 바베큐구이",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/GBnXQNFsN41lpurUnxumWeGpOEOLPauyQXrkKef6.png",
+            category="구이",
+        ),
+        Menu(
+            id="menu-kkanbu-crispy",
+            brand_id="brand-kkanbu",
+            name="크리스피치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/ev11C6IGaF3Who1VzzyoxojeKKp9tb9sjy9jpAYS.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-98fcc0cd",
+            brand_id="brand-kkanbu",
+            name="마늘전기구이",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/2Jzj3jFcKLK5PzcbEFO0yIgZNIbIKv8al219RyGX.jpg",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-kkanbu-garlic-soy",
+            brand_id="brand-kkanbu",
+            name="마늘간장치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/8A6lbC3qLaaPceRqnwxajfcboaeVXtCdpsD9zhkJ.jpg",
+            category="간장",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-8f82a2d8",
+            brand_id="brand-kkanbu",
+            name="후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/6pplnh8rq4HPZBXFvUIdeWkmjoDL8MsYyKCnJEa7.jpg",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-7bc400cd",
+            brand_id="brand-kkanbu",
+            name="바삭한식스팩",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/M95AN3Zguj0W2HOFvVO6E6knOxjFf3iBFVTsdsTO.jpg",
+            category="기타",
+        ),
+        Menu(
+            id="menu-kkanbu-menu-4a187cbb",
+            brand_id="brand-kkanbu",
+            name="전기구이",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/frxmxUHKfpPk4aV38Ef69OkAZOHlDXuF2H2B5WcG.jpg",
+            category="구이",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-b58e9816",
+            brand_id="brand-obeunebbajindalg",
+            name="청양마늘치킨(베이크)",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/KO0oelqnpKx81V1rYZkU0ebIo7la9uTzJ3KlD7tS.png",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-e925158f",
+            brand_id="brand-obeunebbajindalg",
+            name="카라멜팝콘치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/eLLsxiKBaS8v62x9Gth7RBdB4AYO5wuGZyivztmv.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-8b8abdd9",
+            brand_id="brand-obeunebbajindalg",
+            name="갈릭크리스피치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/dTybLzcfDEtkXueAJRuv8M43tockuEHZymowgjio.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-3213b2fd",
+            brand_id="brand-obeunebbajindalg",
+            name="핫크리스피치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/KE5axmpZTkq0gmD1v8HvoBY3UhT43cMPNIIP8Lgi.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-cdf35768",
+            brand_id="brand-obeunebbajindalg",
+            name="오빠양념",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/8s7ElGpyOCb0hai1Ro5TKfMfpZFnGWHSVieFFaBw.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-ffcb7727",
+            brand_id="brand-obeunebbajindalg",
+            name="크리스피 베이크",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/doZULhi1TWyStAspPFbWWYc4lvqKN5mq4427sjdv.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-5e3b6c9a",
+            brand_id="brand-obeunebbajindalg",
+            name="청양마늘치킨(로스트)",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/K30dgOdH73P2HIvzAlAiJCWoYw4092JU5CX0RZT6.png",
+            category="마늘",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-85244e33",
+            brand_id="brand-obeunebbajindalg",
+            name="오빠네 닭갈비 순살",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/dzKfrnb8wNJ2CJ1pUUGTpEx5Fg2CP0QphoKYouIY.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-880a8e3b",
+            brand_id="brand-obeunebbajindalg",
+            name="파파닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/lfOQgSNBE0W86SvgR8CDcX0MhdTob4VFHMBpeJ8F.png",
+            category="파닭",
+        ),
+        Menu(
+            id="menu-obeunebbajindalg-menu-edeb51a3",
+            brand_id="brand-obeunebbajindalg",
+            name="요거닭",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/AyNaMw9nyHJiTWr6e0dV9dpT9WlJ7VYcsbHzkNKC.png",
+            category="기타",
+        ),
+        Menu(
+            id="menu-megsikancikin-menu-ad16bd3e",
+            brand_id="brand-megsikancikin",
+            name="후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/JFVG2n9s9apRCy75boOPHZ2tbqMCFPcUOkqUiaYT.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-megsikancikin-menu-e4c536a9",
+            brand_id="brand-megsikancikin",
+            name="양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/zgVCp9SrFNK0WuahcFm43qgCL4TkGsSrQoxRUooz.png",
+            category="양념",
+        ),
+        Menu(
+            id="menu-megsikancikin-menu-50d3717a",
+            brand_id="brand-megsikancikin",
+            name="간장치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/GF7Tv88aWii4OLqQldI3MD6HC6Sm0XAbwY1e2Qtx.png",
+            category="간장",
+        ),
+        Menu(
+            id="menu-megsikancikin-menu-a148a80d",
+            brand_id="brand-megsikancikin",
+            name="매콤후라이드치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/LT75RHargunAPmO6PF1lkSJyXtUV1iCUzbHmukqm.png",
+            category="후라이드",
+        ),
+        Menu(
+            id="menu-megsikancikin-menu-fd1e60bb",
+            brand_id="brand-megsikancikin",
+            name="매콤양념치킨",
+            image_url="https://axeqaqfbtc3l.compat.objectstorage.ap-chuncheon-1.oraclecloud.com/chickenrank-prod/public/chickens/MiXQQjO2gMgbPVGzQpKgAj1dmTkHJqbinj9bLRNe.png",
+            category="양념",
+        ),
+    ]
+
+    menus.extend(rtf_seed_menus)
+    menus.extend(_build_kyochon_official_menus())
+
+    now = datetime.now()
+    seed_users = [
+        User(
+            id="user-seed",
+            email="seed@chickenmap.local",
+            display_name="Seed User",
+            photo_url="",
+            provider="google",
+            created_at=now,
+            updated_at=now,
+        )
+    ]
+    existing_brand_ids = set(db.scalars(select(Brand.id)).all())
+    existing_user_ids = set(db.scalars(select(User.id)).all())
+
+    db.add_all([brand for brand in brands if brand.id not in existing_brand_ids])
+    db.add_all([user for user in seed_users if user.id not in existing_user_ids])
+
+    # 메뉴는 id 또는 (brand_id, name) 기준으로 upsert한다.
+    existing_menus = db.scalars(select(Menu)).all()
+    existing_menus_by_id = {menu.id: menu for menu in existing_menus}
+    existing_menus_by_key = {(menu.brand_id, menu.name): menu for menu in existing_menus}
+
+    unique_menus_by_key = {(menu.brand_id, menu.name): menu for menu in menus}
+    for seed_menu in unique_menus_by_key.values():
+        target = existing_menus_by_id.get(seed_menu.id)
+        if target is None:
+            target = existing_menus_by_key.get((seed_menu.brand_id, seed_menu.name))
+
+        if target is None:
+            db.add(seed_menu)
+            continue
+
+        target.brand_id = seed_menu.brand_id
+        target.name = seed_menu.name
+        target.image_url = seed_menu.image_url
+        target.category = seed_menu.category
+
+    db.flush()
+    _migrate_legacy_bbq_fried_menu(db)
+    db.commit()

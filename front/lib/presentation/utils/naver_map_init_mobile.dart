@@ -1,0 +1,15 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
+
+// ???(Android/iOS)?? ??? ?? SDK? ?????.
+Future<void> initNaverMapImpl(String clientId) async {
+  await FlutterNaverMap().init(
+    clientId: clientId,
+    onAuthFailed: (ex) {
+      // 401: clientId ?? ?? ??? ??? ????/?? ID ???
+      // 429: Maps ??? ?? ??
+      // 800: clientId ???
+      debugPrint('NaverMap auth failed: $ex');
+    },
+  );
+}
