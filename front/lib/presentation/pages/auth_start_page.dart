@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:front/core/constants/app_colors.dart';
+import 'package:front/core/constants/app_strings.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/app_providers.dart';
 import 'package:go_router/go_router.dart';
@@ -42,128 +43,156 @@ class AuthStartPage extends ConsumerWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppColors.backgroundLight, Color(0xFFF3F0EF)],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    onPressed: () {
-                      if (context.canPop()) {
-                        context.pop();
-                        return;
-                      }
-                      context.go('/ranking');
-                    },
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 28),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 9,
+      backgroundColor: AppColors.backgroundLight,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton.filledTonal(
+                        onPressed: () {
+                          if (context.canPop()) {
+                            context.pop();
+                            return;
+                          }
+                          context.go('/ranking');
+                        },
+                        icon: const Icon(Icons.arrow_back),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.8),
+                          foregroundColor: AppColors.textPrimary,
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: const Color(0xFFD7DCE2)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x22000000),
-                              blurRadius: 14,
-                              offset: Offset(0, 6),
+                      ),
+                    ),
+                    const SizedBox(height: 36),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: Column(
+                          children: [
+                            const _AuthBrandMark(),
+                            const SizedBox(height: 28),
+                            Text(
+                              AppStrings.appName,
+                              textAlign: TextAlign.center,
+                              style: textTheme.displaySmall?.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -1.2,
+                              ),
                             ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '내 취향에 맞는 카페와 메뉴를\n가볍게 탐색해보세요.',
+                              textAlign: TextAlign.center,
+                              style: textTheme.titleMedium?.copyWith(
+                                color: AppColors.textSecondary,
+                                height: 1.45,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            const Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _FeaturePill(label: '카페랭킹'),
+                                _FeaturePill(label: '메뉴랭킹'),
+                                _FeaturePill(label: '지도 탐색'),
+                              ],
+                            ),
+                            const SizedBox(height: 56),
+                            _AuthButton(
+                              label: 'Google로 계속하기',
+                              onPressed: () => _signInWithGoogle(context, ref),
+                            ),
+                            const SizedBox(height: 14),
+                            TextButton(
+                              onPressed: () => context.go('/ranking'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.textSecondary,
+                                minimumSize: const Size.fromHeight(48),
+                              ),
+                              child: Text(
+                                '로그인 없이 둘러보기',
+                                style: textTheme.bodyLarge?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
                           ],
                         ),
-                        child: Text(
-                          '??TOP RANKING',
-                          style: textTheme.labelLarge?.copyWith(
-                            letterSpacing: 2,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF323C4E),
-                          ),
-                        ),
                       ),
-                      const SizedBox(height: 42),
-                      Text(
-                        'CAFE',
-                        style: textTheme.displayLarge?.copyWith(
-                          height: 0.9,
-                          fontWeight: FontWeight.w900,
-                          fontStyle: FontStyle.italic,
-                          color: const Color(0xFF0B1530),
-                        ),
-                      ),
-                      Text(
-                        'MAP',
-                        style: textTheme.displayLarge?.copyWith(
-                          height: 0.9,
-                          fontWeight: FontWeight.w900,
-                          fontStyle: FontStyle.italic,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'DISCOVER THE BEST CAFE IN YOUR AREA!',
-                        textAlign: TextAlign.center,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: const Color(0xFF7C8594),
-                          letterSpacing: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '로그인하고 내 주변\n카페 지도를 만들어보세요!',
-                        textAlign: TextAlign.center,
-                        style: textTheme.headlineSmall?.copyWith(
-                          color: const Color(0xFF131D2F),
-                          height: 1.35,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 34),
-                      _AuthButton(
-                        label: 'Google로 시작하기',
-                        onPressed: () => _signInWithGoogle(context, ref),
-                      ),
-                      const SizedBox(height: 22),
-                      TextButton(
-                        onPressed: () => context.go('/ranking'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFFB3B8C3),
-                        ),
-                        child: Text(
-                          '鍮꾪쉶?먯쑝濡??섎윭蹂닿린',
-                          style: textTheme.titleMedium?.copyWith(
-                            decoration: TextDecoration.underline,
-                            decorationColor: const Color(0xFFC6CBD3),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthBrandMark extends StatelessWidget {
+  const _AuthBrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 96,
+      height: 96,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            blurRadius: 32,
+            offset: const Offset(0, 18),
           ),
+        ],
+      ),
+      child: const Icon(
+        Icons.local_cafe_rounded,
+        color: AppColors.primary,
+        size: 46,
+      ),
+    );
+  }
+}
+
+class _FeaturePill extends StatelessWidget {
+  final String label;
+
+  const _FeaturePill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -184,10 +213,7 @@ class _AuthButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
 
-  const _AuthButton({
-    required this.label,
-    required this.onPressed,
-  });
+  const _AuthButton({required this.label, required this.onPressed});
 
   @override
   // 커스텀 로그인 버튼 스타일을 적용한다.
@@ -198,13 +224,15 @@ class _AuthButton extends StatelessWidget {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF131D2F),
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          side: const BorderSide(color: Color(0xFFE0E4E9)),
+          foregroundColor: AppColors.textPrimary,
+          elevation: 2,
+          shadowColor: AppColors.primary.withValues(alpha: 0.14),
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+          side: const BorderSide(color: AppColors.cardBorder),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(999),
           ),
+          minimumSize: const Size.fromHeight(58),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -213,9 +241,9 @@ class _AuthButton extends StatelessWidget {
             const SizedBox(width: 12),
             Text(
               label,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF131D2F),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
               ),
             ),
           ],
@@ -224,4 +252,3 @@ class _AuthButton extends StatelessWidget {
     );
   }
 }
-

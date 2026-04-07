@@ -80,5 +80,6 @@ Use these repo-local skills when the task clearly matches the role:
 - `product-planner`: feature framing, scope definition, acceptance criteria, and execution sequencing
 - `contract-sync`: frontend/backend contract changes that must stay aligned
 - `reviewer`: change review focused on regressions, missing validation, and risky assumptions
+- `ui-ux-designer`: modern mobile UI/UX hierarchy, spacing, copy, and visual simplification
 
 Skill folders live under `skills/`.
