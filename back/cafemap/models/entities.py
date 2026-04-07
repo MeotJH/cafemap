@@ -110,6 +110,8 @@ class Store(Base):
 
     address: Mapped[str] = mapped_column(String(200))
 
+    store_type: Mapped[str] = mapped_column(String(20), default="unknown")
+
     distance_km: Mapped[float] = mapped_column(Float)
 
     lat: Mapped[float] = mapped_column(Float, default=0.0)

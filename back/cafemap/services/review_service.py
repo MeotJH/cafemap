@@ -22,6 +22,8 @@ from cafemap.core.rating_dimensions import (
 
     normalize_scores,
 
+    normalize_store_scores,
+
     scores_json_dumps,
 
     scores_json_loads,
@@ -41,6 +43,8 @@ from cafemap.services import geocode_service
 # ?? ???? ?? ????.
 
 LOCAL_BRAND_ID = "brand-local"
+STORE_TYPE_LOCAL = "local"
+STORE_TYPE_FRANCHISE = "franchise"
 
 
 
@@ -104,17 +108,7 @@ def create_review(db: Session, payload, user_id: str):
 
 
 
-    store = (
-
-        db.query(Store)
-
-        .filter(Store.brand_id == brand.id)
-
-        .filter(Store.name == payload.storeName)
-
-        .first()
-
-    )
+    store = _find_existing_store(db, brand.id, payload.storeName, payload.address)
 
     if store is None:
 
@@ -129,6 +123,8 @@ def create_review(db: Session, payload, user_id: str):
             name=payload.storeName,
 
             address=payload.address,
+
+            store_type=_store_type_for_brand(brand.id),
 
             distance_km=0.0,
 
@@ -158,9 +154,11 @@ def create_review(db: Session, payload, user_id: str):
 
     image_urls = _sanitize_image_urls(getattr(payload, "imageUrls", []))
 
-    normalized_scores = normalize_scores(menu_category, input_scores)
+    menu_scores = normalize_scores(menu_category, input_scores)
+    store_scores = normalize_store_scores(getattr(payload, "storeScores", {}) or {})
+    aggregate_scores = {**menu_scores, **store_scores}
 
-    resolved_overall = float(payload.overall) if payload.overall > 0 else compute_overall(normalized_scores, fallback=0.0)
+    resolved_overall = float(payload.overall) if payload.overall > 0 else compute_overall(menu_scores, fallback=0.0)
 
 
 
@@ -176,7 +174,7 @@ def create_review(db: Session, payload, user_id: str):
 
         menu_id=menu.id,
 
-        scores_json=scores_json_dumps(normalized_scores),
+        scores_json=scores_json_dumps(aggregate_scores),
 
         image_urls_json=json.dumps(image_urls, ensure_ascii=False),
 
@@ -200,7 +198,7 @@ def create_review(db: Session, payload, user_id: str):
 
             menu=menu,
 
-            scores=normalized_scores,
+            scores=menu_scores,
 
             overall=resolved_overall,
 
@@ -212,7 +210,7 @@ def create_review(db: Session, payload, user_id: str):
 
         store=store,
 
-        scores=normalized_scores,
+        scores=aggregate_scores,
 
         overall=resolved_overall,
 
@@ -527,6 +525,47 @@ def _normalize_menu_name(name: str) -> str:
     return normalized
 
 
+def _normalize_place_text(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    normalized = re.sub(r"\s+", "", normalized)
+    normalized = re.sub(r"[^0-9a-z가-힣]", "", normalized)
+    return normalized
+
+
+def _store_type_for_brand(brand_id: str) -> str:
+    return STORE_TYPE_LOCAL if brand_id == LOCAL_BRAND_ID else STORE_TYPE_FRANCHISE
+
+
+def _find_existing_store(
+    db: Session,
+    brand_id: str,
+    store_name: str,
+    address: str | None,
+) -> Store | None:
+    store = (
+        db.query(Store)
+        .filter(Store.brand_id == brand_id)
+        .filter(Store.name == store_name)
+        .first()
+    )
+    if store is not None:
+        return store
+
+    normalized_name = _normalize_place_text(store_name)
+    normalized_address = _normalize_place_text(address)
+    if not normalized_name or not normalized_address:
+        return None
+
+    candidates = db.query(Store).filter(Store.brand_id == brand_id).all()
+    for candidate in candidates:
+        if (
+            _normalize_place_text(candidate.name) == normalized_name
+            and _normalize_place_text(candidate.address) == normalized_address
+        ):
+            return candidate
+    return None
+
+
 
 
 
@@ -606,25 +645,17 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
 
 def _classify_menu_category(normalized_name: str) -> str:
 
-    # ? ?? ?? ? ?? ????? ?? ???? ????.
-
-    if "후라이드" in normalized_name:
-
-        return "후라이드"
-
-    if "양념" in normalized_name:
-
-        return "양념"
-
-    if "간장" in normalized_name or "소이" in normalized_name:
-
-        return "양념"
-
-    if "숯불" in normalized_name or "바베큐" in normalized_name or "구이" in normalized_name:
-
-        return "구이"
-
-    return "기타"
+    if "라떼" in normalized_name or "latte" in normalized_name:
+        return "라떼"
+    if "콜드브루" in normalized_name or "coldbrew" in normalized_name:
+        return "콜드브루"
+    if "핸드드립" in normalized_name or "드립" in normalized_name:
+        return "핸드드립"
+    if "시그니처" in normalized_name or "signature" in normalized_name:
+        return "시그니처"
+    if "스무디" in normalized_name or "프라페" in normalized_name or "에이드" in normalized_name:
+        return "디저트음료"
+    return "커피"
 
 
 

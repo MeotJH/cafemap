@@ -11,6 +11,7 @@ from cafemap.core.rating_dimensions import (
     compute_overall,
     normalize_category,
     normalize_scores,
+    normalize_store_scores,
     scores_json_dumps,
     top_highlights,
 )
@@ -30,6 +31,8 @@ from cafemap.models.entities import (
 
 CSV_PATH = Path(__file__).resolve().parents[2] / "korea_cafe_menus.csv"
 LOCAL_BRAND_ID = "brand-local"
+STORE_TYPE_LOCAL = "local"
+STORE_TYPE_FRANCHISE = "franchise"
 
 BRAND_SEEDS: dict[str, dict[str, object]] = {
     "brand-starbucks": {
@@ -84,6 +87,7 @@ def _migrate_scores_json_columns(db: Session):
         "review": ("scores_json", "overall", "user_id", "image_urls_json"),
         "brand_menu_aggregate": ("scores_json",),
         "store_aggregate": ("scores_json", "counts_json"),
+        "store": ("store_type",),
     }
     for table_name, needed_columns in targets.items():
         columns = db.execute(text(f"PRAGMA table_info('{table_name}')")).fetchall()
@@ -112,6 +116,13 @@ def _migrate_scores_json_columns(db: Session):
                     text(
                         f"ALTER TABLE {table_name} "
                         "ADD COLUMN image_urls_json VARCHAR NOT NULL DEFAULT '[]'"
+                    )
+                )
+            elif column_name == "store_type":
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        "ADD COLUMN store_type VARCHAR NOT NULL DEFAULT 'unknown'"
                     )
                 )
             else:
@@ -158,7 +169,7 @@ def _menu_seeds() -> list[Menu]:
 
 
 def _score_seed(category: str) -> dict[str, float]:
-    return normalize_scores(
+    menu_scores = normalize_scores(
         category,
         {
             "coffee_quality": 4.6,
@@ -181,6 +192,25 @@ def _score_seed(category: str) -> dict[str, float]:
             "portion": 4.0,
         },
     )
+    store_scores = normalize_store_scores(
+        {
+            "atmosphere": 4.4,
+            "work_friendly": 4.2,
+            "quietness": 4.0,
+            "seat_comfort": 4.1,
+            "outlet_access": 4.0,
+            "service": 4.3,
+        }
+    )
+    return {**menu_scores, **store_scores}
+
+
+def _menu_only_seed(category: str) -> dict[str, float]:
+    return normalize_scores(category, _score_seed(category))
+
+
+def _store_type_for_brand(brand_id: str) -> str:
+    return STORE_TYPE_LOCAL if brand_id == LOCAL_BRAND_ID else STORE_TYPE_FRANCHISE
 
 
 def seed_if_empty(db: Session):
@@ -240,9 +270,11 @@ def seed_if_empty(db: Session):
         review_id = f"review-{brand_id}"
         ranking_id = f"rank-{menu.id}"
 
+        menu_scores = _menu_only_seed(menu.category)
         scores = _score_seed(menu.category)
-        overall = compute_overall(scores, fallback=4.2)
-        highlights = top_highlights(scores)
+        overall = compute_overall(menu_scores, fallback=4.2)
+        highlights = top_highlights(menu_scores)
+        store_type = _store_type_for_brand(brand_id)
 
         if store_id not in existing_store_ids:
             db.add(
@@ -251,6 +283,7 @@ def seed_if_empty(db: Session):
                     brand_id=brand_id,
                     name=str(seed["store_name"]),
                     address=str(seed["address"]),
+                    store_type=store_type,
                     distance_km=0.8,
                     lat=float(seed["lat"]),
                     lng=float(seed["lng"]),
@@ -262,6 +295,7 @@ def seed_if_empty(db: Session):
                 existing_store.brand_id = brand_id
                 existing_store.name = str(seed["store_name"])
                 existing_store.address = str(seed["address"])
+                existing_store.store_type = store_type
                 existing_store.distance_km = 0.8
                 existing_store.lat = float(seed["lat"])
                 existing_store.lng = float(seed["lng"])
@@ -278,7 +312,7 @@ def seed_if_empty(db: Session):
                     highlight_label_a=highlights[0][0],
                     highlight_score_b=highlights[1][1],
                     highlight_label_b=highlights[1][0],
-                    scores_json=scores_json_dumps(scores),
+                    scores_json=scores_json_dumps(menu_scores),
                 )
             )
         else:
@@ -292,7 +326,7 @@ def seed_if_empty(db: Session):
                 existing_ranking.highlight_label_a = highlights[0][0]
                 existing_ranking.highlight_score_b = highlights[1][1]
                 existing_ranking.highlight_label_b = highlights[1][0]
-                existing_ranking.scores_json = scores_json_dumps(scores)
+                existing_ranking.scores_json = scores_json_dumps(menu_scores)
 
         if store_id not in existing_store_aggregate_ids:
             db.add(
@@ -305,6 +339,15 @@ def seed_if_empty(db: Session):
                     counts_json=scores_json_dumps({key: 1 for key in scores}),
                 )
             )
+        else:
+            existing_store_aggregate = db.get(StoreAggregate, store_id)
+            if existing_store_aggregate is not None:
+                existing_store_aggregate.rating = overall
+                existing_store_aggregate.review_count = 1
+                existing_store_aggregate.scores_json = scores_json_dumps(scores)
+                existing_store_aggregate.counts_json = scores_json_dumps(
+                    {key: 1 for key in scores}
+                )
 
         if review_id not in existing_review_ids:
             db.add(

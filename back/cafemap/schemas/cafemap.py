@@ -28,6 +28,7 @@ class StoreSummaryOut(BaseModel):
     id: str
     name: str
     brandName: str
+    storeType: str
     isLocal: bool
     address: str
     rating: float
@@ -36,6 +37,13 @@ class StoreSummaryOut(BaseModel):
     imageUrl: str
     lat: float
     lng: float
+    workFriendlyScore: float = 0.0
+    quietnessScore: float = 0.0
+    dessertScore: float = 0.0
+    topLabelA: str = ""
+    topScoreA: float = 0.0
+    topLabelB: str = ""
+    topScoreB: float = 0.0
 
 
 class StoreRankingOut(BaseModel):
@@ -43,6 +51,7 @@ class StoreRankingOut(BaseModel):
     storeId: str
     storeName: str
     brandName: str
+    storeType: str
     isLocal: bool
     rating: float
     displayScore: float
@@ -55,6 +64,9 @@ class StoreRankingOut(BaseModel):
     topScoreA: float
     topLabelB: str
     topScoreB: float
+    workFriendlyScore: float = 0.0
+    quietnessScore: float = 0.0
+    dessertScore: float = 0.0
 
 
 class RatingBreakdownOut(BaseModel):
@@ -113,6 +125,7 @@ class ReviewCreateIn(BaseModel):
     brandId: str
     menuName: str
     scores: dict[str, float] = Field(default_factory=dict)
+    storeScores: dict[str, float] = Field(default_factory=dict)
     overall: float = 0.0
     comment: str
     imageUrls: list[str] = Field(default_factory=list)

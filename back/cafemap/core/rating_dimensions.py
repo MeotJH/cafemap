@@ -54,6 +54,15 @@ CATEGORY_RATING_DIMENSIONS = {
 
 FALLBACK_CATEGORY = "커피"
 
+STORE_EXPERIENCE_DIMENSIONS = [
+    "atmosphere",
+    "work_friendly",
+    "quietness",
+    "seat_comfort",
+    "outlet_access",
+    "service",
+]
+
 RATING_DIMENSION_LABELS = {
     "coffee_quality": "원두 품질",
     "acidity_balance": "산미 밸런스",
@@ -73,6 +82,12 @@ RATING_DIMENSION_LABELS = {
     "visuals": "비주얼",
     "flavor_balance": "맛 조화",
     "portion": "양",
+    "atmosphere": "분위기",
+    "work_friendly": "작업하기 좋음",
+    "quietness": "조용함",
+    "seat_comfort": "좌석 편안함",
+    "outlet_access": "콘센트 접근성",
+    "service": "응대",
 }
 
 
@@ -89,6 +104,17 @@ def normalize_scores(category: str | None, scores: dict[str, float]) -> dict[str
     for key in allowed:
         raw = scores.get(key, 3.0)
         value = float(raw)
+        normalized[key] = max(0.0, min(5.0, value))
+    return normalized
+
+
+def normalize_store_scores(scores: dict[str, float] | None) -> dict[str, float]:
+    source = scores or {}
+    normalized: dict[str, float] = {}
+    for key in STORE_EXPERIENCE_DIMENSIONS:
+        if key not in source:
+            continue
+        value = float(source[key])
         normalized[key] = max(0.0, min(5.0, value))
     return normalized
 

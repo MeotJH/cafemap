@@ -14,7 +14,7 @@ from cafemap.db.session import get_db
 
 from cafemap.models.entities import Menu
 
-from cafemap.core.rating_dimensions import compute_overall, scores_json_loads
+from cafemap.core.rating_dimensions import compute_overall, scores_json_loads, top_highlights
 
 from cafemap.services.auth_service import (
 
@@ -92,6 +92,32 @@ def _resolve_store_image_url(brand_logo_url: str | None) -> str:
     # ??? ??? ??? ??? ?? ???? ??? ? ???? ????.
 
     return (brand_logo_url or "").strip()
+
+
+def _store_type_for_response(store) -> str:
+    return (getattr(store, "store_type", None) or "unknown").strip() or "unknown"
+
+
+def _is_local_store(store) -> bool:
+    store_type = _store_type_for_response(store)
+    return store_type == "local" or getattr(store, "brand_id", "") == "brand-local"
+
+
+def _store_signal(scores: dict[str, float], key: str) -> float:
+    return float(scores.get(key, 0.0))
+
+
+def _dessert_signal(scores: dict[str, float]) -> float:
+    values = [
+        scores.get("flavor_balance"),
+        scores.get("sweetness"),
+        scores.get("visuals"),
+        scores.get("portion"),
+    ]
+    parsed = [float(value) for value in values if value is not None]
+    if not parsed:
+        return 0.0
+    return sum(parsed) / len(parsed)
 
 
 
@@ -335,7 +361,9 @@ def list_stores(db: Session = Depends(get_db)):
 
             brandName=brand_name,
 
-            isLocal=store.brand_id == "brand-local",
+            storeType=_store_type_for_response(store),
+
+            isLocal=_is_local_store(store),
 
             address=store.address,
 
@@ -350,6 +378,20 @@ def list_stores(db: Session = Depends(get_db)):
             lat=store.lat,
 
             lng=store.lng,
+
+            workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
+
+            quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
+
+            dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
+
+            topLabelA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][0],
+
+            topScoreA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][1],
+
+            topLabelB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][0],
+
+            topScoreB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][1],
 
         )
 
@@ -376,7 +418,9 @@ def list_store_rankings(db: Session = Depends(get_db)):
 
             brandName=brand_name,
 
-            isLocal=store.brand_id == "brand-local",
+            storeType=_store_type_for_response(store),
+
+            isLocal=_is_local_store(store),
 
             rating=aggregate.rating,
 
@@ -399,6 +443,12 @@ def list_store_rankings(db: Session = Depends(get_db)):
             topLabelB=highlights[1][0],
 
             topScoreB=highlights[1][1],
+
+            workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
+
+            quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
+
+            dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
 
         )
 
@@ -432,7 +482,9 @@ def get_store_detail(store_id: str, db: Session = Depends(get_db)):
 
         brandName=brand_name,
 
-        isLocal=store.brand_id == "brand-local",
+        storeType=_store_type_for_response(store),
+
+        isLocal=_is_local_store(store),
 
         address=store.address,
 
@@ -447,6 +499,20 @@ def get_store_detail(store_id: str, db: Session = Depends(get_db)):
         lat=store.lat,
 
         lng=store.lng,
+
+        workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
+
+        quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
+
+        dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
+
+        topLabelA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][0],
+
+        topScoreA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][1],
+
+        topLabelB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][0],
+
+        topScoreB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][1],
 
     )
 
