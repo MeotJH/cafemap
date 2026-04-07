@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/core/constants/app_sizes.dart';
@@ -325,83 +326,60 @@ class _RankingHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                AppFilterChip(
-                  label: '카페 랭킹',
-                  selected: selectedMode == _RankingMode.stores,
-                  onSelected: (_) => onModeSelected(_RankingMode.stores),
-                  width: null,
-                ),
-                AppFilterChip(
-                  label: '메뉴 랭킹',
-                  selected: selectedMode == _RankingMode.menus,
-                  onSelected: (_) => onModeSelected(_RankingMode.menus),
-                  width: null,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (selectedMode == _RankingMode.stores) ...[
-            SizedBox(
-              height: 44,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  AppFilterChip(
-                    label: '전체',
-                    selected: selectedSegment == _StoreSegment.all,
-                    onSelected: (_) => onSegmentSelected(_StoreSegment.all),
-                    width: null,
-                  ),
-                  AppFilterChip(
-                    label: '로컬',
-                    selected: selectedSegment == _StoreSegment.local,
-                    onSelected: (_) => onSegmentSelected(_StoreSegment.local),
-                    width: null,
-                  ),
-                  AppFilterChip(
-                    label: '프랜차이즈',
-                    selected: selectedSegment == _StoreSegment.franchise,
-                    onSelected: (_) =>
-                        onSegmentSelected(_StoreSegment.franchise),
-                    width: null,
-                  ),
-                ],
+          _RankingFilterScroller(
+            children: [
+              AppFilterChip(
+                label: '카페 랭킹',
+                selected: selectedMode == _RankingMode.stores,
+                onSelected: (_) => onModeSelected(_RankingMode.stores),
+                width: null,
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
+              AppFilterChip(
+                label: '메뉴 랭킹',
+                selected: selectedMode == _RankingMode.menus,
+                onSelected: (_) => onModeSelected(_RankingMode.menus),
+                width: null,
+              ),
+              if (selectedMode == _RankingMode.stores) ...[
                 AppFilterChip(
-                  label: '추천순',
-                  selected: selectedSort == _StoreRankingSort.recommended,
-                  onSelected: (_) =>
-                      onSortSelected(_StoreRankingSort.recommended),
+                  label: '전체',
+                  selected: selectedSegment == _StoreSegment.all,
+                  onSelected: (_) => onSegmentSelected(_StoreSegment.all),
                   width: null,
                 ),
                 AppFilterChip(
-                  label: '평점순',
-                  selected: selectedSort == _StoreRankingSort.rating,
-                  onSelected: (_) => onSortSelected(_StoreRankingSort.rating),
+                  label: '로컬',
+                  selected: selectedSegment == _StoreSegment.local,
+                  onSelected: (_) => onSegmentSelected(_StoreSegment.local),
                   width: null,
                 ),
                 AppFilterChip(
-                  label: '리뷰 많은 순',
-                  selected: selectedSort == _StoreRankingSort.reviews,
-                  onSelected: (_) => onSortSelected(_StoreRankingSort.reviews),
+                  label: '프랜차이즈',
+                  selected: selectedSegment == _StoreSegment.franchise,
+                  onSelected: (_) => onSegmentSelected(_StoreSegment.franchise),
                   width: null,
                 ),
               ],
-            ),
+              AppFilterChip(
+                label: '추천순',
+                selected: selectedSort == _StoreRankingSort.recommended,
+                onSelected: (_) =>
+                    onSortSelected(_StoreRankingSort.recommended),
+                width: null,
+              ),
+              AppFilterChip(
+                label: '평점순',
+                selected: selectedSort == _StoreRankingSort.rating,
+                onSelected: (_) => onSortSelected(_StoreRankingSort.rating),
+                width: null,
+              ),
+              AppFilterChip(
+                label: '리뷰 많은 순',
+                selected: selectedSort == _StoreRankingSort.reviews,
+                onSelected: (_) => onSortSelected(_StoreRankingSort.reviews),
+                width: null,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           SectionTitle(
@@ -423,6 +401,38 @@ class _RankingHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RankingFilterScroller extends StatelessWidget {
+  final List<Widget> children;
+
+  const _RankingFilterScroller({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: ScrollConfiguration(
+        behavior: const _RankingFilterScrollBehavior(),
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          children: children,
+        ),
+      ),
+    );
+  }
+}
+
+class _RankingFilterScrollBehavior extends MaterialScrollBehavior {
+  const _RankingFilterScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+  };
 }
 
 enum _ProfileMenuAction { activity, login, logout }

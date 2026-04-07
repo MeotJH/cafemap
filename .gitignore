@@ -10,6 +10,7 @@ back/request_curl
 
 
 back/.env
+back/.venv/
 front/.env
 front/.env.production
 front/.firebase/
