@@ -54,6 +54,7 @@ StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
     storeId: json['storeId'] as String? ?? '',
     storeName: json['storeName'] as String? ?? '',
     brandName: json['brandName'] as String? ?? '',
+    storeType: json['storeType'] as String? ?? 'unknown',
     isLocal: json['isLocal'] as bool? ?? false,
     rating: (json['rating'] as num?)?.toDouble() ?? 0,
     displayScore: (json['displayScore'] as num?)?.toDouble() ?? 0,
@@ -66,6 +67,9 @@ StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
     topScoreA: (json['topScoreA'] as num?)?.toDouble() ?? 0,
     topLabelB: json['topLabelB'] as String? ?? '',
     topScoreB: (json['topScoreB'] as num?)?.toDouble() ?? 0,
+    workFriendlyScore: (json['workFriendlyScore'] as num?)?.toDouble() ?? 0,
+    quietnessScore: (json['quietnessScore'] as num?)?.toDouble() ?? 0,
+    dessertScore: (json['dessertScore'] as num?)?.toDouble() ?? 0,
   );
 }
 

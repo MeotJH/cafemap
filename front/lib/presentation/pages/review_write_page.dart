@@ -47,6 +47,9 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   Map<String, double> _scores = {
     for (final key in dimensionsForCategory(null)) key: 3.0,
   };
+  final Map<String, double> _storeScores = {
+    for (final key in storeExperienceDimensions) key: 3.0,
+  };
   double overall = 3.0;
   List<Brand> _brands = [];
   Brand? _selectedBrand;
@@ -164,7 +167,8 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       setState(() {
         _menus = menus;
         _selectedMenu = selectedMenu;
-        _menuSearchController.text = selectedMenu?.name ?? '';
+        _menuSearchController.text =
+            selectedMenu?.name ?? incomingMenuName ?? '';
         _syncActiveDimensions(selectedMenu?.category);
       });
     } catch (_) {
@@ -192,8 +196,9 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       return;
     }
     final selectedMenu = _selectedMenu;
-    if (selectedMenu == null) {
-      await _showTopToast('메뉴를 선택해주세요.');
+    final menuName = selectedMenu?.name ?? _menuSearchController.text.trim();
+    if (menuName.isEmpty) {
+      await _showTopToast('메뉴명을 입력해주세요.');
       return;
     }
     final storeName = widget.storeName ?? '';
@@ -213,8 +218,9 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
           storeName: storeName,
           address: widget.address ?? '',
           brandId: _selectedBrand!.id,
-          menuName: selectedMenu.name,
+          menuName: menuName,
           scores: _scores,
+          storeScores: _storeScores,
           overall: overall,
           comment: _commentController.text.trim(),
           imageUrls: imageUrls,
@@ -376,6 +382,12 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     setState(() {
       _scores[key] = value;
       overall = _calculateOverall();
+    });
+  }
+
+  void _updateStoreScore(String key, double value) {
+    setState(() {
+      _storeScores[key] = value;
     });
   }
 
@@ -678,6 +690,22 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                     value: overall,
                     isOverall: true,
                     onChanged: (_) {},
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    '매장 경험도 알려주세요',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  ...storeExperienceDimensions.expand(
+                    (key) => [
+                      RatingSlider(
+                        label: ratingLabel(key),
+                        value: _storeScores[key] ?? 3.0,
+                        onChanged: (v) => _updateStoreScore(key, v),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ),
                   const SizedBox(height: 20),
                   const Text(

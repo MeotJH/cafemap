@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/domain/entities/auth_context.dart';
 import 'package:front/domain/entities/review.dart';
@@ -75,17 +75,13 @@ class ReviewApi {
     await _dio.put(
       uploadUrl,
       data: bytes,
-      options: Options(
-        headers: <String, String>{'Content-Type': contentType},
-      ),
+      options: Options(headers: <String, String>{'Content-Type': contentType}),
     );
   }
 
   Map<String, String> _authHeaders(AuthContext? auth) {
     if (auth == null) return const {};
-    return <String, String>{
-      'Authorization': 'Bearer ${auth.idToken}',
-    };
+    return <String, String>{'Authorization': 'Bearer ${auth.idToken}'};
   }
 }
 
@@ -96,6 +92,7 @@ class ReviewCreateRequest {
   final String brandId;
   final String menuName;
   final Map<String, double> scores;
+  final Map<String, double> storeScores;
   final double overall;
   final String comment;
   final List<String> imageUrls;
@@ -106,21 +103,23 @@ class ReviewCreateRequest {
     required this.brandId,
     required this.menuName,
     required this.scores,
+    required this.storeScores,
     required this.overall,
     required this.comment,
     required this.imageUrls,
   });
 
   Map<String, dynamic> toJson() => {
-        'storeName': storeName,
-        'address': address,
-        'brandId': brandId,
-        'menuName': menuName,
-        'scores': scores,
-        'overall': overall,
-        'comment': comment,
-        'imageUrls': imageUrls,
-      };
+    'storeName': storeName,
+    'address': address,
+    'brandId': brandId,
+    'menuName': menuName,
+    'scores': scores,
+    'storeScores': storeScores,
+    'overall': overall,
+    'comment': comment,
+    'imageUrls': imageUrls,
+  };
 }
 
 class ReviewImagePresignRequest {
@@ -133,9 +132,9 @@ class ReviewImagePresignRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'fileName': fileName,
-        'contentType': contentType,
-      };
+    'fileName': fileName,
+    'contentType': contentType,
+  };
 }
 
 class ReviewImagePresignResponse {
@@ -161,7 +160,9 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',
     imageUrls: _imageUrlsFromJson(json['imageUrls']),
-    createdAt: DateTime.parse(json['createdAt'] as String? ?? DateTime.now().toIso8601String()),
+    createdAt: DateTime.parse(
+      json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
+    ),
   );
 }
 
@@ -181,4 +182,3 @@ List<String> _imageUrlsFromJson(dynamic raw) {
       .where((url) => url.isNotEmpty)
       .toList();
 }
-

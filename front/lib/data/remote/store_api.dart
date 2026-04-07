@@ -49,6 +49,7 @@ StoreSummary _storeFromJson(Map<String, dynamic> json) {
     id: json['id'] as String? ?? '',
     name: json['name'] as String? ?? '',
     brandName: json['brandName'] as String? ?? '',
+    storeType: json['storeType'] as String? ?? 'unknown',
     isLocal: json['isLocal'] as bool? ?? false,
     address: json['address'] as String? ?? '',
     rating: (json['rating'] as num?)?.toDouble() ?? 0,
@@ -57,6 +58,13 @@ StoreSummary _storeFromJson(Map<String, dynamic> json) {
     imageUrl: json['imageUrl'] as String? ?? '',
     lat: (json['lat'] as num?)?.toDouble() ?? 0,
     lng: (json['lng'] as num?)?.toDouble() ?? 0,
+    workFriendlyScore: (json['workFriendlyScore'] as num?)?.toDouble() ?? 0,
+    quietnessScore: (json['quietnessScore'] as num?)?.toDouble() ?? 0,
+    dessertScore: (json['dessertScore'] as num?)?.toDouble() ?? 0,
+    topLabelA: json['topLabelA'] as String? ?? '',
+    topScoreA: (json['topScoreA'] as num?)?.toDouble() ?? 0,
+    topLabelB: json['topLabelB'] as String? ?? '',
+    topScoreB: (json['topScoreB'] as num?)?.toDouble() ?? 0,
   );
 }
 

@@ -14,7 +14,7 @@ import 'package:front/presentation/widgets/naver_map_view.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
-enum _MapSortType { rating, distance, reviews }
+enum _MapSortType { rating, distance, reviews, workFriendly, quiet, dessert }
 
 enum _MapStoreSegment { all, local, franchise }
 
@@ -225,6 +225,15 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         if (byReviewCount != 0) return byReviewCount;
         return b.rating.compareTo(a.rating);
       }
+      if (_selectedSortType == _MapSortType.workFriendly) {
+        return _compareByScore(a, b, (store) => store.workFriendlyScore);
+      }
+      if (_selectedSortType == _MapSortType.quiet) {
+        return _compareByScore(a, b, (store) => store.quietnessScore);
+      }
+      if (_selectedSortType == _MapSortType.dessert) {
+        return _compareByScore(a, b, (store) => store.dessertScore);
+      }
       final byRating = b.rating.compareTo(a.rating);
       if (byRating != 0) return byRating;
       final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
@@ -232,6 +241,18 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       return a.distanceKm.compareTo(b.distanceKm);
     });
     return sorted;
+  }
+
+  int _compareByScore(
+    StoreSummary a,
+    StoreSummary b,
+    double Function(StoreSummary store) scoreOf,
+  ) {
+    final bySignal = scoreOf(b).compareTo(scoreOf(a));
+    if (bySignal != 0) return bySignal;
+    final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
+    if (byReviewCount != 0) return byReviewCount;
+    return b.rating.compareTo(a.rating);
   }
 
   double _distanceFromCurrentKm(StoreSummary store, AppLocationState location) {
@@ -443,6 +464,28 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                             selected: _selectedSortType == _MapSortType.reviews,
                             onSelected: (_) =>
                                 _selectSortType(_MapSortType.reviews),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
+                            label: '작업하기 좋은',
+                            selected:
+                                _selectedSortType == _MapSortType.workFriendly,
+                            onSelected: (_) =>
+                                _selectSortType(_MapSortType.workFriendly),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
+                            label: '조용한',
+                            selected: _selectedSortType == _MapSortType.quiet,
+                            onSelected: (_) =>
+                                _selectSortType(_MapSortType.quiet),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
+                            label: '디저트 좋은',
+                            selected: _selectedSortType == _MapSortType.dessert,
+                            onSelected: (_) =>
+                                _selectSortType(_MapSortType.dessert),
                             margin: const EdgeInsets.only(right: 8),
                           ),
                         ],

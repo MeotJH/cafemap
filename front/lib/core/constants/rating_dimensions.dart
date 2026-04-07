@@ -51,6 +51,15 @@ const Map<String, List<String>> categoryRatingDimensions = {
 
 const String fallbackRatingCategory = '커피';
 
+const List<String> storeExperienceDimensions = [
+  'atmosphere',
+  'work_friendly',
+  'quietness',
+  'seat_comfort',
+  'outlet_access',
+  'service',
+];
+
 const Map<String, String> ratingDimensionLabels = {
   'coffee_quality': '원두 품질',
   'acidity_balance': '산미 밸런스',
@@ -70,6 +79,12 @@ const Map<String, String> ratingDimensionLabels = {
   'visuals': '비주얼',
   'flavor_balance': '맛 조화',
   'portion': '양',
+  'atmosphere': '분위기',
+  'work_friendly': '작업하기 좋음',
+  'quietness': '조용함',
+  'seat_comfort': '좌석 편안함',
+  'outlet_access': '콘센트 접근성',
+  'service': '응대',
 };
 
 String normalizeRatingCategory(String? category) {

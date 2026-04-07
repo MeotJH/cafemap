@@ -3,6 +3,7 @@ class StoreRanking {
   final String storeId;
   final String storeName;
   final String brandName;
+  final String storeType;
   final bool isLocal;
   final double rating;
   final double displayScore;
@@ -15,12 +16,16 @@ class StoreRanking {
   final double topScoreA;
   final String topLabelB;
   final double topScoreB;
+  final double workFriendlyScore;
+  final double quietnessScore;
+  final double dessertScore;
 
   const StoreRanking({
     required this.id,
     required this.storeId,
     required this.storeName,
     required this.brandName,
+    required this.storeType,
     required this.isLocal,
     required this.rating,
     required this.displayScore,
@@ -33,5 +38,8 @@ class StoreRanking {
     required this.topScoreA,
     required this.topLabelB,
     required this.topScoreB,
+    required this.workFriendlyScore,
+    required this.quietnessScore,
+    required this.dessertScore,
   });
 }

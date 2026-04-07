@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
@@ -97,6 +97,37 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _InfoChip(
+                            label: data.isLocal ? '로컬 카페' : '프랜차이즈',
+                            icon: data.isLocal
+                                ? Icons.storefront_rounded
+                                : Icons.apartment_rounded,
+                          ),
+                          if (data.topLabelA.isNotEmpty)
+                            _InfoChip(
+                              label:
+                                  '${data.topLabelA} ${data.topScoreA.toStringAsFixed(1)}',
+                              icon: Icons.thumb_up_alt_rounded,
+                            ),
+                          if (data.topLabelB.isNotEmpty)
+                            _InfoChip(
+                              label:
+                                  '${data.topLabelB} ${data.topScoreB.toStringAsFixed(1)}',
+                              icon: Icons.thumb_up_alt_rounded,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _ExperienceSignalRow(
+                        workFriendlyScore: data.workFriendlyScore,
+                        quietnessScore: data.quietnessScore,
+                        dessertScore: data.dessertScore,
                       ),
                     ],
                   ),
@@ -358,4 +389,122 @@ class _ScoreProgressRow extends StatelessWidget {
   }
 }
 
+class _ExperienceSignalRow extends StatelessWidget {
+  final double workFriendlyScore;
+  final double quietnessScore;
+  final double dessertScore;
 
+  const _ExperienceSignalRow({
+    required this.workFriendlyScore,
+    required this.quietnessScore,
+    required this.dessertScore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ExperienceSignalCard(
+            label: '작업',
+            value: workFriendlyScore,
+            icon: Icons.laptop_mac_rounded,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _ExperienceSignalCard(
+            label: '조용함',
+            value: quietnessScore,
+            icon: Icons.volume_down_rounded,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _ExperienceSignalCard(
+            label: '디저트',
+            value: dessertScore,
+            icon: Icons.cake_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExperienceSignalCard extends StatelessWidget {
+  final String label;
+  final double value;
+  final IconData icon;
+
+  const _ExperienceSignalCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.primary, size: 20),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value > 0 ? value.toStringAsFixed(1) : '-',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+
+  const _InfoChip({required this.label, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
