@@ -57,7 +57,9 @@ const List<String> storeExperienceDimensions = [
   'quietness',
   'seat_comfort',
   'outlet_access',
+  'wifi_quality',
   'service',
+  'revisit_intent',
 ];
 
 const Map<String, String> ratingDimensionLabels = {
@@ -84,7 +86,9 @@ const Map<String, String> ratingDimensionLabels = {
   'quietness': '조용함',
   'seat_comfort': '좌석 편안함',
   'outlet_access': '콘센트 접근성',
+  'wifi_quality': '와이파이',
   'service': '응대',
+  'revisit_intent': '재방문 의사',
 };
 
 String normalizeRatingCategory(String? category) {

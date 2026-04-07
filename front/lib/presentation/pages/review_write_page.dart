@@ -24,6 +24,7 @@ import 'package:image_picker/image_picker.dart';
 class ReviewWritePage extends ConsumerStatefulWidget {
   final String? storeName;
   final String? address;
+  final String? placeId;
   final String? menuName;
   final String? brandId;
   final String? brandName;
@@ -32,6 +33,7 @@ class ReviewWritePage extends ConsumerStatefulWidget {
     super.key,
     this.storeName,
     this.address,
+    this.placeId,
     this.menuName,
     this.brandId,
     this.brandName,
@@ -66,6 +68,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   bool get _isBrandLocked =>
       (widget.brandId?.isNotEmpty ?? false) ||
       (widget.brandName?.isNotEmpty ?? false);
+  bool get _isLocalBrandSelected => _selectedBrand?.id == 'brand-local';
 
   Future<void> _showTopToast(String message) async {
     if (!mounted) return;
@@ -217,6 +220,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         ReviewCreateRequest(
           storeName: storeName,
           address: widget.address ?? '',
+          placeId: widget.placeId ?? '',
           brandId: _selectedBrand!.id,
           menuName: menuName,
           scores: _scores,
@@ -485,57 +489,90 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                           ),
                         ],
                         const SizedBox(height: 8),
-                        DropdownButtonFormField<Brand>(
-                          initialValue: _selectedBrand,
-                          items: _brands
-                              .map(
-                                (brand) => DropdownMenuItem(
-                                  value: brand,
-                                  child: Text(brand.name),
+                        if (_isLocalBrandSelected && !_isBrandLocked) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.cardBorder),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.storefront_rounded,
+                                  color: AppColors.primary,
+                                  size: 18,
                                 ),
-                              )
-                              .toList(),
-                          onChanged: _isBrandLocked
-                              ? null
-                              : (brand) async {
-                                  if (brand == null) return;
-                                  if (!await _confirmBrandChange(brand)) {
-                                    return;
-                                  }
-                                  setState(() {
-                                    _selectedBrand = brand;
-                                    _lastConfirmedBrand = brand;
-                                    _selectedMenu = null;
-                                    _menuSearchController.clear();
-                                    _syncActiveDimensions(null);
-                                  });
-                                  _loadMenus(brand.id);
-                                },
-                          decoration: InputDecoration(
-                            hintText: '브랜드 선택',
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: AppColors.cardBorder,
-                              ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '개인 카페로 리뷰를 작성해요',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: AppColors.cardBorder,
+                          ),
+                        ] else ...[
+                          DropdownButtonFormField<Brand>(
+                            initialValue: _selectedBrand,
+                            items: _brands
+                                .map(
+                                  (brand) => DropdownMenuItem(
+                                    value: brand,
+                                    child: Text(brand.name),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _isBrandLocked
+                                ? null
+                                : (brand) async {
+                                    if (brand == null) return;
+                                    if (!await _confirmBrandChange(brand)) {
+                                      return;
+                                    }
+                                    setState(() {
+                                      _selectedBrand = brand;
+                                      _lastConfirmedBrand = brand;
+                                      _selectedMenu = null;
+                                      _menuSearchController.clear();
+                                      _syncActiveDimensions(null);
+                                    });
+                                    _loadMenus(brand.id);
+                                  },
+                            decoration: InputDecoration(
+                              hintText: '브랜드 선택',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppColors.cardBorder,
+                                ),
                               ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: AppColors.cardBorder,
-                                width: 1.4,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppColors.cardBorder,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppColors.cardBorder,
+                                  width: 1.4,
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                         const SizedBox(height: 8),
                         Autocomplete<Menu>(
                           optionsBuilder: (textEditingValue) {

@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/domain/entities/place_search_result.dart';
 
@@ -13,9 +13,7 @@ class PlaceSearchApi {
   Future<List<PlaceSearchResult>> search(String query) async {
     final response = await _dio.get(
       '$_baseUrl/api/cafemap/places/search',
-      queryParameters: {
-        'query': query,
-      },
+      queryParameters: {'query': query},
     );
     final data = response.data as List<dynamic>;
     return data
@@ -32,8 +30,8 @@ PlaceSearchResult _placeFromJson(Map<String, dynamic> json) {
     category: json['category'] as String? ?? '',
     phone: json['phone'] as String? ?? '',
     link: json['link'] as String? ?? '',
+    placeId: json['placeId'] as String? ?? '',
     mapx: json['mapx'] as int? ?? 0,
     mapy: json['mapy'] as int? ?? 0,
   );
 }
-

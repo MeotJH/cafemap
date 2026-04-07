@@ -7,11 +7,13 @@ class StoreSummary {
   final bool isLocal;
   final String address;
   final double rating;
+  final double displayScore;
   final int reviewCount;
   final double distanceKm;
   final String imageUrl;
   final double lat;
   final double lng;
+  final double coffeeQualityScore;
   final double workFriendlyScore;
   final double quietnessScore;
   final double dessertScore;
@@ -28,11 +30,13 @@ class StoreSummary {
     required this.isLocal,
     required this.address,
     required this.rating,
+    required this.displayScore,
     required this.reviewCount,
     required this.distanceKm,
     required this.imageUrl,
     required this.lat,
     required this.lng,
+    required this.coffeeQualityScore,
     required this.workFriendlyScore,
     required this.quietnessScore,
     required this.dessertScore,

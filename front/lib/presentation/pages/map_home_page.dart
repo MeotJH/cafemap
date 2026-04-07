@@ -14,7 +14,16 @@ import 'package:front/presentation/widgets/naver_map_view.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
-enum _MapSortType { rating, distance, reviews, workFriendly, quiet, dessert }
+enum _MapSortType {
+  recommended,
+  rating,
+  distance,
+  reviews,
+  coffee,
+  workFriendly,
+  quiet,
+  dessert,
+}
 
 enum _MapStoreSegment { all, local, franchise }
 
@@ -42,7 +51,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   double _mapLng = AppLocationController.defaultLng;
   bool _isCurrentLocationResolved = false;
   double _sheetExtent = _sheetInitialExtent;
-  _MapSortType _selectedSortType = _MapSortType.rating;
+  _MapSortType _selectedSortType = _MapSortType.recommended;
   _MapStoreSegment _selectedSegment = _MapStoreSegment.all;
   final String _cafeMarkerIconUrl = _buildCafeMarkerIconUrl();
 
@@ -100,7 +109,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         : item.address;
     final uri = Uri(
       path: '/review/write',
-      queryParameters: {'storeName': item.name, 'address': address},
+      queryParameters: {
+        'storeName': item.name,
+        'address': address,
+        'placeId': item.placeId,
+      },
     );
     context.push(uri.toString());
   }
@@ -207,6 +220,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       };
     }).toList();
     sorted.sort((a, b) {
+      if (_selectedSortType == _MapSortType.recommended) {
+        return _compareRecommended(a, b, location);
+      }
       if (_selectedSortType == _MapSortType.distance) {
         final distanceA = _distanceFromCurrentKm(a, location);
         final distanceB = _distanceFromCurrentKm(b, location);
@@ -225,6 +241,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         if (byReviewCount != 0) return byReviewCount;
         return b.rating.compareTo(a.rating);
       }
+      if (_selectedSortType == _MapSortType.coffee) {
+        return _compareByScore(a, b, (store) => store.coffeeQualityScore);
+      }
       if (_selectedSortType == _MapSortType.workFriendly) {
         return _compareByScore(a, b, (store) => store.workFriendlyScore);
       }
@@ -241,6 +260,35 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       return a.distanceKm.compareTo(b.distanceKm);
     });
     return sorted;
+  }
+
+  int _compareRecommended(
+    StoreSummary a,
+    StoreSummary b,
+    AppLocationState location,
+  ) {
+    final scoreA = _discoveryScore(a, location);
+    final scoreB = _discoveryScore(b, location);
+    final byScore = scoreB.compareTo(scoreA);
+    if (byScore != 0) return byScore;
+    final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
+    if (byReviewCount != 0) return byReviewCount;
+    return b.rating.compareTo(a.rating);
+  }
+
+  double _discoveryScore(StoreSummary store, AppLocationState location) {
+    final distance = _distanceFromCurrentKm(store, location);
+    final distanceScore = (1 - (distance / 5)).clamp(0.0, 1.0) * 5;
+    final trustedRating = store.displayScore > 0
+        ? store.displayScore
+        : store.rating;
+    return (trustedRating * 0.7) +
+        (distanceScore * 0.2) +
+        (_reviewSignal(store) * 0.1);
+  }
+
+  double _reviewSignal(StoreSummary store) {
+    return (store.reviewCount / 20).clamp(0.0, 1.0) * 5;
   }
 
   int _compareByScore(
@@ -445,6 +493,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                             margin: const EdgeInsets.only(right: 8),
                           ),
                           AppFilterChip(
+                            label: '추천순',
+                            selected:
+                                _selectedSortType == _MapSortType.recommended,
+                            onSelected: (_) =>
+                                _selectSortType(_MapSortType.recommended),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
                             label: '평점 높은 순',
                             selected: _selectedSortType == _MapSortType.rating,
                             onSelected: (_) =>
@@ -464,6 +520,13 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                             selected: _selectedSortType == _MapSortType.reviews,
                             onSelected: (_) =>
                                 _selectSortType(_MapSortType.reviews),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
+                            label: '커피 맛 좋은',
+                            selected: _selectedSortType == _MapSortType.coffee,
+                            onSelected: (_) =>
+                                _selectSortType(_MapSortType.coffee),
                             margin: const EdgeInsets.only(right: 8),
                           ),
                           AppFilterChip(
@@ -489,6 +552,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                             margin: const EdgeInsets.only(right: 8),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '추천순은 거리, 리뷰 수 신뢰도, 평점을 함께 반영해요.',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ),
                   ],

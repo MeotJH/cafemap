@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:front/presentation/pages/auth_start_page.dart';
 import 'package:front/presentation/pages/main_shell.dart';
 import 'package:front/presentation/pages/map_home_page.dart';
@@ -77,6 +77,7 @@ final GoRouter appRouter = GoRouter(
         return ReviewWritePage(
           storeName: params['storeName'],
           address: params['address'],
+          placeId: params['placeId'],
           menuName: params['menuName'],
           brandId: params['brandId'],
           brandName: params['brandName'],

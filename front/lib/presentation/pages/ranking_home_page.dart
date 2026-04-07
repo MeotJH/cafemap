@@ -409,9 +409,16 @@ class _RankingHeader extends StatelessWidget {
                 ? 'Cafe Store Rankings'
                 : 'Cafe Menu Rankings',
             trailing: selectedMode == _RankingMode.stores
-                ? 'Local First'
+                ? '신뢰도 보정'
                 : 'Franchise Menus',
           ),
+          if (selectedMode == _RankingMode.stores) ...[
+            const SizedBox(height: 6),
+            const Text(
+              '추천순은 표시 별점만이 아니라 리뷰 수 신뢰도와 로컬 카페 우선 노출을 함께 반영해요.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
         ],
       ),
     );

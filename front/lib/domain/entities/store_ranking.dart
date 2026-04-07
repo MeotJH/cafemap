@@ -12,6 +12,7 @@ class StoreRanking {
   final String imageUrl;
   final double lat;
   final double lng;
+  final double coffeeQualityScore;
   final String topLabelA;
   final double topScoreA;
   final String topLabelB;
@@ -34,6 +35,7 @@ class StoreRanking {
     required this.imageUrl,
     required this.lat,
     required this.lng,
+    required this.coffeeQualityScore,
     required this.topLabelA,
     required this.topScoreA,
     required this.topLabelB,

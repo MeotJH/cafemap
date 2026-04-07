@@ -1,4 +1,4 @@
-﻿// ?μ냼 寃??寃곌낵瑜??쒗쁽?섎뒗 ?뷀떚?곕떎.
+// ?μ냼 寃??寃곌낵瑜??쒗쁽?섎뒗 ?뷀떚?곕떎.
 class PlaceSearchResult {
   final String name;
   final String address;
@@ -6,6 +6,7 @@ class PlaceSearchResult {
   final String category;
   final String phone;
   final String link;
+  final String placeId;
   final int mapx;
   final int mapy;
 
@@ -16,6 +17,7 @@ class PlaceSearchResult {
     required this.category,
     required this.phone,
     required this.link,
+    required this.placeId,
     required this.mapx,
     required this.mapy,
   });

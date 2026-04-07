@@ -63,6 +63,7 @@ StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
     imageUrl: json['imageUrl'] as String? ?? '',
     lat: (json['lat'] as num?)?.toDouble() ?? 0,
     lng: (json['lng'] as num?)?.toDouble() ?? 0,
+    coffeeQualityScore: (json['coffeeQualityScore'] as num?)?.toDouble() ?? 0,
     topLabelA: json['topLabelA'] as String? ?? '',
     topScoreA: (json['topScoreA'] as num?)?.toDouble() ?? 0,
     topLabelB: json['topLabelB'] as String? ?? '',
