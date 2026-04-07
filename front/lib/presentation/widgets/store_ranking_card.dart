@@ -9,12 +9,14 @@ const _storeRankingDefaultImageAsset = 'assets/cafe_store_default.png';
 class StoreRankingCard extends StatelessWidget {
   final StoreRanking ranking;
   final int rankIndex;
+  final double distanceKm;
   final VoidCallback onTap;
 
   const StoreRankingCard({
     super.key,
     required this.ranking,
     required this.rankIndex,
+    required this.distanceKm,
     required this.onTap,
   });
 
@@ -93,7 +95,7 @@ class StoreRankingCard extends StatelessWidget {
                       ),
                       _MetricChip(
                         icon: Icons.place_rounded,
-                        label: '${ranking.distanceKm.toStringAsFixed(1)}km',
+                        label: '${distanceKm.toStringAsFixed(1)}km',
                       ),
                     ],
                   ),

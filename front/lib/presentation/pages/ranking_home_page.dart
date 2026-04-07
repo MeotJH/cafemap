@@ -1,10 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:front/domain/entities/store_ranking.dart';
+import 'package:front/presentation/providers/app_providers.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/ranking_providers.dart';
 import 'package:front/presentation/widgets/app_filter_chip.dart';
@@ -34,7 +36,7 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   final _searchController = TextEditingController();
   String _query = '';
   _StoreSegment _selectedSegment = _StoreSegment.all;
-  _StoreRankingSort _selectedSort = _StoreRankingSort.recommended;
+  _StoreRankingSort _selectedSort = _StoreRankingSort.rating;
 
   _RankingMode get _selectedMode => widget._initialMode;
 
@@ -96,14 +98,27 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   }
 
   int _compareRecommended(StoreRanking a, StoreRanking b) {
-    if (_selectedSegment == _StoreSegment.all && a.isLocal != b.isLocal) {
-      return a.isLocal ? -1 : 1;
-    }
     final byDisplayScore = b.displayScore.compareTo(a.displayScore);
     if (byDisplayScore != 0) return byDisplayScore;
     final byReviews = b.reviewCount.compareTo(a.reviewCount);
     if (byReviews != 0) return byReviews;
     return b.rating.compareTo(a.rating);
+  }
+
+  double _distanceFromCurrentKm(
+    StoreRanking ranking,
+    AppLocationState location,
+  ) {
+    if (ranking.lat == 0.0 && ranking.lng == 0.0) {
+      return ranking.distanceKm;
+    }
+    final meters = Geolocator.distanceBetween(
+      location.latitude,
+      location.longitude,
+      ranking.lat,
+      ranking.lng,
+    );
+    return meters / 1000;
   }
 
   Future<void> _handleProfileMenuSelect(
@@ -138,6 +153,7 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   @override
   Widget build(BuildContext context) {
     final storeRankings = ref.watch(storeRankingListProvider);
+    final currentLocation = ref.watch(currentLocationProvider);
     final menuRankings = ref.watch(rankingListProvider);
     final user =
         ref.watch(authStateProvider).asData?.value ??
@@ -183,6 +199,10 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
                                 ),
                                 ranking: ranking,
                                 rankIndex: index,
+                                distanceKm: _distanceFromCurrentKm(
+                                  ranking,
+                                  currentLocation,
+                                ),
                                 onTap: () =>
                                     context.go('/map/store/${ranking.storeId}'),
                               );
@@ -356,17 +376,17 @@ class _RankingHeader extends StatelessWidget {
                 ),
               ],
               AppFilterChip(
-                label: '추천순',
-                selected: selectedSort == _StoreRankingSort.recommended,
-                onSelected: (_) =>
-                    onSortSelected(_StoreRankingSort.recommended),
+                label: '평점순',
+                selected: selectedSort == _StoreRankingSort.rating,
+                onSelected: (_) => onSortSelected(_StoreRankingSort.rating),
                 margin: const EdgeInsets.only(right: 8),
                 width: null,
               ),
               AppFilterChip(
-                label: '평점순',
-                selected: selectedSort == _StoreRankingSort.rating,
-                onSelected: (_) => onSortSelected(_StoreRankingSort.rating),
+                label: '추천순',
+                selected: selectedSort == _StoreRankingSort.recommended,
+                onSelected: (_) =>
+                    onSortSelected(_StoreRankingSort.recommended),
                 margin: const EdgeInsets.only(right: 8),
                 width: null,
               ),
@@ -391,7 +411,7 @@ class _RankingHeader extends StatelessWidget {
           if (selectedMode == _RankingMode.stores) ...[
             const SizedBox(height: 6),
             const Text(
-              '추천순은 표시 별점만이 아니라 리뷰 수 신뢰도와 로컬 카페 우선 노출을 함께 반영해요.',
+              '추천순은 표시 별점만이 아니라 리뷰 수 신뢰도도 함께 반영해요.',
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
           ],
