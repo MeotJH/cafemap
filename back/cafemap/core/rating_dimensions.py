@@ -60,7 +60,9 @@ STORE_EXPERIENCE_DIMENSIONS = [
     "quietness",
     "seat_comfort",
     "outlet_access",
+    "wifi_quality",
     "service",
+    "revisit_intent",
 ]
 
 RATING_DIMENSION_LABELS = {
@@ -87,7 +89,9 @@ RATING_DIMENSION_LABELS = {
     "quietness": "조용함",
     "seat_comfort": "좌석 편안함",
     "outlet_access": "콘센트 접근성",
+    "wifi_quality": "와이파이",
     "service": "응대",
+    "revisit_intent": "재방문 의사",
 }
 
 

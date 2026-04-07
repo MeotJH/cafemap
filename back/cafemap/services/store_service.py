@@ -16,7 +16,7 @@ def get_store_rankings(db: Session):
     rows = store_repository.fetch_store_rankings(db)
     ranked = []
     for store, aggregate, brand_name, brand_logo_url in rows:
-        display_score = _confidence_weighted_score(
+        display_score = confidence_weighted_score(
             rating=aggregate.rating,
             review_count=aggregate.review_count,
         )
@@ -51,7 +51,7 @@ def get_store_reviews(db: Session, store_id: str):
     return store_repository.fetch_store_reviews(db, store_id)
 
 
-def _confidence_weighted_score(
+def confidence_weighted_score(
     *,
     rating: float,
     review_count: int,

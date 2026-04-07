@@ -87,7 +87,7 @@ def _migrate_scores_json_columns(db: Session):
         "review": ("scores_json", "overall", "user_id", "image_urls_json"),
         "brand_menu_aggregate": ("scores_json",),
         "store_aggregate": ("scores_json", "counts_json"),
-        "store": ("store_type",),
+        "store": ("store_type", "place_id"),
     }
     for table_name, needed_columns in targets.items():
         columns = db.execute(text(f"PRAGMA table_info('{table_name}')")).fetchall()
@@ -123,6 +123,13 @@ def _migrate_scores_json_columns(db: Session):
                     text(
                         f"ALTER TABLE {table_name} "
                         "ADD COLUMN store_type VARCHAR NOT NULL DEFAULT 'unknown'"
+                    )
+                )
+            elif column_name == "place_id":
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        "ADD COLUMN place_id VARCHAR NOT NULL DEFAULT ''"
                     )
                 )
             else:
@@ -199,7 +206,9 @@ def _score_seed(category: str) -> dict[str, float]:
             "quietness": 4.0,
             "seat_comfort": 4.1,
             "outlet_access": 4.0,
+            "wifi_quality": 4.1,
             "service": 4.3,
+            "revisit_intent": 4.4,
         }
     )
     return {**menu_scores, **store_scores}
@@ -284,6 +293,7 @@ def seed_if_empty(db: Session):
                     name=str(seed["store_name"]),
                     address=str(seed["address"]),
                     store_type=store_type,
+                    place_id=store_id,
                     distance_km=0.8,
                     lat=float(seed["lat"]),
                     lng=float(seed["lng"]),
@@ -296,6 +306,7 @@ def seed_if_empty(db: Session):
                 existing_store.name = str(seed["store_name"])
                 existing_store.address = str(seed["address"])
                 existing_store.store_type = store_type
+                existing_store.place_id = existing_store.place_id or store_id
                 existing_store.distance_km = 0.8
                 existing_store.lat = float(seed["lat"])
                 existing_store.lng = float(seed["lng"])

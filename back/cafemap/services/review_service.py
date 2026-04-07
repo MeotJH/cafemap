@@ -108,7 +108,14 @@ def create_review(db: Session, payload, user_id: str):
 
 
 
-    store = _find_existing_store(db, brand.id, payload.storeName, payload.address)
+    place_id = (getattr(payload, "placeId", "") or "").strip()
+    store = _find_existing_store(
+        db,
+        brand.id,
+        payload.storeName,
+        payload.address,
+        place_id,
+    )
 
     if store is None:
 
@@ -125,6 +132,8 @@ def create_review(db: Session, payload, user_id: str):
             address=payload.address,
 
             store_type=_store_type_for_brand(brand.id),
+
+            place_id=place_id,
 
             distance_km=0.0,
 
@@ -143,6 +152,9 @@ def create_review(db: Session, payload, user_id: str):
         if coords:
 
             store.lat, store.lng = coords
+
+    if store is not None and place_id and not store.place_id:
+        store.place_id = place_id
 
 
 
@@ -541,7 +553,19 @@ def _find_existing_store(
     brand_id: str,
     store_name: str,
     address: str | None,
+    place_id: str | None,
 ) -> Store | None:
+    normalized_place_id = (place_id or "").strip()
+    if normalized_place_id:
+        store = (
+            db.query(Store)
+            .filter(Store.brand_id == brand_id)
+            .filter(Store.place_id == normalized_place_id)
+            .first()
+        )
+        if store is not None:
+            return store
+
     store = (
         db.query(Store)
         .filter(Store.brand_id == brand_id)

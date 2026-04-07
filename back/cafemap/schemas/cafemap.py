@@ -32,11 +32,13 @@ class StoreSummaryOut(BaseModel):
     isLocal: bool
     address: str
     rating: float
+    displayScore: float = 0.0
     reviewCount: int
     distanceKm: float
     imageUrl: str
     lat: float
     lng: float
+    coffeeQualityScore: float = 0.0
     workFriendlyScore: float = 0.0
     quietnessScore: float = 0.0
     dessertScore: float = 0.0
@@ -60,6 +62,7 @@ class StoreRankingOut(BaseModel):
     imageUrl: str
     lat: float
     lng: float
+    coffeeQualityScore: float = 0.0
     topLabelA: str
     topScoreA: float
     topLabelB: str
@@ -98,6 +101,7 @@ class PlaceSearchOut(BaseModel):
     category: str
     phone: str
     link: str
+    placeId: str
     mapx: int
     mapy: int
 
@@ -122,6 +126,7 @@ class ReviewCreateIn(BaseModel):
     # 리뷰 생성 요청 모델이다.
     storeName: str
     address: str
+    placeId: str = ""
     brandId: str
     menuName: str
     scores: dict[str, float] = Field(default_factory=dict)

@@ -120,6 +120,13 @@ def _dessert_signal(scores: dict[str, float]) -> float:
     return sum(parsed) / len(parsed)
 
 
+def _display_score_for_store(aggregate) -> float:
+    return store_service.confidence_weighted_score(
+        rating=aggregate.rating,
+        review_count=aggregate.review_count,
+    )
+
+
 
 
 
@@ -369,6 +376,8 @@ def list_stores(db: Session = Depends(get_db)):
 
             rating=aggregate.rating,
 
+            displayScore=_display_score_for_store(aggregate),
+
             reviewCount=aggregate.review_count,
 
             distanceKm=store.distance_km,
@@ -378,6 +387,8 @@ def list_stores(db: Session = Depends(get_db)):
             lat=store.lat,
 
             lng=store.lng,
+
+            coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
 
             workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
 
@@ -444,6 +455,8 @@ def list_store_rankings(db: Session = Depends(get_db)):
 
             topScoreB=highlights[1][1],
 
+            coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
+
             workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
 
             quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
@@ -490,6 +503,8 @@ def get_store_detail(store_id: str, db: Session = Depends(get_db)):
 
         rating=aggregate.rating,
 
+        displayScore=_display_score_for_store(aggregate),
+
         reviewCount=aggregate.review_count,
 
         distanceKm=store.distance_km,
@@ -499,6 +514,8 @@ def get_store_detail(store_id: str, db: Session = Depends(get_db)):
         lat=store.lat,
 
         lng=store.lng,
+
+        coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
 
         workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
 
