@@ -363,6 +363,55 @@ def _store_type_for_brand(brand_id: str) -> str:
     return STORE_TYPE_LOCAL if brand_id == LOCAL_BRAND_ID else STORE_TYPE_FRANCHISE
 
 
+def _dedupe_menus(db: Session, seed_menus: list[Menu]):
+    seed_ids_by_key = {(menu.brand_id, menu.name): menu.id for menu in seed_menus}
+    menus_by_key: dict[tuple[str, str], list[Menu]] = {}
+    for menu in db.scalars(select(Menu).order_by(Menu.brand_id, Menu.name, Menu.id)):
+        menus_by_key.setdefault((menu.brand_id, menu.name), []).append(menu)
+
+    for key, duplicates in menus_by_key.items():
+        if len(duplicates) <= 1:
+            continue
+
+        preferred_id = seed_ids_by_key.get(key)
+        canonical = next(
+            (menu for menu in duplicates if menu.id == preferred_id),
+            duplicates[0],
+        )
+        for duplicate in duplicates:
+            if duplicate.id == canonical.id:
+                continue
+            _merge_duplicate_menu(db, canonical, duplicate)
+
+
+def _merge_duplicate_menu(db: Session, canonical: Menu, duplicate: Menu):
+    db.query(Review).filter(Review.menu_id == duplicate.id).update(
+        {Review.menu_id: canonical.id},
+        synchronize_session=False,
+    )
+
+    duplicate_aggregates = (
+        db.query(BrandMenuAggregate)
+        .filter(BrandMenuAggregate.menu_id == duplicate.id)
+        .all()
+    )
+    for aggregate in duplicate_aggregates:
+        canonical_aggregate = (
+            db.query(BrandMenuAggregate)
+            .filter(BrandMenuAggregate.brand_id == aggregate.brand_id)
+            .filter(BrandMenuAggregate.menu_id == canonical.id)
+            .first()
+        )
+        if canonical_aggregate is None:
+            aggregate.menu_id = canonical.id
+            continue
+        canonical_aggregate.review_count += aggregate.review_count
+        canonical_aggregate.rating = max(canonical_aggregate.rating, aggregate.rating)
+        db.delete(aggregate)
+
+    db.delete(duplicate)
+
+
 def seed_if_empty(db: Session):
     # ???, ??, ?? ??/??? ??? ?? ???? ???.
     now = datetime.now()
@@ -406,6 +455,8 @@ def seed_if_empty(db: Session):
         existing.image_url = menu.image_url
         existing.category = menu.category
 
+    db.flush()
+    _dedupe_menus(db, menus)
     db.flush()
 
     menus_by_brand: dict[str, Menu] = {}

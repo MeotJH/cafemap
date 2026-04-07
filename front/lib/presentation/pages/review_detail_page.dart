@@ -248,7 +248,7 @@ class _ReviewDetailBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  review.comment.isEmpty ? '肄붾찘?멸? ?놁뼱??' : review.comment,
+                  review.comment.isEmpty ? '작성된 코멘트가 없어요.' : review.comment,
                   style: const TextStyle(
                     fontSize: 16,
                     height: 1.5,

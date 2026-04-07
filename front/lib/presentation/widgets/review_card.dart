@@ -96,8 +96,10 @@ class ReviewCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(review.comment, style: const TextStyle(fontSize: 13)),
+          if (review.comment.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(review.comment, style: const TextStyle(fontSize: 13)),
+          ],
         ],
       ),
     );

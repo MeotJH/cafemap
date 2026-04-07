@@ -114,7 +114,14 @@ def fetch_menus_by_brand(db: Session, brand_id: str, query: str | None = None):
 
     stmt = stmt.order_by(Menu.name.asc())
 
-    return db.execute(stmt).scalars().all()
-
+    menus = db.execute(stmt).scalars().all()
+    unique_menus = []
+    seen_names = set()
+    for menu in menus:
+        if menu.name in seen_names:
+            continue
+        seen_names.add(menu.name)
+        unique_menus.append(menu)
+    return unique_menus
 
 
