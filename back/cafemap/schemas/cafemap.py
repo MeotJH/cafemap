@@ -28,6 +28,7 @@ class StoreSummaryOut(BaseModel):
     id: str
     name: str
     brandName: str
+    isLocal: bool
     address: str
     rating: float
     reviewCount: int

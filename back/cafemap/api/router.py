@@ -335,6 +335,8 @@ def list_stores(db: Session = Depends(get_db)):
 
             brandName=brand_name,
 
+            isLocal=store.brand_id == "brand-local",
+
             address=store.address,
 
             rating=aggregate.rating,
@@ -429,6 +431,8 @@ def get_store_detail(store_id: str, db: Session = Depends(get_db)):
         name=store.name,
 
         brandName=brand_name,
+
+        isLocal=store.brand_id == "brand-local",
 
         address=store.address,
 
