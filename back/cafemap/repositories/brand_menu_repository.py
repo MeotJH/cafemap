@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy import select
 
 from sqlalchemy.orm import Session
@@ -108,13 +110,17 @@ def fetch_menus_by_brand(db: Session, brand_id: str, query: str | None = None):
 
     stmt = select(Menu).where(Menu.brand_id == brand_id)
 
-    if query:
-
-        stmt = stmt.where(Menu.name.contains(query))
-
     stmt = stmt.order_by(Menu.name.asc())
 
     menus = db.execute(stmt).scalars().all()
+    if query:
+        query_keys = _menu_search_keys(query)
+        menus = [
+            menu
+            for menu in menus
+            if query_keys & _menu_search_keys(menu.name)
+            or _normalize_menu_search_text(query) in _normalize_menu_search_text(menu.name)
+        ]
     unique_menus = []
     seen_names = set()
     for menu in menus:
@@ -124,4 +130,20 @@ def fetch_menus_by_brand(db: Session, brand_id: str, query: str | None = None):
         unique_menus.append(menu)
     return unique_menus
 
+
+def _normalize_menu_search_text(value: str) -> str:
+    normalized = value.strip().lower()
+    normalized = re.sub(r"\s+", "", normalized)
+    normalized = re.sub(r"[^0-9a-z가-힣]", "", normalized)
+    return normalized
+
+
+def _menu_search_keys(value: str) -> set[str]:
+    normalized = _normalize_menu_search_text(value)
+    keys = {normalized} if normalized else set()
+    if "아메리카노" in normalized:
+        keys.add(re.sub(r"^(아이스|핫)", "", normalized))
+    if "americano" in normalized:
+        keys.add(re.sub(r"^(ice|iced|hot)", "", normalized))
+    return {key for key in keys if key}
 

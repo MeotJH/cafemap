@@ -15,7 +15,7 @@ from cafemap.core.rating_dimensions import (
     scores_json_dumps,
     top_highlights,
 )
-from cafemap.core.config import SEED_ON_STARTUP
+from cafemap.core.config import SEED_CATALOG_ON_STARTUP, SEED_SAMPLE_DATA_ON_STARTUP
 from cafemap.db.session import Base, engine
 from cafemap.models.entities import (
     Brand,
@@ -140,7 +140,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     with Session(engine) as db:
         _migrate_scores_json_columns(db)
-        if SEED_ON_STARTUP:
+        if SEED_CATALOG_ON_STARTUP:
             seed_if_empty(db)
 
 
@@ -430,13 +430,6 @@ def seed_if_empty(db: Session):
         updated_at=now,
     )
 
-    existing_brand_ids = set(db.scalars(select(Brand.id)).all())
-    existing_user_ids = set(db.scalars(select(User.id)).all())
-    existing_store_ids = set(db.scalars(select(Store.id)).all())
-    existing_ranking_ids = set(db.scalars(select(BrandMenuAggregate.id)).all())
-    existing_store_aggregate_ids = set(db.scalars(select(StoreAggregate.id)).all())
-    existing_review_ids = set(db.scalars(select(Review.id)).all())
-
     for brand in brands:
         existing = db.get(Brand, brand.id)
         if existing is None:
@@ -444,8 +437,6 @@ def seed_if_empty(db: Session):
             continue
         existing.name = brand.name
         existing.logo_url = brand.logo_url
-    if seed_user.id not in existing_user_ids:
-        db.add(seed_user)
 
     for menu in menus:
         existing = db.get(Menu, menu.id)
@@ -460,6 +451,19 @@ def seed_if_empty(db: Session):
     db.flush()
     _dedupe_menus(db, menus)
     db.flush()
+
+    if not SEED_SAMPLE_DATA_ON_STARTUP:
+        db.commit()
+        return
+
+    existing_user_ids = set(db.scalars(select(User.id)).all())
+    existing_store_ids = set(db.scalars(select(Store.id)).all())
+    existing_ranking_ids = set(db.scalars(select(BrandMenuAggregate.id)).all())
+    existing_store_aggregate_ids = set(db.scalars(select(StoreAggregate.id)).all())
+    existing_review_ids = set(db.scalars(select(Review.id)).all())
+
+    if seed_user.id not in existing_user_ids:
+        db.add(seed_user)
 
     menus_by_brand: dict[str, Menu] = {}
     for menu in menus:

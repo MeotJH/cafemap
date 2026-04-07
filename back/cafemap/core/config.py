@@ -15,13 +15,19 @@ def _default_sqlite_url() -> str:
     return f"sqlite:///{db_path}"
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
 DB_URL = os.getenv("cafemap_DB_URL", _default_sqlite_url())
-SEED_ON_STARTUP = os.getenv("CAFEMAP_SEED_ON_STARTUP", "true").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+SEED_CATALOG_ON_STARTUP = _env_bool("CAFEMAP_SEED_CATALOG_ON_STARTUP", True)
+SEED_SAMPLE_DATA_ON_STARTUP = _env_bool(
+    "CAFEMAP_SEED_SAMPLE_DATA",
+    _env_bool("CAFEMAP_SEED_ON_STARTUP", True),
+)
 
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 S3_BUCKET = os.getenv("S3_BUCKET", "")

@@ -82,8 +82,6 @@ def create_review(db: Session, payload, user_id: str):
 
 
 
-    normalized_input_menu = _normalize_menu_name(payload.menuName)
-
     menu = _find_best_matching_menu(db, brand.id, payload.menuName)
 
     if menu is None:
@@ -522,6 +520,16 @@ def _normalize_menu_name(name: str) -> str:
     return normalized
 
 
+def _menu_match_keys(name: str) -> set[str]:
+    normalized = _normalize_menu_name(name)
+    keys = {normalized} if normalized else set()
+    if "아메리카노" in normalized:
+        keys.add(re.sub(r"^(아이스|핫)", "", normalized))
+    if "americano" in normalized:
+        keys.add(re.sub(r"^(ice|iced|hot)", "", normalized))
+    return {key for key in keys if key}
+
+
 def _normalize_place_text(value: str | None) -> str:
     normalized = (value or "").strip().lower()
     normalized = re.sub(r"\s+", "", normalized)
@@ -600,9 +608,9 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
 
 
 
-    normalized_target = _normalize_menu_name(stripped)
+    target_keys = _menu_match_keys(stripped)
 
-    if not normalized_target:
+    if not target_keys:
 
         return None
 
@@ -612,7 +620,7 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
 
     for existing in menus:
 
-        if _normalize_menu_name(existing.name) == normalized_target:
+        if target_keys & _menu_match_keys(existing.name):
 
             return existing
 
@@ -625,14 +633,15 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
     best_score = 0.0
 
     for existing in menus:
+        existing_keys = _menu_match_keys(existing.name)
+        if not existing_keys:
+            continue
 
-        score = SequenceMatcher(
-
-            a=normalized_target,
-
-            b=_normalize_menu_name(existing.name),
-
-        ).ratio()
+        score = max(
+            SequenceMatcher(a=target, b=existing_key).ratio()
+            for target in target_keys
+            for existing_key in existing_keys
+        )
 
         if score > best_score:
 

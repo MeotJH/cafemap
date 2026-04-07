@@ -103,8 +103,8 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       final brands = await repository.fetchBrands();
       final matched = widget.brandId == null || widget.brandId!.isEmpty
           ? (_findBrandByName(brands, widget.brandName ?? '') ??
-                _matchBrand(brands, widget.storeName ?? '') ??
-                _findBrandById(brands, 'brand-local'))
+              _matchBrand(brands, widget.storeName ?? '') ??
+              _findBrandById(brands, 'brand-local'))
           : _findBrandById(brands, widget.brandId!) ?? brands.first;
       setState(() {
         _brands = brands;
@@ -122,7 +122,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   }
 
   Brand? _matchBrand(List<Brand> brands, String storeName) {
-    final normalized = storeName.replaceAll(' ', '').toLowerCase();
+    final normalized = _normalizeSearchText(storeName);
     for (final brand in brands) {
       for (final token in _brandMatchTokens(brand)) {
         if (token.isNotEmpty && normalized.contains(token)) {
@@ -141,7 +141,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   }
 
   Brand? _findBrandByName(List<Brand> brands, String brandName) {
-    final target = brandName.replaceAll(' ', '').toLowerCase();
+    final target = _normalizeSearchText(brandName);
     if (target.isEmpty) return null;
     for (final brand in brands) {
       if (_brandMatchTokens(brand).contains(target)) return brand;
@@ -150,12 +150,36 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   }
 
   Set<String> _brandMatchTokens(Brand brand) {
-    final normalized = brand.name.replaceAll(' ', '').toLowerCase();
+    final normalized = _normalizeSearchText(brand.name);
     final tokens = <String>{normalized};
     if (normalized.contains('메가')) {
       tokens.addAll({'메가커피', '메가mgc커피'});
     }
+    if (normalized.contains('이디야')) {
+      tokens.addAll({'이디야', '이디야커피', 'ediya'});
+    }
     return tokens;
+  }
+
+  String _normalizeSearchText(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll(RegExp(r'[^0-9a-z가-힣]'), '');
+  }
+
+  Set<String> _menuMatchKeys(String value) {
+    final normalized = _normalizeSearchText(value);
+    final keys = <String>{if (normalized.isNotEmpty) normalized};
+    if (normalized.contains('아메리카노')) {
+      keys.add(normalized.replaceFirst(RegExp(r'^(아이스|핫)'), ''));
+    }
+    if (normalized.contains('americano')) {
+      keys.add(normalized.replaceFirst(RegExp(r'^(ice|iced|hot)'), ''));
+    }
+    keys.removeWhere((key) => key.isEmpty);
+    return keys;
   }
 
   Future<void> _loadMenus(String brandId) async {
@@ -272,8 +296,10 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     if (selected != null && selected.name == typed) {
       return selected;
     }
+    final typedKeys = _menuMatchKeys(typed);
     for (final menu in _menus) {
-      if (menu.name == typed) {
+      if (menu.name == typed ||
+          typedKeys.intersection(_menuMatchKeys(menu.name)).isNotEmpty) {
         return menu;
       }
     }
@@ -599,12 +625,20 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                         const SizedBox(height: 8),
                         Autocomplete<Menu>(
                           optionsBuilder: (textEditingValue) {
-                            final query = textEditingValue.text
-                                .trim()
-                                .toLowerCase();
+                            final query =
+                                textEditingValue.text.trim().toLowerCase();
                             if (query.isEmpty) return _menus;
+                            final queryKeys = _menuMatchKeys(query);
                             return _menus.where(
-                              (menu) => menu.name.toLowerCase().contains(query),
+                              (menu) {
+                                final menuText =
+                                    _normalizeSearchText(menu.name);
+                                return menuText.contains(
+                                        _normalizeSearchText(query)) ||
+                                    queryKeys
+                                        .intersection(_menuMatchKeys(menu.name))
+                                        .isNotEmpty;
+                              },
                             );
                           },
                           displayStringForOption: (menu) => menu.name,
@@ -617,55 +651,52 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                           },
                           fieldViewBuilder:
                               (context, controller, focusNode, onSubmitted) {
-                                if (controller.text !=
-                                    _menuSearchController.text) {
-                                  controller.value =
-                                      _menuSearchController.value;
-                                }
-                                return TextField(
-                                  controller: controller,
-                                  focusNode: focusNode,
-                                  decoration: InputDecoration(
-                                    hintText: _loadingMenus
-                                        ? '메뉴 불러오는 중...'
-                                        : '표준 메뉴 검색 후 선택',
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: AppColors.cardBorder,
-                                      ),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: AppColors.cardBorder,
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: AppColors.cardBorder,
-                                        width: 1.4,
-                                      ),
-                                    ),
+                            if (controller.text != _menuSearchController.text) {
+                              controller.value = _menuSearchController.value;
+                            }
+                            return TextField(
+                              controller: controller,
+                              focusNode: focusNode,
+                              decoration: InputDecoration(
+                                hintText: _loadingMenus
+                                    ? '메뉴 불러오는 중...'
+                                    : '표준 메뉴 검색 후 선택',
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.cardBorder,
                                   ),
-                                  onChanged: (value) {
-                                    _menuSearchController.value =
-                                        controller.value;
-                                    final selected = _selectedMenu;
-                                    if (selected != null &&
-                                        selected.name != value) {
-                                      setState(() {
-                                        _selectedMenu = null;
-                                        _syncActiveDimensions(null);
-                                      });
-                                    }
-                                  },
-                                  onSubmitted: (_) => onSubmitted(),
-                                );
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.cardBorder,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.cardBorder,
+                                    width: 1.4,
+                                  ),
+                                ),
+                              ),
+                              onChanged: (value) {
+                                _menuSearchController.value = controller.value;
+                                final selected = _selectedMenu;
+                                if (selected != null &&
+                                    selected.name != value) {
+                                  setState(() {
+                                    _selectedMenu = null;
+                                    _syncActiveDimensions(null);
+                                  });
+                                }
                               },
+                              onSubmitted: (_) => onSubmitted(),
+                            );
+                          },
                           optionsViewBuilder: (context, onSelected, options) {
                             final list = options.toList(growable: false);
                             if (list.isEmpty) {
