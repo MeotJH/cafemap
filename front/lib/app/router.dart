@@ -48,6 +48,25 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         GoRoute(
+          path: '/menu-ranking',
+          builder: (BuildContext context, GoRouterState state) {
+            return const RankingHomePage.menu();
+          },
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':id',
+              builder: (BuildContext context, GoRouterState state) {
+                final id = state.pathParameters['id'] ?? '';
+                final extra = state.extra;
+                return RankingDetailPage(
+                  rankingId: id,
+                  ranking: extra is BrandMenuRanking ? extra : null,
+                );
+              },
+            ),
+          ],
+        ),
+        GoRoute(
           path: '/map',
           builder: (BuildContext context, GoRouterState state) {
             return const MapHomePage();

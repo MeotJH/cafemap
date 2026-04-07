@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:another_flushbar/flushbar.dart';
 import 'package:front/core/constants/app_colors.dart';
@@ -43,10 +43,14 @@ class ReviewDetailPage extends ConsumerWidget {
         context.go('/ranking');
         break;
       case 1:
-        context.go('/map');
+        context.go('/menu-ranking');
         break;
       case 2:
-        final user = ref.read(authStateProvider).asData?.value ??
+        context.go('/map');
+        break;
+      case 3:
+        final user =
+            ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
           await _showTopToast(context, '내 활동은 로그인 후 확인할 수 있어요.');
@@ -64,16 +68,13 @@ class ReviewDetailPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(
-        title: const Text('리뷰 상세'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('리뷰 상세'), centerTitle: true),
       body: reviewAsync.when(
         data: (review) => _ReviewDetailBody(review: review),
         loading: () => initialReview == null
             ? const Center(child: CircularProgressIndicator())
             : _ReviewDetailBody(review: initialReview!),
-        error: (_, __) => initialReview == null
+        error: (error, stackTrace) => initialReview == null
             ? const Center(child: Text('리뷰를 불러오지 못했어요.'))
             : _ReviewDetailBody(review: initialReview!),
       ),
@@ -85,7 +86,12 @@ class ReviewDetailPage extends ConsumerWidget {
           NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
-            label: AppStrings.rankingTab,
+            label: AppStrings.cafeRankingTab,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.restaurant_menu_outlined),
+            selectedIcon: Icon(Icons.restaurant_menu),
+            label: AppStrings.menuRankingTab,
           ),
           NavigationDestination(
             icon: Icon(Icons.map_outlined),
@@ -217,10 +223,10 @@ class _ReviewDetailBody extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.06),
+              color: AppColors.primary.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.primary.withOpacity(0.15),
+                color: AppColors.primary.withValues(alpha: 0.15),
               ),
             ),
             child: Column(
@@ -290,12 +296,14 @@ class _ReviewDetailBody extends StatelessWidget {
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 Container(
-                              width: 120,
-                              height: 120,
-                              color: const Color(0xFFF3F4F6),
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.broken_image_outlined),
-                            ),
+                                  width: 120,
+                                  height: 120,
+                                  color: const Color(0xFFF3F4F6),
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.broken_image_outlined,
+                                  ),
+                                ),
                           ),
                         ),
                       );
@@ -344,8 +352,11 @@ class _ReviewDetailBody extends StatelessWidget {
                   child: Image.network(
                     imageUrl,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.broken_image_outlined, color: Colors.white, size: 44),
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white,
+                      size: 44,
+                    ),
                   ),
                 ),
               ),

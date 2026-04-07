@@ -1,4 +1,4 @@
-﻿import 'package:another_flushbar/flushbar.dart';
+import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/core/constants/app_strings.dart';
@@ -9,15 +9,13 @@ import 'package:go_router/go_router.dart';
 class MainShell extends ConsumerWidget {
   final Widget child;
 
-  const MainShell({
-    super.key,
-    required this.child,
-  });
+  const MainShell({super.key, required this.child});
 
   // 현재 라우트 위치로 탭 인덱스를 계산한다.
   int _currentIndex(String location) {
-    if (location.startsWith('/map')) return 1;
-    if (location.startsWith('/activity')) return 2;
+    if (location.startsWith('/menu-ranking')) return 1;
+    if (location.startsWith('/map')) return 2;
+    if (location.startsWith('/activity')) return 3;
     return 0;
   }
 
@@ -40,10 +38,14 @@ class MainShell extends ConsumerWidget {
         context.go('/ranking');
         break;
       case 1:
-        context.go('/map');
+        context.go('/menu-ranking');
         break;
       case 2:
-        final user = ref.read(authStateProvider).asData?.value ??
+        context.go('/map');
+        break;
+      case 3:
+        final user =
+            ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
           await _showTopToast(context, '내 활동은 로그인 후 확인할 수 있어요.');
@@ -70,7 +72,12 @@ class MainShell extends ConsumerWidget {
           NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
-            label: AppStrings.rankingTab,
+            label: AppStrings.cafeRankingTab,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.restaurant_menu_outlined),
+            selectedIcon: Icon(Icons.restaurant_menu),
+            label: AppStrings.menuRankingTab,
           ),
           NavigationDestination(
             icon: Icon(Icons.map_outlined),

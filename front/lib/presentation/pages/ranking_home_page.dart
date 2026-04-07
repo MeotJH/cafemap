@@ -20,7 +20,11 @@ enum _StoreRankingSort { recommended, rating, reviews }
 enum _RankingMode { stores, menus }
 
 class RankingHomePage extends ConsumerStatefulWidget {
-  const RankingHomePage({super.key});
+  final _RankingMode _initialMode;
+
+  const RankingHomePage({super.key}) : _initialMode = _RankingMode.stores;
+
+  const RankingHomePage.menu({super.key}) : _initialMode = _RankingMode.menus;
 
   @override
   ConsumerState<RankingHomePage> createState() => _RankingHomePageState();
@@ -29,9 +33,10 @@ class RankingHomePage extends ConsumerStatefulWidget {
 class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   final _searchController = TextEditingController();
   String _query = '';
-  _RankingMode _selectedMode = _RankingMode.stores;
   _StoreSegment _selectedSegment = _StoreSegment.all;
   _StoreRankingSort _selectedSort = _StoreRankingSort.recommended;
+
+  _RankingMode get _selectedMode => widget._initialMode;
 
   @override
   void dispose() {
@@ -149,7 +154,6 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
               selectedSegment: _selectedSegment,
               selectedSort: _selectedSort,
               onSearchChanged: (value) => setState(() => _query = value),
-              onModeSelected: (value) => setState(() => _selectedMode = value),
               onSegmentSelected: (value) =>
                   setState(() => _selectedSegment = value),
               onSortSelected: (value) => setState(() => _selectedSort = value),
@@ -210,7 +214,7 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
                                 ranking: ranking,
                                 rankIndex: index,
                                 onTap: () => context.go(
-                                  '/ranking/${ranking.id}',
+                                  '/menu-ranking/${ranking.id}',
                                   extra: ranking,
                                 ),
                               );
@@ -240,7 +244,6 @@ class _RankingHeader extends StatelessWidget {
   final _StoreSegment selectedSegment;
   final _StoreRankingSort selectedSort;
   final ValueChanged<String> onSearchChanged;
-  final ValueChanged<_RankingMode> onModeSelected;
   final ValueChanged<_StoreSegment> onSegmentSelected;
   final ValueChanged<_StoreRankingSort> onSortSelected;
   final bool isLoggedIn;
@@ -252,7 +255,6 @@ class _RankingHeader extends StatelessWidget {
     required this.selectedSegment,
     required this.selectedSort,
     required this.onSearchChanged,
-    required this.onModeSelected,
     required this.onSegmentSelected,
     required this.onSortSelected,
     required this.isLoggedIn,
@@ -315,7 +317,9 @@ class _RankingHeader extends StatelessWidget {
             controller: controller,
             onChanged: onSearchChanged,
             decoration: InputDecoration(
-              hintText: '카페명, 브랜드, 강점 검색',
+              hintText: selectedMode == _RankingMode.stores
+                  ? '카페명, 브랜드, 강점 검색'
+                  : '메뉴명, 브랜드, 카테고리 검색',
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Colors.white,
@@ -328,35 +332,26 @@ class _RankingHeader extends StatelessWidget {
           const SizedBox(height: 12),
           _RankingFilterScroller(
             children: [
-              AppFilterChip(
-                label: '카페 랭킹',
-                selected: selectedMode == _RankingMode.stores,
-                onSelected: (_) => onModeSelected(_RankingMode.stores),
-                width: null,
-              ),
-              AppFilterChip(
-                label: '메뉴 랭킹',
-                selected: selectedMode == _RankingMode.menus,
-                onSelected: (_) => onModeSelected(_RankingMode.menus),
-                width: null,
-              ),
               if (selectedMode == _RankingMode.stores) ...[
                 AppFilterChip(
                   label: '전체',
                   selected: selectedSegment == _StoreSegment.all,
                   onSelected: (_) => onSegmentSelected(_StoreSegment.all),
+                  margin: const EdgeInsets.only(right: 8),
                   width: null,
                 ),
                 AppFilterChip(
                   label: '로컬',
                   selected: selectedSegment == _StoreSegment.local,
                   onSelected: (_) => onSegmentSelected(_StoreSegment.local),
+                  margin: const EdgeInsets.only(right: 8),
                   width: null,
                 ),
                 AppFilterChip(
                   label: '프랜차이즈',
                   selected: selectedSegment == _StoreSegment.franchise,
                   onSelected: (_) => onSegmentSelected(_StoreSegment.franchise),
+                  margin: const EdgeInsets.only(right: 8),
                   width: null,
                 ),
               ],
@@ -365,18 +360,21 @@ class _RankingHeader extends StatelessWidget {
                 selected: selectedSort == _StoreRankingSort.recommended,
                 onSelected: (_) =>
                     onSortSelected(_StoreRankingSort.recommended),
+                margin: const EdgeInsets.only(right: 8),
                 width: null,
               ),
               AppFilterChip(
                 label: '평점순',
                 selected: selectedSort == _StoreRankingSort.rating,
                 onSelected: (_) => onSortSelected(_StoreRankingSort.rating),
+                margin: const EdgeInsets.only(right: 8),
                 width: null,
               ),
               AppFilterChip(
                 label: '리뷰 많은 순',
                 selected: selectedSort == _StoreRankingSort.reviews,
                 onSelected: (_) => onSortSelected(_StoreRankingSort.reviews),
+                margin: EdgeInsets.zero,
                 width: null,
               ),
             ],
