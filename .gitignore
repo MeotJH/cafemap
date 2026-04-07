@@ -17,3 +17,10 @@ front/.firebase/
 back/generated/
 
 LightsailDefaultKey-ap-northeast-2.pem
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem

@@ -4,7 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-if ! command -v firebase >/dev/null 2>&1; then
+if command -v npx >/dev/null 2>&1; then
+  FIREBASE_CMD=(npx firebase-tools)
+elif command -v firebase >/dev/null 2>&1; then
+  FIREBASE_CMD=(firebase)
+else
   echo "firebase CLI is not installed. Install with: npm i -g firebase-tools"
   exit 1
 fi
@@ -27,4 +31,4 @@ fi
 cp .env.production .env
 $FLUTTER_CMD pub get
 $FLUTTER_CMD build web --release --pwa-strategy=none
-firebase deploy --only hosting
+"${FIREBASE_CMD[@]}" deploy --only hosting

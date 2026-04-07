@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -6,11 +6,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Defaults (override via env vars if needed)
 BACKEND_HOST="${BACKEND_HOST:-3.36.208.227}"
 BACKEND_USER="${BACKEND_USER:-ec2-user}"
-SSH_KEY_PATH="${SSH_KEY_PATH:-$ROOT_DIR/LightsailDefaultKey-ap-northeast-2.pem}"
+SSH_KEY_PATH="${SSH_KEY_PATH:-$ROOT_DIR/../chickenmap/LightsailDefaultKey-ap-northeast-2.pem}"
 BACKEND_REMOTE_DIR="${BACKEND_REMOTE_DIR:-/home/ec2-user/cafemap-back}"
 BACKEND_CONTAINER_NAME="${BACKEND_CONTAINER_NAME:-cafemap-back}"
 BACKEND_IMAGE_NAME="${BACKEND_IMAGE_NAME:-cafemap-back:latest}"
-BACKEND_PORT_BIND="${BACKEND_PORT_BIND:-2026:8000}"
+BACKEND_PORT_BIND="${BACKEND_PORT_BIND:-2027:8000}"
+BACKEND_PUBLIC_URL="${BACKEND_PUBLIC_URL:-https://cafemap.${BACKEND_HOST}.nip.io}"
+UPLOAD_BACKEND_ENV="${UPLOAD_BACKEND_ENV:-false}"
 
 DEPLOY_FRONT=false
 DEPLOY_BACK=false
@@ -33,6 +35,8 @@ Env overrides:
   BACKEND_CONTAINER_NAME
   BACKEND_IMAGE_NAME
   BACKEND_PORT_BIND
+  BACKEND_PUBLIC_URL
+  UPLOAD_BACKEND_ENV=true  Upload local back/.env to the remote directory
 EOF
 }
 
@@ -89,6 +93,9 @@ deploy_backend() {
     exit 1
   fi
 
+  ssh -i "$SSH_KEY_PATH" "${BACKEND_USER}@${BACKEND_HOST}" \
+    "mkdir -p '${BACKEND_REMOTE_DIR}'"
+
   # 1) Sync code (do not overwrite remote .env and data dir)
   rsync -az --delete \
     -e "ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no" \
@@ -101,10 +108,23 @@ deploy_backend() {
     "$ROOT_DIR/back/" \
     "${BACKEND_USER}@${BACKEND_HOST}:${BACKEND_REMOTE_DIR}/"
 
+  if [[ "$UPLOAD_BACKEND_ENV" == true ]]; then
+    if [[ ! -f "$ROOT_DIR/back/.env" ]]; then
+      echo "Local backend .env not found: $ROOT_DIR/back/.env"
+      exit 1
+    fi
+    scp -i "$SSH_KEY_PATH" "$ROOT_DIR/back/.env" \
+      "${BACKEND_USER}@${BACKEND_HOST}:${BACKEND_REMOTE_DIR}/.env"
+  fi
+
   # 2) Build + restart container
   ssh -i "$SSH_KEY_PATH" "${BACKEND_USER}@${BACKEND_HOST}" "
     set -euo pipefail
     cd '${BACKEND_REMOTE_DIR}'
+    if [ ! -f .env ]; then
+      echo '[deploy] Missing remote .env. Re-run with UPLOAD_BACKEND_ENV=true or create ${BACKEND_REMOTE_DIR}/.env on the server.'
+      exit 1
+    fi
     HOST_PORT='${BACKEND_PORT_BIND%%:*}'
     if [ \"\$HOST_PORT\" = \"${BACKEND_PORT_BIND}\" ]; then
       HOST_PORT='${BACKEND_PORT_BIND}'
@@ -135,7 +155,7 @@ deploy_backend() {
     docker ps --filter name='${BACKEND_CONTAINER_NAME}' --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
   "
 
-  echo "[deploy] Backend done: https://${BACKEND_HOST}.nip.io/api/cafemap/rankings"
+  echo "[deploy] Backend done: ${BACKEND_PUBLIC_URL}/api/cafemap/rankings"
 }
 
 if [[ "$DEPLOY_FRONT" == true ]]; then
@@ -147,4 +167,3 @@ if [[ "$DEPLOY_BACK" == true ]]; then
 fi
 
 echo "[deploy] Completed."
-
