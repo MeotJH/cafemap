@@ -49,6 +49,7 @@ from cafemap.schemas.cafemap import (
   ReviewCreateIn,
 
   StoreSummaryOut,
+  StoreRankingOut,
 
   PlaceSearchOut,
 
@@ -351,6 +352,55 @@ def list_stores(db: Session = Depends(get_db)):
         )
 
         for store, aggregate, brand_name, brand_logo_url in rows
+
+    ]
+
+
+@router.get("/store-rankings", response_model=list[StoreRankingOut])
+
+def list_store_rankings(db: Session = Depends(get_db)):
+
+    rows = store_service.get_store_rankings(db)
+
+    return [
+
+        StoreRankingOut(
+
+            id=store.id,
+
+            storeId=store.id,
+
+            storeName=store.name,
+
+            brandName=brand_name,
+
+            isLocal=store.brand_id == "brand-local",
+
+            rating=aggregate.rating,
+
+            displayScore=display_score,
+
+            reviewCount=aggregate.review_count,
+
+            distanceKm=store.distance_km,
+
+            imageUrl=_resolve_store_image_url(brand_logo_url),
+
+            lat=store.lat,
+
+            lng=store.lng,
+
+            topLabelA=highlights[0][0],
+
+            topScoreA=highlights[0][1],
+
+            topLabelB=highlights[1][0],
+
+            topScoreB=highlights[1][1],
+
+        )
+
+        for display_score, _, store, aggregate, brand_name, brand_logo_url, highlights in rows
 
     ]
 

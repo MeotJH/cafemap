@@ -35,6 +35,16 @@ def fetch_nearby_stores(db: Session):
     return db.execute(stmt).all()
 
 
+def fetch_store_rankings(db: Session):
+    stmt = (
+        select(Store, StoreAggregate, Brand.name, Brand.logo_url)
+        .join(StoreAggregate, StoreAggregate.store_id == Store.id)
+        .join(Brand, Brand.id == Store.brand_id)
+        .order_by(StoreAggregate.rating.desc(), StoreAggregate.review_count.desc())
+    )
+    return db.execute(stmt).all()
+
+
 
 
 

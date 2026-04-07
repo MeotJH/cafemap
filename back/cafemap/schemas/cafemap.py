@@ -37,6 +37,25 @@ class StoreSummaryOut(BaseModel):
     lng: float
 
 
+class StoreRankingOut(BaseModel):
+    id: str
+    storeId: str
+    storeName: str
+    brandName: str
+    isLocal: bool
+    rating: float
+    displayScore: float
+    reviewCount: int
+    distanceKm: float
+    imageUrl: str
+    lat: float
+    lng: float
+    topLabelA: str
+    topScoreA: float
+    topLabelB: str
+    topScoreB: float
+
+
 class RatingBreakdownOut(BaseModel):
     # 점수 분해 응답 모델이다.
     scores: dict[str, float] = Field(default_factory=dict)
