@@ -2,6 +2,7 @@ import 'package:front/data/remote/ranking_api.dart';
 import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/domain/entities/store_ranking.dart';
 import 'package:front/domain/repositories/ranking_repository.dart';
 
 // ?? API ??? ?? ??? ????.
@@ -14,6 +15,11 @@ class RemoteRankingRepository implements RankingRepository {
   // ?? ??? ?? API? ????.
   Future<List<BrandMenuRanking>> fetchRankings() async {
     return _api.fetchRankings();
+  }
+
+  @override
+  Future<List<StoreRanking>> fetchStoreRankings() async {
+    return _api.fetchStoreRankings();
   }
 
   @override

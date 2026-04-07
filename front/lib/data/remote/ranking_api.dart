@@ -1,8 +1,9 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/domain/entities/store_ranking.dart';
 
 // 랭킹 API 호출을 담당한다.
 class RankingApi {
@@ -17,6 +18,14 @@ class RankingApi {
     final data = response.data as List<dynamic>;
     return data
         .map((item) => _rankingFromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<StoreRanking>> fetchStoreRankings() async {
+    final response = await _dio.get('$_baseUrl/api/cafemap/store-rankings');
+    final data = response.data as List<dynamic>;
+    return data
+        .map((item) => _storeRankingFromJson(item as Map<String, dynamic>))
         .toList();
   }
 
@@ -37,6 +46,27 @@ class RankingApi {
         .map((item) => _reviewFromJson(item as Map<String, dynamic>))
         .toList();
   }
+}
+
+StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
+  return StoreRanking(
+    id: json['id'] as String? ?? '',
+    storeId: json['storeId'] as String? ?? '',
+    storeName: json['storeName'] as String? ?? '',
+    brandName: json['brandName'] as String? ?? '',
+    isLocal: json['isLocal'] as bool? ?? false,
+    rating: (json['rating'] as num?)?.toDouble() ?? 0,
+    displayScore: (json['displayScore'] as num?)?.toDouble() ?? 0,
+    reviewCount: json['reviewCount'] as int? ?? 0,
+    distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 0,
+    imageUrl: json['imageUrl'] as String? ?? '',
+    lat: (json['lat'] as num?)?.toDouble() ?? 0,
+    lng: (json['lng'] as num?)?.toDouble() ?? 0,
+    topLabelA: json['topLabelA'] as String? ?? '',
+    topScoreA: (json['topScoreA'] as num?)?.toDouble() ?? 0,
+    topLabelB: json['topLabelB'] as String? ?? '',
+    topScoreB: (json['topScoreB'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 BrandMenuRanking _rankingFromJson(Map<String, dynamic> json) {
@@ -79,7 +109,9 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',
     imageUrls: _imageUrlsFromJson(json['imageUrls']),
-    createdAt: DateTime.parse(json['createdAt'] as String? ?? DateTime.now().toIso8601String()),
+    createdAt: DateTime.parse(
+      json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
+    ),
   );
 }
 
@@ -99,4 +131,3 @@ List<String> _imageUrlsFromJson(dynamic raw) {
       .where((url) => url.isNotEmpty)
       .toList();
 }
-

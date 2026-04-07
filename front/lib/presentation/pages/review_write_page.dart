@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:another_flushbar/flushbar.dart';
@@ -223,6 +223,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       );
       ref.invalidate(myReviewsProvider);
       ref.invalidate(rankingListProvider);
+      ref.invalidate(storeRankingListProvider);
       if (!mounted) return;
       context.push('/review/${review.id}', extra: review);
     } on DioException catch (e, stackTrace) {
@@ -681,7 +682,10 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                   const SizedBox(height: 20),
                   const Text(
                     '사진 추가',
-                    style: TextStyle(fontSize: 32 / 2, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontSize: 32 / 2,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
@@ -712,14 +716,18 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                   const SizedBox(height: 20),
                   const Text(
                     '후기를 남겨주세요',
-                    style: TextStyle(fontSize: 32 / 2, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontSize: 32 / 2,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _commentController,
                     maxLines: 6,
                     decoration: InputDecoration(
-                      hintText: '카페 분위기와 메뉴 평가를 자유롭게 남겨주세요. 다른 사용자에게 큰 도움이 됩니다.',
+                      hintText:
+                          '카페 분위기와 메뉴 평가를 자유롭게 남겨주세요. 다른 사용자에게 큰 도움이 됩니다.',
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
@@ -881,10 +889,7 @@ class _DashedBorderPainter extends CustomPainter {
   final Color color;
   final double radius;
 
-  const _DashedBorderPainter({
-    required this.color,
-    required this.radius,
-  });
+  const _DashedBorderPainter({required this.color, required this.radius});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -914,4 +919,3 @@ class _DashedBorderPainter extends CustomPainter {
     return oldDelegate.color != color || oldDelegate.radius != radius;
   }
 }
-

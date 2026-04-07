@@ -1,16 +1,19 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/constants/app_strings.dart';
-import 'package:front/domain/entities/brand_menu_ranking.dart';
-import 'package:front/presentation/providers/ranking_providers.dart';
+import 'package:front/domain/entities/store_ranking.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
+import 'package:front/presentation/providers/ranking_providers.dart';
 import 'package:front/presentation/widgets/app_filter_chip.dart';
-import 'package:front/presentation/widgets/ranking_card.dart';
 import 'package:front/presentation/widgets/section_title.dart';
+import 'package:front/presentation/widgets/store_ranking_card.dart';
 import 'package:go_router/go_router.dart';
 
-// 브랜드 메뉴 랭킹 홈 화면이다.
+enum _StoreSegment { all, local, franchise }
+
+enum _StoreRankingSort { recommended, rating, reviews }
+
 class RankingHomePage extends ConsumerStatefulWidget {
   const RankingHomePage({super.key});
 
@@ -21,8 +24,8 @@ class RankingHomePage extends ConsumerStatefulWidget {
 class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   final _searchController = TextEditingController();
   String _query = '';
-  String _selectedCategory = '전체';
-  static const _defaultCategory = '전체';
+  _StoreSegment _selectedSegment = _StoreSegment.all;
+  _StoreRankingSort _selectedSort = _StoreRankingSort.recommended;
 
   @override
   void dispose() {
@@ -30,41 +33,41 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
     super.dispose();
   }
 
-  List<BrandMenuRanking> _filterRankings(List<BrandMenuRanking> items) {
+  List<StoreRanking> _filterRankings(List<StoreRanking> items) {
     final query = _query.trim().toLowerCase();
-    var filtered = items;
-    if (_selectedCategory != _defaultCategory) {
-      final category = _selectedCategory.toLowerCase();
-      filtered = filtered
-          .where((item) => item.category.toLowerCase() == category)
-          .toList();
-    }
-    if (query.isEmpty) return filtered;
-    return filtered.where((item) {
-      final haystack = '${item.brandName} ${item.menuName}'.toLowerCase();
-      return haystack.contains(query);
+    var filtered = items.where((item) {
+      return switch (_selectedSegment) {
+        _StoreSegment.all => true,
+        _StoreSegment.local => item.isLocal,
+        _StoreSegment.franchise => !item.isLocal,
+      };
     }).toList();
+
+    if (query.isNotEmpty) {
+      filtered = filtered.where((item) {
+        final haystack =
+            '${item.storeName} ${item.brandName} ${item.topLabelA} ${item.topLabelB}'
+                .toLowerCase();
+        return haystack.contains(query);
+      }).toList();
+    }
+
+    filtered.sort((a, b) {
+      return switch (_selectedSort) {
+        _StoreRankingSort.recommended => _compareRecommended(a, b),
+        _StoreRankingSort.rating => b.rating.compareTo(a.rating),
+        _StoreRankingSort.reviews => b.reviewCount.compareTo(a.reviewCount),
+      };
+    });
+    return filtered;
   }
 
-  List<String> _categoryOptions(List<BrandMenuRanking> items) {
-    final preferredOrder = <String>[
-      '커피',
-      '라떼',
-      '콜드브루',
-      '핸드드립',
-      '시그니처',
-      '디저트음료',
-    ];
-
-    final categories = <String>{
-      for (final item in items)
-        item.category.trim().isEmpty ? '커피' : item.category.trim(),
-    };
-    final ordered = <String>[
-      ...preferredOrder.where(categories.contains),
-      ...categories.where((c) => !preferredOrder.contains(c)).toList()..sort(),
-    ];
-    return [_defaultCategory, ...ordered];
+  int _compareRecommended(StoreRanking a, StoreRanking b) {
+    final byDisplayScore = b.displayScore.compareTo(a.displayScore);
+    if (byDisplayScore != 0) return byDisplayScore;
+    final byReviews = b.reviewCount.compareTo(a.reviewCount);
+    if (byReviews != 0) return byReviews;
+    return b.rating.compareTo(a.rating);
   }
 
   Future<void> _handleProfileMenuSelect(
@@ -97,20 +100,12 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   }
 
   @override
-  // 랭킹 리스트와 상단 UI를 구성한다.
   Widget build(BuildContext context) {
-    final rankings = ref.watch(rankingListProvider);
+    final rankings = ref.watch(storeRankingListProvider);
     final user =
         ref.watch(authStateProvider).asData?.value ??
         ref.read(authControllerProvider).currentUser;
     final isLoggedIn = user != null;
-    final categories = rankings.maybeWhen(
-      data: _categoryOptions,
-      orElse: () => const [_defaultCategory],
-    );
-    final selectedCategory = categories.contains(_selectedCategory)
-        ? _selectedCategory
-        : _defaultCategory;
 
     return Scaffold(
       body: SafeArea(
@@ -118,11 +113,12 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
           children: [
             _RankingHeader(
               controller: _searchController,
-              categories: categories,
-              selectedCategory: selectedCategory,
+              selectedSegment: _selectedSegment,
+              selectedSort: _selectedSort,
               onSearchChanged: (value) => setState(() => _query = value),
-              onCategorySelected: (value) =>
-                  setState(() => _selectedCategory = value),
+              onSegmentSelected: (value) =>
+                  setState(() => _selectedSegment = value),
+              onSortSelected: (value) => setState(() => _selectedSort = value),
               isLoggedIn: isLoggedIn,
               onProfileMenuSelect: (action) =>
                   _handleProfileMenuSelect(context, action),
@@ -134,9 +130,6 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
                 ),
                 child: rankings.when(
                   data: (items) {
-                    final rankIndexById = <String, int>{
-                      for (var i = 0; i < items.length; i++) items[i].id: i,
-                    };
                     final filtered = _filterRankings(items);
                     if (filtered.isEmpty) {
                       return const Center(child: Text('검색 결과가 없어요.'));
@@ -144,18 +137,15 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
                     return ListView.separated(
                       padding: const EdgeInsets.only(bottom: 24),
                       itemBuilder: (context, index) {
-                        final rankIndex =
-                            rankIndexById[filtered[index].id] ?? index;
-                        return RankingCard(
+                        final ranking = filtered[index];
+                        return StoreRankingCard(
                           key: ValueKey(
-                            '${_selectedCategory}_${filtered[index].id}_${filtered[index].imageUrl}',
+                            '${_selectedSegment.name}_${_selectedSort.name}_${ranking.storeId}',
                           ),
-                          ranking: filtered[index],
-                          rankIndex: rankIndex,
-                          onTap: () => context.push(
-                            '/ranking/${filtered[index].id}',
-                            extra: filtered[index],
-                          ),
+                          ranking: ranking,
+                          rankIndex: index,
+                          onTap: () =>
+                              context.go('/map/store/${ranking.storeId}'),
                         );
                       },
                       separatorBuilder: (_, _) => const SizedBox(height: 16),
@@ -165,7 +155,7 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
                   error: (_, _) =>
-                      const Center(child: Text('랭킹 정보를 불러오지 못했어요.')),
+                      const Center(child: Text('카페 랭킹을 불러오지 못했어요.')),
                 ),
               ),
             ),
@@ -176,28 +166,28 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   }
 }
 
-// 랭킹 상단 영역을 구성한다.
 class _RankingHeader extends StatelessWidget {
   final TextEditingController controller;
-  final List<String> categories;
-  final String selectedCategory;
+  final _StoreSegment selectedSegment;
+  final _StoreRankingSort selectedSort;
   final ValueChanged<String> onSearchChanged;
-  final ValueChanged<String> onCategorySelected;
+  final ValueChanged<_StoreSegment> onSegmentSelected;
+  final ValueChanged<_StoreRankingSort> onSortSelected;
   final bool isLoggedIn;
   final ValueChanged<_ProfileMenuAction> onProfileMenuSelect;
 
   const _RankingHeader({
     required this.controller,
-    required this.categories,
-    required this.selectedCategory,
+    required this.selectedSegment,
+    required this.selectedSort,
     required this.onSearchChanged,
-    required this.onCategorySelected,
+    required this.onSegmentSelected,
+    required this.onSortSelected,
     required this.isLoggedIn,
     required this.onProfileMenuSelect,
   });
 
   @override
-  // 검색창과 필터, 타이틀 영역을 구성한다.
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -211,7 +201,7 @@ class _RankingHeader extends StatelessWidget {
                 child: Row(
                   children: [
                     const Icon(
-                      Icons.restaurant,
+                      Icons.local_cafe_rounded,
                       color: Colors.deepOrange,
                       size: 28,
                     ),
@@ -253,7 +243,7 @@ class _RankingHeader extends StatelessWidget {
             controller: controller,
             onChanged: onSearchChanged,
             decoration: InputDecoration(
-              hintText: AppStrings.searchHintRanking,
+              hintText: '카페명, 브랜드, 강점 검색',
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Colors.white,
@@ -269,20 +259,59 @@ class _RankingHeader extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                for (final category in categories)
-                  AppFilterChip(
-                    label: category,
-                    selected: selectedCategory == category,
-                    onSelected: onCategorySelected,
-                    width: null,
-                  ),
+                AppFilterChip(
+                  label: '전체',
+                  selected: selectedSegment == _StoreSegment.all,
+                  onSelected: (_) => onSegmentSelected(_StoreSegment.all),
+                  width: null,
+                ),
+                AppFilterChip(
+                  label: '로컬',
+                  selected: selectedSegment == _StoreSegment.local,
+                  onSelected: (_) => onSegmentSelected(_StoreSegment.local),
+                  width: null,
+                ),
+                AppFilterChip(
+                  label: '프랜차이즈',
+                  selected: selectedSegment == _StoreSegment.franchise,
+                  onSelected: (_) => onSegmentSelected(_StoreSegment.franchise),
+                  width: null,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                AppFilterChip(
+                  label: '추천순',
+                  selected: selectedSort == _StoreRankingSort.recommended,
+                  onSelected: (_) =>
+                      onSortSelected(_StoreRankingSort.recommended),
+                  width: null,
+                ),
+                AppFilterChip(
+                  label: '평점순',
+                  selected: selectedSort == _StoreRankingSort.rating,
+                  onSelected: (_) => onSortSelected(_StoreRankingSort.rating),
+                  width: null,
+                ),
+                AppFilterChip(
+                  label: '리뷰 많은 순',
+                  selected: selectedSort == _StoreRankingSort.reviews,
+                  onSelected: (_) => onSortSelected(_StoreRankingSort.reviews),
+                  width: null,
+                ),
               ],
             ),
           ),
           const SizedBox(height: 16),
           const SectionTitle(
-            title: 'Cafe Rankings',
-            trailing: 'Updated Today',
+            title: 'Cafe Store Rankings',
+            trailing: 'Local First',
           ),
         ],
       ),
@@ -291,4 +320,3 @@ class _RankingHeader extends StatelessWidget {
 }
 
 enum _ProfileMenuAction { activity, login, logout }
-
