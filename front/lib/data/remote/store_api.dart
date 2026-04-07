@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
@@ -49,6 +49,7 @@ StoreSummary _storeFromJson(Map<String, dynamic> json) {
     id: json['id'] as String? ?? '',
     name: json['name'] as String? ?? '',
     brandName: json['brandName'] as String? ?? '',
+    isLocal: json['isLocal'] as bool? ?? false,
     address: json['address'] as String? ?? '',
     rating: (json['rating'] as num?)?.toDouble() ?? 0,
     reviewCount: json['reviewCount'] as int? ?? 0,
@@ -102,4 +103,3 @@ List<String> _imageUrlsFromJson(dynamic raw) {
       .where((url) => url.isNotEmpty)
       .toList();
 }
-

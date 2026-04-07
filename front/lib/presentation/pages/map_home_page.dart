@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -14,7 +14,9 @@ import 'package:front/presentation/widgets/naver_map_view.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
-enum _MapSortType { rating, distance }
+enum _MapSortType { rating, distance, reviews }
+
+enum _MapStoreSegment { all, local, franchise }
 
 // 지점 평점 지도를 보여주는 홈 화면이다.
 class MapHomePage extends ConsumerStatefulWidget {
@@ -41,6 +43,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   bool _isCurrentLocationResolved = false;
   double _sheetExtent = _sheetInitialExtent;
   _MapSortType _selectedSortType = _MapSortType.rating;
+  _MapStoreSegment _selectedSegment = _MapStoreSegment.all;
   final String _cafeMarkerIconUrl = _buildCafeMarkerIconUrl();
 
   static String _buildCafeMarkerIconUrl() {
@@ -196,7 +199,13 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     List<StoreSummary> items,
     AppLocationState location,
   ) {
-    final sorted = [...items];
+    final sorted = items.where((store) {
+      return switch (_selectedSegment) {
+        _MapStoreSegment.all => true,
+        _MapStoreSegment.local => store.isLocal,
+        _MapStoreSegment.franchise => !store.isLocal,
+      };
+    }).toList();
     sorted.sort((a, b) {
       if (_selectedSortType == _MapSortType.distance) {
         final distanceA = _distanceFromCurrentKm(a, location);
@@ -209,6 +218,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         }
         final byDistance = distanceA.compareTo(distanceB);
         if (byDistance != 0) return byDistance;
+        return b.rating.compareTo(a.rating);
+      }
+      if (_selectedSortType == _MapSortType.reviews) {
+        final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
+        if (byReviewCount != 0) return byReviewCount;
         return b.rating.compareTo(a.rating);
       }
       final byRating = b.rating.compareTo(a.rating);
@@ -234,6 +248,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     if (_selectedSortType == sortType) return;
     setState(() {
       _selectedSortType = sortType;
+    });
+  }
+
+  void _selectSegment(_MapStoreSegment segment) {
+    if (_selectedSegment == segment) return;
+    setState(() {
+      _selectedSegment = segment;
+      _selectedStore = null;
     });
   }
 
@@ -379,6 +401,29 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                         scrollDirection: Axis.horizontal,
                         children: [
                           AppFilterChip(
+                            label: '전체',
+                            selected: _selectedSegment == _MapStoreSegment.all,
+                            onSelected: (_) =>
+                                _selectSegment(_MapStoreSegment.all),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
+                            label: '로컬',
+                            selected:
+                                _selectedSegment == _MapStoreSegment.local,
+                            onSelected: (_) =>
+                                _selectSegment(_MapStoreSegment.local),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
+                            label: '프랜차이즈',
+                            selected:
+                                _selectedSegment == _MapStoreSegment.franchise,
+                            onSelected: (_) =>
+                                _selectSegment(_MapStoreSegment.franchise),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
                             label: '평점 높은 순',
                             selected: _selectedSortType == _MapSortType.rating,
                             onSelected: (_) =>
@@ -391,6 +436,13 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                                 _selectedSortType == _MapSortType.distance,
                             onSelected: (_) =>
                                 _selectSortType(_MapSortType.distance),
+                            margin: const EdgeInsets.only(right: 8),
+                          ),
+                          AppFilterChip(
+                            label: '리뷰 많은 순',
+                            selected: _selectedSortType == _MapSortType.reviews,
+                            onSelected: (_) =>
+                                _selectSortType(_MapSortType.reviews),
                             margin: const EdgeInsets.only(right: 8),
                           ),
                         ],

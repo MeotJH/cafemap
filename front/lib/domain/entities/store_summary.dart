@@ -3,6 +3,7 @@ class StoreSummary {
   final String id;
   final String name;
   final String brandName;
+  final bool isLocal;
   final String address;
   final double rating;
   final int reviewCount;
@@ -15,6 +16,7 @@ class StoreSummary {
     required this.id,
     required this.name,
     required this.brandName,
+    required this.isLocal,
     required this.address,
     required this.rating,
     required this.reviewCount,
