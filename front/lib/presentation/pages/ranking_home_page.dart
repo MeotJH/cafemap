@@ -63,6 +63,9 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   }
 
   int _compareRecommended(StoreRanking a, StoreRanking b) {
+    if (_selectedSegment == _StoreSegment.all && a.isLocal != b.isLocal) {
+      return a.isLocal ? -1 : 1;
+    }
     final byDisplayScore = b.displayScore.compareTo(a.displayScore);
     if (byDisplayScore != 0) return byDisplayScore;
     final byReviews = b.reviewCount.compareTo(a.reviewCount);
