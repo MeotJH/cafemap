@@ -7,7 +7,7 @@ import requests
 NAVER_LOCAL_ENDPOINT = "https://openapi.naver.com/v1/search/local.json"
 
 
-def search_places(query: str, display: int = 5) -> dict[str, Any]:
+def search_places(query: str, display: int = 5, start: int = 1) -> dict[str, Any]:
     client_id = os.getenv("NAVER_LOCAL_CLIENT_ID")
     client_secret = os.getenv("NAVER_LOCAL_CLIENT_SECRET")
     if not client_id or not client_secret:
@@ -21,7 +21,8 @@ def search_places(query: str, display: int = 5) -> dict[str, Any]:
         },
         params={
             "query": query,
-            "display": display,
+            "display": max(1, min(display, 5)),
+            "start": max(1, min(start, 1000)),
         },
         timeout=5,
     )

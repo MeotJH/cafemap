@@ -106,6 +106,9 @@ class PlaceSearchOut(BaseModel):
     brandName: str = ""
     mapx: int
     mapy: int
+    lat: float | None = None
+    lng: float | None = None
+    distanceKm: float | None = None
 
 
 class BrandOut(BaseModel):

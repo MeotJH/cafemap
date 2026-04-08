@@ -23,6 +23,7 @@ class MapHomePage extends ConsumerStatefulWidget {
 class _MapHomePageState extends ConsumerState<MapHomePage> {
   static const double _newCafeRadiusKm = 3.0;
   static const int _newCafeDisplayCount = 20;
+  static const int _newCafePageCount = 4;
 
   List<PlaceSearchResult> _newPlaces = [];
   bool _isSearching = false;
@@ -142,8 +143,12 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       final results = await repository.searchPlaces(
         '카페',
         display: _newCafeDisplayCount,
+        lat: location.latitude,
+        lng: location.longitude,
+        radiusKm: _newCafeRadiusKm,
+        pages: _newCafePageCount,
       );
-      final filtered = _filterNearbyPlaces(results, location, reviewedStores);
+      final filtered = _filterNearbyPlaces(results, reviewedStores);
 
       setState(() {
         _newPlaces = filtered;
@@ -174,27 +179,18 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
   List<PlaceSearchResult> _filterNearbyPlaces(
     List<PlaceSearchResult> items,
-    AppLocationState location,
     List<StoreSummary> reviewedStores,
   ) {
-    final withDistance = items
-        .where((item) => _coordsFromPlace(item) != null)
+    final nearby = items
+        .where(_hasPlaceCoords)
         .where((item) => !_looksLikeReviewedStore(item, reviewedStores))
-        .map((item) =>
-            (item: item, distanceKm: _distanceToPlaceKm(item, location)))
         .toList();
-
-    withDistance.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-
-    final nearby = withDistance
-        .where((entry) => entry.distanceKm <= _newCafeRadiusKm)
-        .map((entry) => entry.item)
-        .toList();
-    if (nearby.isNotEmpty) {
-      return nearby.take(12).toList();
-    }
-
-    return withDistance.map((entry) => entry.item).take(8).toList();
+    nearby.sort((a, b) {
+      final aDistance = a.distanceKm ?? double.infinity;
+      final bDistance = b.distanceKm ?? double.infinity;
+      return aDistance.compareTo(bDistance);
+    });
+    return nearby.take(12).toList();
   }
 
   bool _looksLikeReviewedStore(
@@ -228,30 +224,19 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     return value.replaceAll(RegExp(r'[^0-9a-zA-Z가-힣]'), '').toLowerCase();
   }
 
-  double _distanceToPlaceKm(
-    PlaceSearchResult place,
-    AppLocationState location,
-  ) {
-    final coords = _coordsFromPlace(place);
-    if (coords == null) return double.infinity;
-    final meters = Geolocator.distanceBetween(
-      location.latitude,
-      location.longitude,
-      coords.$1,
-      coords.$2,
-    );
-    return meters / 1000;
-  }
-
   String? _selectedPlaceMarkerId() {
     final selected = _selectedPlace;
     if (selected == null) return null;
-    return 'place-${selected.mapx}-${selected.mapy}';
+    return _placeMarkerId(selected);
   }
 
+  bool _hasPlaceCoords(PlaceSearchResult item) =>
+      item.lat != null && item.lng != null;
+
   (double lat, double lng)? _coordsFromPlace(PlaceSearchResult item) {
-    final lat = item.mapy / 10000000.0;
-    final lng = item.mapx / 10000000.0;
+    final lat = item.lat;
+    final lng = item.lng;
+    if (lat == null || lng == null) return null;
     if (lat.abs() > 90 || lng.abs() > 180) return null;
     return (lat, lng);
   }
@@ -322,7 +307,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             final coords = _coordsFromPlace(place);
             if (coords == null) return null;
             return MapMarkerData(
-              id: 'place-${place.mapx}-${place.mapy}',
+              id: _placeMarkerId(place),
               lat: coords.$1,
               lng: coords.$2,
               caption: place.name,
@@ -461,7 +446,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   }
 
   String _placeMarkerId(PlaceSearchResult place) {
-    return 'place-${place.mapx}-${place.mapy}';
+    return 'place-${place.placeId}';
   }
 }
 

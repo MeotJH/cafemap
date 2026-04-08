@@ -9,6 +9,9 @@ class PlaceSearchResult {
   final String placeId;
   final int mapx;
   final int mapy;
+  final double? lat;
+  final double? lng;
+  final double? distanceKm;
 
   const PlaceSearchResult({
     required this.name,
@@ -20,5 +23,8 @@ class PlaceSearchResult {
     required this.placeId,
     required this.mapx,
     required this.mapy,
+    this.lat,
+    this.lng,
+    this.distanceKm,
   });
 }

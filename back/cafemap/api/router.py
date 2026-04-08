@@ -866,12 +866,25 @@ def presign_review_image_upload(
 
 
 @router.get("/places/search", response_model=list[PlaceSearchOut])
-
-def search_places(query: str, display: int = 5):
+def search_places(
+    query: str,
+    display: int = 5,
+    lat: float | None = None,
+    lng: float | None = None,
+    radiusKm: float | None = None,
+    pages: int | None = None,
+):
 
     # ??? ?? ?? API? ?? ??? ????.
 
-    return place_search_service.search_places(query=query, display=display)
+    return place_search_service.search_places(
+        query=query,
+        display=display,
+        lat=lat,
+        lng=lng,
+        radius_km=radiusKm,
+        pages=pages,
+    )
 
 
 
@@ -924,6 +937,5 @@ def list_brand_menus(brand_id: str, query: str | None = None, db: Session = Depe
         for menu in menus
 
     ]
-
 
 

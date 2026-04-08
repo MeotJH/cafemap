@@ -10,13 +10,23 @@ class PlaceSearchApi {
 
   String get _baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
 
-  Future<List<PlaceSearchResult>> search(String query,
-      {int display = 5}) async {
+  Future<List<PlaceSearchResult>> search(
+    String query, {
+    int display = 5,
+    double? lat,
+    double? lng,
+    double? radiusKm,
+    int? pages,
+  }) async {
     final response = await _dio.get(
       '$_baseUrl/api/cafemap/places/search',
       queryParameters: {
         'query': query,
         'display': display,
+        'lat': lat,
+        'lng': lng,
+        'radiusKm': radiusKm,
+        'pages': pages,
       },
     );
     final data = response.data as List<dynamic>;
@@ -37,5 +47,8 @@ PlaceSearchResult _placeFromJson(Map<String, dynamic> json) {
     placeId: json['placeId'] as String? ?? '',
     mapx: json['mapx'] as int? ?? 0,
     mapy: json['mapy'] as int? ?? 0,
+    lat: (json['lat'] as num?)?.toDouble(),
+    lng: (json['lng'] as num?)?.toDouble(),
+    distanceKm: (json['distanceKm'] as num?)?.toDouble(),
   );
 }

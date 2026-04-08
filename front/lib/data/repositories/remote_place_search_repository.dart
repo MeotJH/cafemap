@@ -12,7 +12,18 @@ class RemotePlaceSearchRepository implements PlaceSearchRepository {
   Future<List<PlaceSearchResult>> searchPlaces(
     String query, {
     int display = 5,
+    double? lat,
+    double? lng,
+    double? radiusKm,
+    int? pages,
   }) {
-    return _api.search(query, display: display);
+    return _api.search(
+      query,
+      display: display,
+      lat: lat,
+      lng: lng,
+      radiusKm: radiusKm,
+      pages: pages,
+    );
   }
 }
