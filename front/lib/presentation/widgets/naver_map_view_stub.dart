@@ -12,6 +12,7 @@ Widget buildNaverMapViewImpl({
   String? selectedMarkerId,
   ValueChanged<String>? onMarkerTap,
   ValueChanged<dynamic>? onMapReady,
+  ValueChanged<MapViewportData>? onCameraIdle,
 }) {
   return const SizedBox.shrink();
 }

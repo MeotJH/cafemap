@@ -21,7 +21,6 @@ class MapHomePage extends ConsumerStatefulWidget {
 }
 
 class _MapHomePageState extends ConsumerState<MapHomePage> {
-  static const double _newCafeRadiusKm = 3.0;
   static const int _newCafeDisplayCount = 20;
   static const int _newCafePageCount = 4;
   final _searchController = TextEditingController();
@@ -38,6 +37,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   double _mapLat = AppLocationController.defaultLat;
   double _mapLng = AppLocationController.defaultLng;
   bool _isCurrentLocationResolved = false;
+  MapViewportData? _viewport;
 
   final String _reviewedCafeMarkerIconUrl = _buildMarkerIconUrl(
     label: '☕',
@@ -138,18 +138,15 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   }
 
   Future<void> _searchNearbyNewPlaces(
-    AppLocationState location,
     List<StoreSummary> reviewedStores,
   ) async {
-    if (!location.fromDevice) {
-      setState(() {
-        _newPlaces = [];
-        _selectedStore = null;
-        _selectedPlace = null;
-        _searchError = '현재 위치를 확인하지 못했어요. 위치 권한을 허용한 뒤 다시 시도해주세요.';
-      });
-      return;
-    }
+    final viewport = _viewport ??
+        MapViewportData(
+          lat: _mapLat,
+          lng: _mapLng,
+          zoom: 14,
+        );
+    final radiusKm = _radiusKmForZoom(viewport.zoom);
 
     setState(() {
       _isSearching = true;
@@ -163,9 +160,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       final results = await repository.searchPlaces(
         '카페',
         display: _newCafeDisplayCount,
-        lat: location.latitude,
-        lng: location.longitude,
-        radiusKm: _newCafeRadiusKm,
+        lat: viewport.lat,
+        lng: viewport.lng,
+        radiusKm: radiusKm,
         pages: _newCafePageCount,
       );
       final filtered = _filterNearbyPlaces(results, reviewedStores);
@@ -173,7 +170,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       setState(() {
         _newPlaces = filtered;
         if (filtered.isEmpty) {
-          _searchError = '현재 위치 반경에서 새 카페 결과가 없어요. 조금 이동해서 다시 시도해주세요.';
+          _searchError = '이 지도 영역에서 새 카페 결과가 없어요. 지도를 이동한 뒤 다시 시도해주세요.';
         }
       });
     } catch (_) {
@@ -187,6 +184,25 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         });
       }
     }
+  }
+
+  void _handleCameraIdle(MapViewportData viewport) {
+    if (!mounted) return;
+    setState(() {
+      _viewport = viewport;
+      _mapLat = viewport.lat;
+      _mapLng = viewport.lng;
+    });
+  }
+
+  double _radiusKmForZoom(double zoom) {
+    if (zoom >= 17) return 0.5;
+    if (zoom >= 16) return 0.8;
+    if (zoom >= 15) return 1.2;
+    if (zoom >= 14) return 2.0;
+    if (zoom >= 13) return 3.5;
+    if (zoom >= 12) return 6.0;
+    return 10.0;
   }
 
   Future<void> _searchPlaces(String query) async {
@@ -420,6 +436,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                 }
               },
               onMapReady: _handleMapReady,
+              onCameraIdle: _handleCameraIdle,
             ),
           ),
           SafeArea(
@@ -516,10 +533,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                           child: FilledButton(
                             onPressed: _isSearching
                                 ? null
-                                : () => _searchNearbyNewPlaces(
-                                      currentLocation,
-                                      reviewedStores,
-                                    ),
+                                : () => _searchNearbyNewPlaces(reviewedStores),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
@@ -538,7 +552,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                                 const Icon(Icons.explore_outlined, size: 18),
                                 const SizedBox(height: 4),
                                 Text(
-                                  _newPlaces.isEmpty ? '새 카페 찾기' : '다시 찾기',
+                                  _newPlaces.isEmpty ? '이 지역 찾기' : '이 지역 다시',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 12,
@@ -637,13 +651,13 @@ class _MapStatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     String message;
     if (isSearching) {
-      message = '현재 위치 근처의 새로운 카페를 찾는 중이에요.';
+      message = '이 지도 영역에서 새로운 카페를 찾는 중이에요.';
     } else if (errorMessage != null) {
       message = errorMessage!;
     } else if (newCafeCount > 0) {
       message = '리뷰된 카페 $reviewedStoreCount곳과 새 카페 $newCafeCount곳을 지도에 표시했어요.';
     } else if (!hasResolvedLocation) {
-      message = '위치 권한이 없어서 기본 지역으로 보고 있어요. 새 카페 찾기는 위치 허용 후 사용할 수 있어요.';
+      message = '위치 권한이 없더라도 현재 보고 있는 지도 기준으로 새 카페를 찾을 수 있어요.';
     } else {
       message = '리뷰가 쌓인 카페만 지도에 보여줘요. 새로운 카페는 버튼으로 탐색할 수 있어요.';
     }

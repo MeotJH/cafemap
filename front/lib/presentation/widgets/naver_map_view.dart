@@ -14,6 +14,7 @@ Widget buildNaverMapView({
   String? selectedMarkerId,
   ValueChanged<String>? onMarkerTap,
   ValueChanged<dynamic>? onMapReady,
+  ValueChanged<MapViewportData>? onCameraIdle,
 }) {
   return buildNaverMapViewImpl(
     context: context,
@@ -24,6 +25,7 @@ Widget buildNaverMapView({
     selectedMarkerId: selectedMarkerId,
     onMarkerTap: onMarkerTap,
     onMapReady: onMapReady,
+    onCameraIdle: onCameraIdle,
   );
 }
 
@@ -47,5 +49,17 @@ class MapMarkerData {
     this.iconUrl,
     this.useDefaultMarker = false,
     this.badgeText,
+  });
+}
+
+class MapViewportData {
+  final double lat;
+  final double lng;
+  final double zoom;
+
+  const MapViewportData({
+    required this.lat,
+    required this.lng,
+    required this.zoom,
   });
 }

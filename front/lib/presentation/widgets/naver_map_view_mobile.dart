@@ -13,7 +13,9 @@ Widget buildNaverMapViewImpl({
   String? selectedMarkerId,
   ValueChanged<String>? onMarkerTap,
   ValueChanged<dynamic>? onMapReady,
+  ValueChanged<MapViewportData>? onCameraIdle,
 }) {
+  NaverMapController? mapController;
   return NaverMap(
     options: NaverMapViewOptions(
       initialCameraPosition: NCameraPosition(
@@ -22,6 +24,7 @@ Widget buildNaverMapViewImpl({
       ),
     ),
     onMapReady: (controller) async {
+      mapController = controller;
       for (final marker in markers) {
         final nMarker = NMarker(
           id: marker.id,
@@ -43,6 +46,25 @@ Widget buildNaverMapViewImpl({
         controller.addOverlay(nMarker);
       }
       onMapReady?.call(controller);
+      onCameraIdle?.call(
+        MapViewportData(
+          lat: lat,
+          lng: lng,
+          zoom: zoom,
+        ),
+      );
+    },
+    onCameraIdle: () async {
+      final controller = mapController;
+      if (controller == null) return;
+      final position = await controller.getCameraPosition();
+      onCameraIdle?.call(
+        MapViewportData(
+          lat: position.target.latitude,
+          lng: position.target.longitude,
+          zoom: position.zoom,
+        ),
+      );
     },
   );
 }
