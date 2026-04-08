@@ -31,6 +31,8 @@ PlaceSearchResult _placeFromJson(Map<String, dynamic> json) {
     phone: json['phone'] as String? ?? '',
     link: json['link'] as String? ?? '',
     placeId: json['placeId'] as String? ?? '',
+    brandId: json['brandId'] as String? ?? '',
+    brandName: json['brandName'] as String? ?? '',
     mapx: json['mapx'] as int? ?? 0,
     mapy: json['mapy'] as int? ?? 0,
   );

@@ -12,6 +12,12 @@ _ALLOWED_CATEGORIES = {
     "음식점>카페,디저트",
     "음식점>카페",
 }
+_BRAND_HINTS = (
+    ("brand-starbucks", "스타벅스", ("스타벅스", "starbucks")),
+    ("brand-twosome", "투썸플레이스", ("투썸", "투썸플레이스", "twosome")),
+    ("brand-ediya", "이디야커피", ("이디야", "이디야커피", "ediya")),
+    ("brand-mega", "메가커피", ("메가커피", "메가mgc", "메가mgc커피", "mega")),
+)
 
 
 def _clean_title(raw: str) -> str:
@@ -33,6 +39,7 @@ def search_places(query: str, display: int = 5) -> list[dict]:
         category = item.get("category", "")
         if not _is_allowed_category(category):
             continue
+        brand_id, brand_name = _infer_brand_hint(name)
 
         results.append(
             {
@@ -43,11 +50,25 @@ def search_places(query: str, display: int = 5) -> list[dict]:
                 "phone": item.get("telephone", ""),
                 "link": item.get("link", ""),
                 "placeId": _place_id_for_item(name=name, item=item),
+                "brandId": brand_id,
+                "brandName": brand_name,
                 "mapx": int(item.get("mapx", 0) or 0),
                 "mapy": int(item.get("mapy", 0) or 0),
             }
         )
     return results
+
+
+def _infer_brand_hint(name: str) -> tuple[str, str]:
+    normalized = _normalize_match_text(name)
+    for brand_id, brand_name, tokens in _BRAND_HINTS:
+        if any(_normalize_match_text(token) in normalized for token in tokens):
+            return brand_id, brand_name
+    return "", ""
+
+
+def _normalize_match_text(value: str) -> str:
+    return re.sub(r"[^0-9a-z가-힣]", "", value.strip().lower())
 
 
 def _place_id_for_item(name: str, item: dict) -> str:

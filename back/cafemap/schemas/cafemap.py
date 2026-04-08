@@ -102,6 +102,8 @@ class PlaceSearchOut(BaseModel):
     phone: str
     link: str
     placeId: str
+    brandId: str = ""
+    brandName: str = ""
     mapx: int
     mapy: int
 

@@ -7,6 +7,8 @@ class PlaceSearchResult {
   final String phone;
   final String link;
   final String placeId;
+  final String brandId;
+  final String brandName;
   final int mapx;
   final int mapy;
 
@@ -18,6 +20,8 @@ class PlaceSearchResult {
     required this.phone,
     required this.link,
     required this.placeId,
+    required this.brandId,
+    required this.brandName,
     required this.mapx,
     required this.mapy,
   });
