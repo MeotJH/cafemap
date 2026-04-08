@@ -268,7 +268,7 @@ class _ReviewDetailBody extends StatelessWidget {
               children: [
                 const SizedBox(height: 8),
                 const Text(
-                  '泥⑤? ?ъ쭊',
+                  '사진',
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
