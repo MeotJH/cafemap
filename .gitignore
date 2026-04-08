@@ -10,9 +10,11 @@ back/request_curl
 
 
 back/.env
+back/.env.*
 back/.venv/
 front/.env
 front/.env.production
+front/.env.*
 front/.firebase/
 back/generated/
 

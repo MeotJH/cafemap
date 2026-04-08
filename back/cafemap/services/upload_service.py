@@ -1,16 +1,91 @@
+import re
 import uuid
 
-from cafemap.core.config import S3_PUBLIC_BASE_URL
+import boto3
+from botocore.config import Config
+from botocore.client import BaseClient
+
+from cafemap.core.config import (
+    AWS_REGION,
+    S3_BUCKET,
+    S3_ENDPOINT_URL,
+    S3_PRESIGNED_EXPIRES_SECONDS,
+    S3_PUBLIC_BASE_URL,
+    S3_REVIEW_IMAGE_PREFIX,
+)
 
 
-def issue_review_image_upload_url(*, user_id: str, file_name: str, content_type: str) -> tuple[str, str]:
-    if not file_name.strip():
-        raise ValueError("fileName is required")
-    if not content_type.startswith("image/"):
+_EXT_BY_CONTENT_TYPE = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+    "image/gif": "gif",
+}
+
+
+def _s3_client() -> BaseClient:
+    return boto3.client(
+        "s3",
+        region_name=AWS_REGION,
+        endpoint_url=S3_ENDPOINT_URL,
+        config=Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "virtual"},
+        ),
+    )
+
+
+def _sanitize_file_name(raw: str) -> str:
+    safe = raw.strip().lower()
+    safe = re.sub(r"[^a-z0-9._-]", "-", safe)
+    return safe[:120] if safe else "image"
+
+
+def _resolve_extension(file_name: str, content_type: str) -> str:
+    if "." in file_name:
+        ext = file_name.rsplit(".", 1)[1].lower()
+        if ext in {"jpg", "jpeg", "png", "webp", "heic", "heif", "gif"}:
+            return "jpg" if ext == "jpeg" else ext
+    return _EXT_BY_CONTENT_TYPE.get(content_type.lower(), "jpg")
+
+
+def _public_file_url(key: str) -> str:
+    if S3_PUBLIC_BASE_URL:
+        return f"{S3_PUBLIC_BASE_URL.rstrip('/')}/{key}"
+    return f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{key}"
+
+
+def issue_review_image_upload_url(
+    *,
+    user_id: str,
+    file_name: str,
+    content_type: str,
+) -> tuple[str, str]:
+    if not S3_BUCKET:
+        raise ValueError("S3_BUCKET is not configured")
+
+    normalized_content_type = (content_type or "").strip().lower()
+    if not normalized_content_type.startswith("image/"):
         raise ValueError("Only image uploads are allowed")
 
-    safe_name = file_name.strip().replace(" ", "-")
-    object_key = f"review-images/{user_id}/{uuid.uuid4().hex}-{safe_name}"
-    public_base = S3_PUBLIC_BASE_URL.rstrip("/") or "https://example.com/uploads"
-    file_url = f"{public_base}/{object_key}"
-    return file_url, file_url
+    safe_name = _sanitize_file_name(file_name)
+    ext = _resolve_extension(safe_name, normalized_content_type)
+    key = (
+        f"{S3_REVIEW_IMAGE_PREFIX.strip('/')}/"
+        f"{user_id}/"
+        f"{uuid.uuid4().hex}.{ext}"
+    )
+
+    upload_url = _s3_client().generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": S3_BUCKET,
+            "Key": key,
+            "ContentType": normalized_content_type,
+        },
+        ExpiresIn=S3_PRESIGNED_EXPIRES_SECONDS,
+    )
+    return upload_url, _public_file_url(key)
