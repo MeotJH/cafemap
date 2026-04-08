@@ -18,16 +18,18 @@ class PlaceSearchApi {
     double? radiusKm,
     int? pages,
   }) async {
+    final queryParameters = <String, Object>{
+      'query': query,
+      'display': display,
+    };
+    if (lat != null) queryParameters['lat'] = lat;
+    if (lng != null) queryParameters['lng'] = lng;
+    if (radiusKm != null) queryParameters['radiusKm'] = radiusKm;
+    if (pages != null) queryParameters['pages'] = pages;
+
     final response = await _dio.get(
       '$_baseUrl/api/cafemap/places/search',
-      queryParameters: {
-        'query': query,
-        'display': display,
-        'lat': lat,
-        'lng': lng,
-        'radiusKm': radiusKm,
-        'pages': pages,
-      },
+      queryParameters: queryParameters,
     );
     final data = response.data as List<dynamic>;
     return data

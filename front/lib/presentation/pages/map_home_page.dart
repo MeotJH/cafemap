@@ -1,3 +1,5 @@
+// ignore_for_file: use_null_aware_elements
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
@@ -51,14 +53,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     borderColor: '#6F4E37',
     textColor: '#6F4E37',
   );
-
   static String _buildMarkerIconUrl({
     required String label,
     required String backgroundColor,
     required String borderColor,
     required String textColor,
   }) {
-    final svg = '''
+    final svg =
+        '''
 <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
   <circle cx="17" cy="17" r="15" fill="$backgroundColor" stroke="$borderColor" stroke-width="2"/>
   <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="16" font-weight="700" fill="$textColor">$label</text>
@@ -118,7 +120,8 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     AppLocationState location, {
     required bool focusMap,
   }) async {
-    final changed = (_mapLat - location.latitude).abs() > 0.000001 ||
+    final changed =
+        (_mapLat - location.latitude).abs() > 0.000001 ||
         (_mapLng - location.longitude).abs() > 0.000001 ||
         _isCurrentLocationResolved != location.fromDevice;
     if (!changed || !mounted) return;
@@ -137,15 +140,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     }
   }
 
-  Future<void> _searchNearbyNewPlaces(
-    List<StoreSummary> reviewedStores,
-  ) async {
-    final viewport = _viewport ??
-        MapViewportData(
-          lat: _mapLat,
-          lng: _mapLng,
-          zoom: 14,
-        );
+  Future<void> _searchNearbyNewPlaces(List<StoreSummary> reviewedStores) async {
+    final viewport =
+        _viewport ?? MapViewportData(lat: _mapLat, lng: _mapLng, zoom: 14);
     final radiusKm = _radiusKmForZoom(viewport.zoom);
 
     setState(() {
@@ -276,14 +273,16 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     final placeName = _normalizeMatchText(place.name);
     for (final store in reviewedStores) {
       final storeName = _normalizeMatchText(store.name);
-      final distance = Geolocator.distanceBetween(
+      final distance =
+          Geolocator.distanceBetween(
             placeCoords.$1,
             placeCoords.$2,
             store.lat,
             store.lng,
           ) /
           1000;
-      final sameName = placeName.isNotEmpty &&
+      final sameName =
+          placeName.isNotEmpty &&
           storeName.isNotEmpty &&
           (placeName.contains(storeName) || storeName.contains(placeName));
       if (sameName && distance <= 0.12) {
@@ -338,8 +337,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   }
 
   void _openReviewWrite(PlaceSearchResult item) {
-    final address =
-        item.roadAddress.isNotEmpty ? item.roadAddress : item.address;
+    final address = item.roadAddress.isNotEmpty
+        ? item.roadAddress
+        : item.address;
     final uri = Uri(
       path: '/review/write',
       queryParameters: {
@@ -378,36 +378,85 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         )
         .toList();
     final newPlaceMarkers = _newPlaces
-        .map(
-          (place) {
-            final coords = _coordsFromPlace(place);
-            if (coords == null) return null;
-            return MapMarkerData(
-              id: _placeMarkerId(place),
-              lat: coords.$1,
-              lng: coords.$2,
-              caption: place.name,
-              description: place.roadAddress.isNotEmpty
-                  ? place.roadAddress
-                  : place.address,
-              iconUrl: _newCafeMarkerIconUrl,
-              useDefaultMarker: true,
-              badgeText: '+',
-            );
-          },
-        )
+        .map((place) {
+          final coords = _coordsFromPlace(place);
+          if (coords == null) return null;
+          return MapMarkerData(
+            id: _placeMarkerId(place),
+            lat: coords.$1,
+            lng: coords.$2,
+            caption: place.name,
+            description: place.roadAddress.isNotEmpty
+                ? place.roadAddress
+                : place.address,
+            iconUrl: _newCafeMarkerIconUrl,
+            useDefaultMarker: true,
+            badgeText: '+',
+          );
+        })
         .whereType<MapMarkerData>()
         .toList();
-    final markers = [...reviewedMarkers, ...newPlaceMarkers];
+    final searchResultMarkers = _searchResults
+        .where(
+          (place) => !_newPlaces.any((item) => item.placeId == place.placeId),
+        )
+        .map((place) {
+          final coords = _coordsFromPlace(place);
+          if (coords == null) return null;
+          return MapMarkerData(
+            id: _placeMarkerId(place),
+            lat: coords.$1,
+            lng: coords.$2,
+            caption: place.name,
+            description: place.roadAddress.isNotEmpty
+                ? place.roadAddress
+                : place.address,
+            useDefaultMarker: true,
+          );
+        })
+        .whereType<MapMarkerData>()
+        .toList();
+    final selectedPlaceMarker = (() {
+      final place = _selectedPlace;
+      if (place == null) return null;
+      if (_newPlaces.any((item) => item.placeId == place.placeId) ||
+          _searchResults.any((item) => item.placeId == place.placeId)) {
+        return null;
+      }
+      final coords = _coordsFromPlace(place);
+      if (coords == null) return null;
+      return MapMarkerData(
+        id: _placeMarkerId(place),
+        lat: coords.$1,
+        lng: coords.$2,
+        caption: place.name,
+        description: place.roadAddress.isNotEmpty
+            ? place.roadAddress
+            : place.address,
+        useDefaultMarker: true,
+      );
+    })();
+    final markers = [
+      ...reviewedMarkers,
+      ...newPlaceMarkers,
+      ...searchResultMarkers,
+      ...[if (selectedPlaceMarker != null) selectedPlaceMarker],
+    ];
     final storeById = {for (final store in reviewedStores) store.id: store};
     final placeById = {
-      for (final place in _newPlaces) _placeMarkerId(place): place
+      for (final place in [
+        ..._newPlaces,
+        ..._searchResults,
+        ...[if (_selectedPlace != null) _selectedPlace!],
+      ])
+        _placeMarkerId(place): place,
     };
     final mapKey = ValueKey(
       'map-${markers.map((marker) => marker.id).join('|')}-${_selectedStore?.id ?? _selectedPlaceMarkerId() ?? 'none'}',
     );
     final bottomPadding = MediaQuery.paddingOf(context).bottom + 16;
-    final statusBottomPadding = bottomPadding +
+    final statusBottomPadding =
+        bottomPadding +
         ((_selectedStore != null || _selectedPlace != null) ? 104 : 0);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final actionWidth = (screenWidth * 0.26).clamp(104.0, 132.0);
@@ -699,8 +748,9 @@ class _MapStatusBanner extends StatelessWidget {
               message,
               style: TextStyle(
                 fontSize: 12,
-                color:
-                    isError ? const Color(0xFFBE123C) : AppColors.textSecondary,
+                color: isError
+                    ? const Color(0xFFBE123C)
+                    : AppColors.textSecondary,
               ),
             ),
           ),
@@ -786,10 +836,7 @@ class _ReviewedStoreBottomCard extends StatelessWidget {
   final StoreSummary store;
   final VoidCallback onTap;
 
-  const _ReviewedStoreBottomCard({
-    required this.store,
-    required this.onTap,
-  });
+  const _ReviewedStoreBottomCard({required this.store, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -861,15 +908,13 @@ class _NewCafeBottomCard extends StatelessWidget {
   final PlaceSearchResult place;
   final VoidCallback onReviewTap;
 
-  const _NewCafeBottomCard({
-    required this.place,
-    required this.onReviewTap,
-  });
+  const _NewCafeBottomCard({required this.place, required this.onReviewTap});
 
   @override
   Widget build(BuildContext context) {
-    final address =
-        place.roadAddress.isNotEmpty ? place.roadAddress : place.address;
+    final address = place.roadAddress.isNotEmpty
+        ? place.roadAddress
+        : place.address;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -886,10 +931,7 @@ class _NewCafeBottomCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const _CardImage(
-            imageUrl: '',
-            fallbackIcon: Icons.place_rounded,
-          ),
+          const _CardImage(imageUrl: '', fallbackIcon: Icons.place_rounded),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -945,10 +987,7 @@ class _CardImage extends StatelessWidget {
   final String imageUrl;
   final IconData fallbackIcon;
 
-  const _CardImage({
-    required this.imageUrl,
-    required this.fallbackIcon,
-  });
+  const _CardImage({required this.imageUrl, required this.fallbackIcon});
 
   @override
   Widget build(BuildContext context) {

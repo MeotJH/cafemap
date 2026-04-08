@@ -486,6 +486,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+    final isKeyboardVisible = viewInsets.bottom > 0;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -675,6 +676,12 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                               return TextField(
                                 controller: controller,
                                 focusNode: focusNode,
+                                scrollPadding: const EdgeInsets.only(
+                                  left: 16,
+                                  right: 16,
+                                  top: 24,
+                                  bottom: 160,
+                                ),
                                 decoration: InputDecoration(
                                   hintText: _loadingMenus
                                       ? '메뉴 불러오는 중...'
@@ -860,6 +867,12 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                 TextField(
                   controller: _commentController,
                   maxLines: 6,
+                  scrollPadding: const EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 24,
+                    bottom: 160,
+                  ),
                   decoration: InputDecoration(
                     hintText: '카페 분위기와 메뉴 평가를 자유롭게 남겨주세요. 다른 사용자에게 큰 도움이 됩니다.',
                     filled: true,
@@ -886,10 +899,13 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                WriteCafeReviewButton(
-                  onPressed: _isSubmitting ? () {} : _submitReview,
-                  text: _isSubmitting ? '제출 중...' : '리뷰 제출',
-                ),
+                if (!isKeyboardVisible)
+                  WriteCafeReviewButton(
+                    onPressed: _isSubmitting ? () {} : _submitReview,
+                    text: _isSubmitting ? '제출 중...' : '리뷰 제출',
+                  )
+                else
+                  const SizedBox(height: 16),
               ],
             ),
           ),
