@@ -2,6 +2,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -42,6 +43,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   bool _isCurrentLocationResolved = false;
   MapViewportData? _viewport;
   AppLocationState? _lastAppliedLocation;
+  bool _cameraIdleUpdateQueued = false;
 
   final String _reviewedCafeMarkerIconUrl = _buildMarkerIconUrl(
     label: '☕',
@@ -199,11 +201,39 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
   void _handleCameraIdle(MapViewportData viewport) {
     if (!mounted) return;
-    setState(() {
-      _viewport = viewport;
-      _mapLat = viewport.lat;
-      _mapLng = viewport.lng;
-    });
+    final hasMeaningfulChange =
+        _viewport == null ||
+        (_viewport!.lat - viewport.lat).abs() > 0.000001 ||
+        (_viewport!.lng - viewport.lng).abs() > 0.000001 ||
+        (_viewport!.zoom - viewport.zoom).abs() > 0.001;
+    if (!hasMeaningfulChange) return;
+
+    void applyViewport() {
+      if (!mounted) return;
+      setState(() {
+        _viewport = viewport;
+        _mapLat = viewport.lat;
+        _mapLng = viewport.lng;
+      });
+    }
+
+    final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
+    final isBuildPhase =
+        schedulerPhase == SchedulerPhase.transientCallbacks ||
+        schedulerPhase == SchedulerPhase.midFrameMicrotasks ||
+        schedulerPhase == SchedulerPhase.persistentCallbacks;
+
+    if (isBuildPhase) {
+      if (_cameraIdleUpdateQueued) return;
+      _cameraIdleUpdateQueued = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _cameraIdleUpdateQueued = false;
+        applyViewport();
+      });
+      return;
+    }
+
+    applyViewport();
   }
 
   double _radiusKmForZoom(double zoom) {
@@ -470,9 +500,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       ])
         _placeMarkerId(place): place,
     };
-    final mapKey = ValueKey(
-      'map-${markers.map((marker) => marker.id).join('|')}',
-    );
     final bottomPadding = MediaQuery.paddingOf(context).bottom + 16;
     final statusBottomPadding =
         bottomPadding +
@@ -483,38 +510,35 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     return Scaffold(
       body: Stack(
         children: [
-          KeyedSubtree(
-            key: mapKey,
-            child: buildNaverMapView(
-              context: context,
-              lat: _mapLat,
-              lng: _mapLng,
-              zoom: 14,
-              markers: markers,
-              selectedMarkerId: _selectedStore?.id ?? _selectedPlaceMarkerId(),
-              onMarkerTap: (markerId) {
-                final store = storeById[markerId];
-                if (store != null) {
-                  _selectStore(store);
-                  return;
-                }
-                final place = placeById[markerId];
-                if (place != null) {
-                  _selectSearchResult(place);
-                }
-              },
-              onMapReady: _handleMapReady,
-              onCameraIdle: _handleCameraIdle,
-            ),
+          buildNaverMapView(
+            context: context,
+            lat: _mapLat,
+            lng: _mapLng,
+            zoom: 14,
+            markers: markers,
+            selectedMarkerId: _selectedStore?.id ?? _selectedPlaceMarkerId(),
+            onMarkerTap: (markerId) {
+              final store = storeById[markerId];
+              if (store != null) {
+                _selectStore(store);
+                return;
+              }
+              final place = placeById[markerId];
+              if (place != null) {
+                _selectSearchResult(place);
+              }
+            },
+            onMapReady: _handleMapReady,
+            onCameraIdle: _handleCameraIdle,
           ),
           SafeArea(
-            child: PointerInterceptor(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PointerInterceptor(
+                    child: Row(
                       children: [
                         Expanded(
                           child: Container(
@@ -583,17 +607,23 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                         ),
                       ],
                     ),
-                    if (_searchResults.isNotEmpty ||
-                        _placeSearchError != null) ...[
-                      const SizedBox(height: 10),
-                      _MapSearchResultPanel(
+                  ),
+                  if (_selectedStore == null &&
+                      _selectedPlace == null &&
+                      (_searchResults.isNotEmpty ||
+                          _placeSearchError != null)) ...[
+                    const SizedBox(height: 10),
+                    PointerInterceptor(
+                      child: _MapSearchResultPanel(
                         results: _searchResults,
                         errorMessage: _placeSearchError,
                         onSelect: _selectSearchResult,
                       ),
-                    ],
-                    const SizedBox(height: 10),
-                    Row(
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  PointerInterceptor(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
@@ -646,8 +676,8 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                         ],
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

@@ -63,7 +63,9 @@ Widget buildNaverMapViewImpl({
       onMapReady?.call(map);
       final viewport = _viewportDataFromMap(map);
       if (viewport != null) {
-        onCameraIdle?.call(viewport);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          onCameraIdle?.call(viewport);
+        });
       }
     },
   );
