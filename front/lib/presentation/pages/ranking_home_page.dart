@@ -40,7 +40,7 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   _RankingMode get _selectedMode => widget._initialMode;
 
   List<StoreRanking> _filterRankings(List<StoreRanking> items) {
-    var filtered = items.where((item) {
+    final filtered = items.where((item) {
       return switch (_selectedSegment) {
         _StoreSegment.all => true,
         _StoreSegment.local => item.isLocal,
@@ -59,7 +59,7 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
   }
 
   List<BrandMenuRanking> _filterMenuRankings(List<BrandMenuRanking> items) {
-    var filtered = items;
+    final filtered = items.toList();
     filtered.sort((a, b) {
       if (_selectedSort == _StoreRankingSort.reviews) {
         final byReviews = b.reviewCount.compareTo(a.reviewCount);
