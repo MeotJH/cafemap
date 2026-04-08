@@ -14,6 +14,7 @@ import 'package:front/domain/entities/place_search_result.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/presentation/providers/app_providers.dart';
 import 'package:front/presentation/providers/store_providers.dart';
+import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:front/presentation/widgets/naver_map_view.dart';
 
 class MapHomePage extends ConsumerStatefulWidget {
@@ -380,7 +381,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     _focusStoreOnMap(store);
   }
 
-  void _openReviewWrite(PlaceSearchResult item) {
+  Future<void> _openReviewWrite(PlaceSearchResult item) async {
+    final isSignedIn = await ensureSignedInForReview(context, ref);
+    if (!isSignedIn || !mounted) return;
     final address = item.roadAddress.isNotEmpty
         ? item.roadAddress
         : item.address;

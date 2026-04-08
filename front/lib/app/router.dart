@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:front/presentation/pages/auth_start_page.dart';
 import 'package:front/presentation/pages/main_shell.dart';
@@ -91,6 +92,12 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/review/write',
+      redirect: (BuildContext context, GoRouterState state) {
+        if (FirebaseAuth.instance.currentUser == null) {
+          return '/auth';
+        }
+        return null;
+      },
       builder: (BuildContext context, GoRouterState state) {
         final params = state.uri.queryParameters;
         return ReviewWritePage(
@@ -105,6 +112,12 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/review/select-store',
+      redirect: (BuildContext context, GoRouterState state) {
+        if (FirebaseAuth.instance.currentUser == null) {
+          return '/auth';
+        }
+        return null;
+      },
       builder: (BuildContext context, GoRouterState state) {
         final params = state.uri.queryParameters;
         return StoreSelectPage(

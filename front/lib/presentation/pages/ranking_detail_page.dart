@@ -4,6 +4,7 @@ import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
 import 'package:front/presentation/providers/ranking_providers.dart';
+import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:front/presentation/widgets/review_card.dart';
 import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:go_router/go_router.dart';
@@ -167,7 +168,12 @@ class RankingDetailPage extends ConsumerWidget {
             child: WriteCafeReviewButton(
               onPressed: ranking == null
                   ? null
-                  : () {
+                  : () async {
+                      final isSignedIn = await ensureSignedInForReview(
+                        context,
+                        ref,
+                      );
+                      if (!isSignedIn || !context.mounted) return;
                       final uri = Uri(
                         path: '/review/select-store',
                         queryParameters: {
@@ -234,5 +240,4 @@ class _ScoreProgressRow extends StatelessWidget {
     );
   }
 }
-
 

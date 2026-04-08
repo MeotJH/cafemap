@@ -5,6 +5,7 @@ import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/providers/store_providers.dart';
+import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:front/presentation/widgets/review_card.dart';
 import 'package:go_router/go_router.dart';
 
@@ -320,7 +321,9 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: WriteCafeReviewButton(
-              onPressed: () {
+              onPressed: () async {
+                final isSignedIn = await ensureSignedInForReview(context, ref);
+                if (!isSignedIn || !context.mounted) return;
                 final data = store.asData?.value;
                 final uri = Uri(
                   path: '/review/write',

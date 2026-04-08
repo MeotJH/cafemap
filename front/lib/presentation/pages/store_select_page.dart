@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/domain/entities/place_search_result.dart';
 import 'package:front/presentation/providers/app_providers.dart';
+import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:go_router/go_router.dart';
 
 // ?? ???? ???? ?? ?? ????.
@@ -65,7 +66,9 @@ class _StoreSelectPageState extends ConsumerState<StoreSelectPage> {
     }
   }
 
-  void _selectStore(PlaceSearchResult item) {
+  Future<void> _selectStore(PlaceSearchResult item) async {
+    final isSignedIn = await ensureSignedInForReview(context, ref);
+    if (!isSignedIn || !mounted) return;
     final address = item.roadAddress.isNotEmpty
         ? item.roadAddress
         : item.address;
