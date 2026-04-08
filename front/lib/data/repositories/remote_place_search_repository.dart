@@ -9,7 +9,10 @@ class RemotePlaceSearchRepository implements PlaceSearchRepository {
   RemotePlaceSearchRepository(this._api);
 
   @override
-  Future<List<PlaceSearchResult>> searchPlaces(String query) {
-    return _api.search(query);
+  Future<List<PlaceSearchResult>> searchPlaces(
+    String query, {
+    int display = 5,
+  }) {
+    return _api.search(query, display: display);
   }
 }

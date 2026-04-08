@@ -10,10 +10,14 @@ class PlaceSearchApi {
 
   String get _baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
 
-  Future<List<PlaceSearchResult>> search(String query) async {
+  Future<List<PlaceSearchResult>> search(String query,
+      {int display = 5}) async {
     final response = await _dio.get(
       '$_baseUrl/api/cafemap/places/search',
-      queryParameters: {'query': query},
+      queryParameters: {
+        'query': query,
+        'display': display,
+      },
     );
     final data = response.data as List<dynamic>;
     return data

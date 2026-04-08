@@ -30,9 +30,9 @@ Widget buildNaverMapViewImpl({
         if (!marker.useDefaultMarker) {
           // Keep the default marker icon so tap hit-area remains reliable.
           nMarker.setCaption(
-            const NOverlayCaption(
-              text: '?',
-              textSize: 18,
+            NOverlayCaption(
+              text: marker.badgeText ?? '?',
+              textSize: (marker.badgeText ?? '').length > 1 ? 12 : 18,
               color: Colors.black,
             ),
           );

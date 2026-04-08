@@ -1,33 +1,18 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:front/core/constants/app_colors.dart';
-import 'package:front/domain/entities/place_search_result.dart';
-import 'package:front/presentation/providers/store_providers.dart';
-import 'package:front/presentation/providers/app_providers.dart';
-import 'package:front/presentation/widgets/app_filter_chip.dart';
-import 'package:front/presentation/widgets/store_card.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:front/presentation/widgets/naver_map_view.dart';
-import 'package:front/domain/entities/store_summary.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
-enum _MapSortType {
-  recommended,
-  rating,
-  distance,
-  reviews,
-  coffee,
-  workFriendly,
-  quiet,
-  dessert,
-}
+import 'package:front/core/constants/app_colors.dart';
+import 'package:front/domain/entities/place_search_result.dart';
+import 'package:front/domain/entities/store_summary.dart';
+import 'package:front/presentation/providers/app_providers.dart';
+import 'package:front/presentation/providers/store_providers.dart';
+import 'package:front/presentation/widgets/naver_map_view.dart';
 
-enum _MapStoreSegment { all, local, franchise }
-
-// 지점 평점 지도를 보여주는 홈 화면이다.
 class MapHomePage extends ConsumerStatefulWidget {
   const MapHomePage({super.key});
 
@@ -36,12 +21,10 @@ class MapHomePage extends ConsumerStatefulWidget {
 }
 
 class _MapHomePageState extends ConsumerState<MapHomePage> {
-  static const double _sheetInitialExtent = 0.28;
-  static const double _sheetMinExtent = 0.2;
-  static const double _sheetMaxExtent = 0.6;
-  final _searchController = TextEditingController();
+  static const double _newCafeRadiusKm = 3.0;
+  static const int _newCafeDisplayCount = 20;
 
-  List<PlaceSearchResult> _results = [];
+  List<PlaceSearchResult> _newPlaces = [];
   bool _isSearching = false;
   String? _searchError;
   StoreSummary? _selectedStore;
@@ -50,15 +33,30 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   double _mapLat = AppLocationController.defaultLat;
   double _mapLng = AppLocationController.defaultLng;
   bool _isCurrentLocationResolved = false;
-  double _sheetExtent = _sheetInitialExtent;
-  _MapSortType _selectedSortType = _MapSortType.recommended;
-  _MapStoreSegment _selectedSegment = _MapStoreSegment.all;
-  final String _cafeMarkerIconUrl = _buildCafeMarkerIconUrl();
 
-  static String _buildCafeMarkerIconUrl() {
-    const svg = '''
-<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28">
-  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="18">☕</text>
+  final String _reviewedCafeMarkerIconUrl = _buildMarkerIconUrl(
+    label: '☕',
+    backgroundColor: '#6F4E37',
+    borderColor: '#6F4E37',
+    textColor: '#FFFFFF',
+  );
+  final String _newCafeMarkerIconUrl = _buildMarkerIconUrl(
+    label: '+',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#6F4E37',
+    textColor: '#6F4E37',
+  );
+
+  static String _buildMarkerIconUrl({
+    required String label,
+    required String backgroundColor,
+    required String borderColor,
+    required String textColor,
+  }) {
+    final svg = '''
+<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+  <circle cx="17" cy="17" r="15" fill="$backgroundColor" stroke="$borderColor" stroke-width="2"/>
+  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="16" font-weight="700" fill="$textColor">$label</text>
 </svg>
 ''';
     return 'data:image/svg+xml;utf8,${Uri.encodeComponent(svg)}';
@@ -71,87 +69,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     _applyCurrentLocation(location, focusMap: false);
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _searchPlaces(String query) async {
-    if (query.trim().isEmpty) return;
-    setState(() {
-      _isSearching = true;
-      _searchError = null;
-    });
-    try {
-      final repository = ref.read(placeSearchRepositoryProvider);
-      final results = await repository.searchPlaces(query.trim());
-      setState(() {
-        _results = results;
-        if (results.isEmpty) {
-          _searchError = '카페 검색 결과가 없어요.';
-        }
-      });
-    } catch (_) {
-      setState(() {
-        _searchError = '검색에 실패했어요. 다시 시도해주세요.';
-      });
-    } finally {
-      setState(() {
-        _isSearching = false;
-      });
-    }
-  }
-
-  void _openReviewWrite(PlaceSearchResult item) {
-    final address = item.roadAddress.isNotEmpty
-        ? item.roadAddress
-        : item.address;
-    final uri = Uri(
-      path: '/review/write',
-      queryParameters: {
-        'storeName': item.name,
-        'address': address,
-        'placeId': item.placeId,
-      },
-    );
-    context.push(uri.toString());
-  }
-
-  String? _selectedPlaceMarkerId() {
-    final selected = _selectedPlace;
-    if (selected == null) return null;
-    return 'place-${selected.mapx}-${selected.mapy}';
-  }
-
-  (double lat, double lng)? _coordsFromPlace(PlaceSearchResult item) {
-    final lat = item.mapy / 10000000.0;
-    final lng = item.mapx / 10000000.0;
-    if (lat.abs() > 90 || lng.abs() > 180) return null;
-    return (lat, lng);
-  }
-
-  Future<void> _selectSearchResult(PlaceSearchResult item) async {
-    final coords = _coordsFromPlace(item);
-    if (coords == null) return;
-    setState(() {
-      _selectedStore = null;
-      _selectedPlace = item;
-      _results = const [];
-      _searchError = null;
-      _searchController.text = item.name;
-    });
-    await _focusMapTo(coords.$1, coords.$2, zoom: 16);
-  }
-
-  void _selectStore(StoreSummary store) {
-    setState(() {
-      _selectedStore = store;
-      _selectedPlace = null;
-    });
-    _focusStoreOnMap(store);
-  }
-
   void _handleMapReady(dynamic controller) {
     if (controller is NaverMapController) {
       _mapController = controller;
@@ -159,6 +76,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         _focusMapTo(_mapLat, _mapLng, zoom: 15);
       }
     }
+
     final selectedStore = _selectedStore;
     if (selectedStore != null) {
       _focusStoreOnMap(selectedStore);
@@ -176,6 +94,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   }) async {
     final controller = _mapController;
     if (controller == null) return;
+
     final update = NCameraUpdate.scrollAndZoomTo(
       target: NLatLng(lat, lng),
       zoom: zoom,
@@ -188,8 +107,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     AppLocationState location, {
     required bool focusMap,
   }) async {
-    final changed =
-        (_mapLat - location.latitude).abs() > 0.000001 ||
+    final changed = (_mapLat - location.latitude).abs() > 0.000001 ||
         (_mapLng - location.longitude).abs() > 0.000001 ||
         _isCurrentLocationResolved != location.fromDevice;
     if (!changed || !mounted) return;
@@ -208,128 +126,171 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     }
   }
 
-  List<StoreSummary> _sortStores(
-    List<StoreSummary> items,
+  Future<void> _searchNearbyNewPlaces(
     AppLocationState location,
-  ) {
-    final sorted = items.where((store) {
-      return switch (_selectedSegment) {
-        _MapStoreSegment.all => true,
-        _MapStoreSegment.local => store.isLocal,
-        _MapStoreSegment.franchise => !store.isLocal,
-      };
-    }).toList();
-    sorted.sort((a, b) {
-      if (_selectedSortType == _MapSortType.recommended) {
-        return _compareRecommended(a, b, location);
-      }
-      if (_selectedSortType == _MapSortType.distance) {
-        final distanceA = _distanceFromCurrentKm(a, location);
-        final distanceB = _distanceFromCurrentKm(b, location);
-        if (kDebugMode) {
-          debugPrint(
-            '[MapHome] distance(${a.name})=${distanceA.toStringAsFixed(2)}km, '
-            'distance(${b.name})=${distanceB.toStringAsFixed(2)}km',
-          );
-        }
-        final byDistance = distanceA.compareTo(distanceB);
-        if (byDistance != 0) return byDistance;
-        return b.rating.compareTo(a.rating);
-      }
-      if (_selectedSortType == _MapSortType.reviews) {
-        final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
-        if (byReviewCount != 0) return byReviewCount;
-        return b.rating.compareTo(a.rating);
-      }
-      if (_selectedSortType == _MapSortType.coffee) {
-        return _compareByScore(a, b, (store) => store.coffeeQualityScore);
-      }
-      if (_selectedSortType == _MapSortType.workFriendly) {
-        return _compareByScore(a, b, (store) => store.workFriendlyScore);
-      }
-      if (_selectedSortType == _MapSortType.quiet) {
-        return _compareByScore(a, b, (store) => store.quietnessScore);
-      }
-      if (_selectedSortType == _MapSortType.dessert) {
-        return _compareByScore(a, b, (store) => store.dessertScore);
-      }
-      final byRating = b.rating.compareTo(a.rating);
-      if (byRating != 0) return byRating;
-      final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
-      if (byReviewCount != 0) return byReviewCount;
-      return a.distanceKm.compareTo(b.distanceKm);
+    List<StoreSummary> reviewedStores,
+  ) async {
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+      _selectedStore = null;
+      _selectedPlace = null;
     });
-    return sorted;
+
+    try {
+      final repository = ref.read(placeSearchRepositoryProvider);
+      final results = await repository.searchPlaces(
+        '카페',
+        display: _newCafeDisplayCount,
+      );
+      final filtered = _filterNearbyPlaces(results, location, reviewedStores);
+
+      setState(() {
+        _newPlaces = filtered;
+        if (filtered.isEmpty) {
+          _searchError = '현재 위치 근처의 새로운 카페를 찾지 못했어요.';
+        }
+      });
+    } catch (_) {
+      setState(() {
+        _searchError = '새로운 카페를 찾지 못했어요. 다시 시도해주세요.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
+    }
   }
 
-  int _compareRecommended(
-    StoreSummary a,
-    StoreSummary b,
+  void _clearNewPlaces() {
+    setState(() {
+      _newPlaces = [];
+      _searchError = null;
+      _selectedPlace = null;
+    });
+  }
+
+  List<PlaceSearchResult> _filterNearbyPlaces(
+    List<PlaceSearchResult> items,
+    AppLocationState location,
+    List<StoreSummary> reviewedStores,
+  ) {
+    final withDistance = items
+        .where((item) => _coordsFromPlace(item) != null)
+        .where((item) => !_looksLikeReviewedStore(item, reviewedStores))
+        .map((item) =>
+            (item: item, distanceKm: _distanceToPlaceKm(item, location)))
+        .toList();
+
+    withDistance.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    final nearby = withDistance
+        .where((entry) => entry.distanceKm <= _newCafeRadiusKm)
+        .map((entry) => entry.item)
+        .toList();
+    if (nearby.isNotEmpty) {
+      return nearby.take(12).toList();
+    }
+
+    return withDistance.map((entry) => entry.item).take(8).toList();
+  }
+
+  bool _looksLikeReviewedStore(
+    PlaceSearchResult place,
+    List<StoreSummary> reviewedStores,
+  ) {
+    final placeCoords = _coordsFromPlace(place);
+    if (placeCoords == null) return false;
+
+    final placeName = _normalizeMatchText(place.name);
+    for (final store in reviewedStores) {
+      final storeName = _normalizeMatchText(store.name);
+      final distance = Geolocator.distanceBetween(
+            placeCoords.$1,
+            placeCoords.$2,
+            store.lat,
+            store.lng,
+          ) /
+          1000;
+      final sameName = placeName.isNotEmpty &&
+          storeName.isNotEmpty &&
+          (placeName.contains(storeName) || storeName.contains(placeName));
+      if (sameName && distance <= 0.12) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String _normalizeMatchText(String value) {
+    return value.replaceAll(RegExp(r'[^0-9a-zA-Z가-힣]'), '').toLowerCase();
+  }
+
+  double _distanceToPlaceKm(
+    PlaceSearchResult place,
     AppLocationState location,
   ) {
-    final scoreA = _discoveryScore(a, location);
-    final scoreB = _discoveryScore(b, location);
-    final byScore = scoreB.compareTo(scoreA);
-    if (byScore != 0) return byScore;
-    final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
-    if (byReviewCount != 0) return byReviewCount;
-    return b.rating.compareTo(a.rating);
-  }
-
-  double _discoveryScore(StoreSummary store, AppLocationState location) {
-    final distance = _distanceFromCurrentKm(store, location);
-    final distanceScore = (1 - (distance / 5)).clamp(0.0, 1.0) * 5;
-    final trustedRating = store.displayScore > 0
-        ? store.displayScore
-        : store.rating;
-    return (trustedRating * 0.7) +
-        (distanceScore * 0.2) +
-        (_reviewSignal(store) * 0.1);
-  }
-
-  double _reviewSignal(StoreSummary store) {
-    return (store.reviewCount / 20).clamp(0.0, 1.0) * 5;
-  }
-
-  int _compareByScore(
-    StoreSummary a,
-    StoreSummary b,
-    double Function(StoreSummary store) scoreOf,
-  ) {
-    final bySignal = scoreOf(b).compareTo(scoreOf(a));
-    if (bySignal != 0) return bySignal;
-    final byReviewCount = b.reviewCount.compareTo(a.reviewCount);
-    if (byReviewCount != 0) return byReviewCount;
-    return b.rating.compareTo(a.rating);
-  }
-
-  double _distanceFromCurrentKm(StoreSummary store, AppLocationState location) {
+    final coords = _coordsFromPlace(place);
+    if (coords == null) return double.infinity;
     final meters = Geolocator.distanceBetween(
       location.latitude,
       location.longitude,
-      store.lat,
-      store.lng,
+      coords.$1,
+      coords.$2,
     );
     return meters / 1000;
   }
 
-  void _selectSortType(_MapSortType sortType) {
-    if (_selectedSortType == sortType) return;
-    setState(() {
-      _selectedSortType = sortType;
-    });
+  String? _selectedPlaceMarkerId() {
+    final selected = _selectedPlace;
+    if (selected == null) return null;
+    return 'place-${selected.mapx}-${selected.mapy}';
   }
 
-  void _selectSegment(_MapStoreSegment segment) {
-    if (_selectedSegment == segment) return;
+  (double lat, double lng)? _coordsFromPlace(PlaceSearchResult item) {
+    final lat = item.mapy / 10000000.0;
+    final lng = item.mapx / 10000000.0;
+    if (lat.abs() > 90 || lng.abs() > 180) return null;
+    return (lat, lng);
+  }
+
+  Future<void> _selectSearchResult(PlaceSearchResult item) async {
+    final coords = _coordsFromPlace(item);
+    if (coords == null) return;
+
     setState(() {
-      _selectedSegment = segment;
       _selectedStore = null;
+      _selectedPlace = item;
+      _searchError = null;
     });
+    await _focusMapTo(coords.$1, coords.$2, zoom: 16);
+  }
+
+  void _selectStore(StoreSummary store) {
+    setState(() {
+      _selectedStore = store;
+      _selectedPlace = null;
+    });
+    _focusStoreOnMap(store);
+  }
+
+  void _openReviewWrite(PlaceSearchResult item) {
+    final address =
+        item.roadAddress.isNotEmpty ? item.roadAddress : item.address;
+    final uri = Uri(
+      path: '/review/write',
+      queryParameters: {
+        'storeName': item.name,
+        'address': address,
+        'placeId': item.placeId,
+      },
+    );
+    context.push(uri.toString());
   }
 
   @override
-  // 지도와 바텀시트를 함께 렌더링한다.
   Widget build(BuildContext context) {
     final currentLocation = ref.watch(currentLocationProvider);
     if ((_mapLat - currentLocation.latitude).abs() > 0.000001 ||
@@ -340,18 +301,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       });
     }
 
-    final screenHeight = MediaQuery.of(context).size.height;
-    final sheetTopOffsetFromBottom = screenHeight * _sheetExtent;
-    final selectedCardBottom = (sheetTopOffsetFromBottom + 12).clamp(
-      12.0,
-      screenHeight - 160,
-    );
     final stores = ref.watch(nearbyStoresProvider);
-    final storeItems = _sortStores(stores.asData?.value ?? [], currentLocation);
-    if (kDebugMode) {
-      debugPrint('[MapHome] storeItems=${storeItems.length}');
-    }
-    final markers = storeItems
+    final reviewedStores = stores.asData?.value ?? const <StoreSummary>[];
+    final reviewedMarkers = reviewedStores
         .map(
           (store) => MapMarkerData(
             id: store.id,
@@ -359,36 +311,47 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             lng: store.lng,
             caption: store.name,
             description: store.address,
-            iconUrl: _cafeMarkerIconUrl,
+            iconUrl: _reviewedCafeMarkerIconUrl,
+            badgeText: '☕',
           ),
         )
         .toList();
-    final selectedPlace = _selectedPlace;
-    if (selectedPlace != null) {
-      final coords = _coordsFromPlace(selectedPlace);
-      if (coords != null) {
-        markers.add(
-          MapMarkerData(
-            id: _selectedPlaceMarkerId()!,
-            lat: coords.$1,
-            lng: coords.$2,
-            caption: selectedPlace.name,
-            description: selectedPlace.roadAddress.isNotEmpty
-                ? selectedPlace.roadAddress
-                : selectedPlace.address,
-            useDefaultMarker: true,
-          ),
-        );
-      }
-    }
-    final storeById = {for (final store in storeItems) store.id: store};
+    final newPlaceMarkers = _newPlaces
+        .map(
+          (place) {
+            final coords = _coordsFromPlace(place);
+            if (coords == null) return null;
+            return MapMarkerData(
+              id: 'place-${place.mapx}-${place.mapy}',
+              lat: coords.$1,
+              lng: coords.$2,
+              caption: place.name,
+              description: place.roadAddress.isNotEmpty
+                  ? place.roadAddress
+                  : place.address,
+              iconUrl: _newCafeMarkerIconUrl,
+              useDefaultMarker: true,
+              badgeText: '+',
+            );
+          },
+        )
+        .whereType<MapMarkerData>()
+        .toList();
+    final markers = [...reviewedMarkers, ...newPlaceMarkers];
+    final storeById = {for (final store in reviewedStores) store.id: store};
+    final placeById = {
+      for (final place in _newPlaces) _placeMarkerId(place): place
+    };
+    final mapKey = ValueKey(
+      'map-${markers.map((marker) => marker.id).join('|')}-${_selectedStore?.id ?? _selectedPlaceMarkerId() ?? 'none'}',
+    );
+    final bottomPadding = MediaQuery.paddingOf(context).bottom + 16;
 
     return Scaffold(
       body: Stack(
         children: [
-          // 네이버 지도 위젯 (API 키 설정 필요)
           KeyedSubtree(
-            key: const ValueKey('map-static'),
+            key: mapKey,
             child: buildNaverMapView(
               context: context,
               lat: _mapLat,
@@ -398,8 +361,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
               selectedMarkerId: _selectedStore?.id ?? _selectedPlaceMarkerId(),
               onMarkerTap: (markerId) {
                 final store = storeById[markerId];
-                if (store == null) return;
-                _selectStore(store);
+                if (store != null) {
+                  _selectStore(store);
+                  return;
+                }
+                final place = placeById[markerId];
+                if (place != null) {
+                  _selectSearchResult(place);
+                }
               },
               onMapReady: _handleMapReady,
             ),
@@ -413,250 +382,52 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                   children: [
                     Row(
                       children: [
-                        // IconButton(
-                        //   onPressed: () {},
-                        //   icon: const Icon(
-                        //     Icons.menu,
-                        //     color: AppColors.textPrimary,
-                        //   ),
-                        //   style: IconButton.styleFrom(
-                        //     backgroundColor: Colors.white,
-                        //   ),
-                        // ),
-                        // const SizedBox(width: 8),
                         Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            onSubmitted: _searchPlaces,
-                            decoration: InputDecoration(
-                              hintText: '카페 검색',
-                              prefixIcon: const Icon(Icons.search),
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide.none,
+                          child: FilledButton.icon(
+                            onPressed: _isSearching
+                                ? null
+                                : () => _searchNearbyNewPlaces(
+                                      currentLocation,
+                                      reviewedStores,
+                                    ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(52),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
                               ),
+                            ),
+                            icon: const Icon(Icons.explore_outlined),
+                            label: Text(
+                              _newPlaces.isEmpty ? '새로운 카페 찾기' : '새 카페 다시 찾기',
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () =>
-                              _searchPlaces(_searchController.text),
-                          icon: const Icon(Icons.search, color: Colors.white),
-                          style: IconButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_isSearching ||
-                        _results.isNotEmpty ||
-                        _searchError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: _SearchResultPanel(
-                          isLoading: _isSearching,
-                          errorMessage: _searchError,
-                          results: _results,
-                          onSelect: _selectSearchResult,
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 36,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          AppFilterChip(
-                            label: '전체',
-                            selected: _selectedSegment == _MapStoreSegment.all,
-                            onSelected: (_) =>
-                                _selectSegment(_MapStoreSegment.all),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '로컬',
-                            selected:
-                                _selectedSegment == _MapStoreSegment.local,
-                            onSelected: (_) =>
-                                _selectSegment(_MapStoreSegment.local),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '프랜차이즈',
-                            selected:
-                                _selectedSegment == _MapStoreSegment.franchise,
-                            onSelected: (_) =>
-                                _selectSegment(_MapStoreSegment.franchise),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '추천순',
-                            selected:
-                                _selectedSortType == _MapSortType.recommended,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.recommended),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '평점 높은 순',
-                            selected: _selectedSortType == _MapSortType.rating,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.rating),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '가까운 순',
-                            selected:
-                                _selectedSortType == _MapSortType.distance,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.distance),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '리뷰 많은 순',
-                            selected: _selectedSortType == _MapSortType.reviews,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.reviews),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '커피 맛 좋은',
-                            selected: _selectedSortType == _MapSortType.coffee,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.coffee),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '작업하기 좋은',
-                            selected:
-                                _selectedSortType == _MapSortType.workFriendly,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.workFriendly),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '조용한',
-                            selected: _selectedSortType == _MapSortType.quiet,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.quiet),
-                            margin: const EdgeInsets.only(right: 8),
-                          ),
-                          AppFilterChip(
-                            label: '디저트 좋은',
-                            selected: _selectedSortType == _MapSortType.dessert,
-                            onSelected: (_) =>
-                                _selectSortType(_MapSortType.dessert),
-                            margin: const EdgeInsets.only(right: 8),
+                        if (_newPlaces.isNotEmpty ||
+                            _selectedPlace != null) ...[
+                          const SizedBox(width: 8),
+                          IconButton.filledTonal(
+                            onPressed: _clearNewPlaces,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: AppColors.primary,
+                              minimumSize: const Size(52, 52),
+                            ),
+                            icon: const Icon(Icons.close),
                           ),
                         ],
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '추천순은 거리, 리뷰 수 신뢰도, 평점을 함께 반영해요.',
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
+                    const SizedBox(height: 10),
+                    _MapStatusBanner(
+                      isSearching: _isSearching,
+                      errorMessage: _searchError,
+                      reviewedStoreCount: reviewedStores.length,
+                      newCafeCount: _newPlaces.length,
                     ),
                   ],
                 ),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: NotificationListener<DraggableScrollableNotification>(
-              onNotification: (notification) {
-                final newExtent = notification.extent;
-                if ((newExtent - _sheetExtent).abs() > 0.001 && mounted) {
-                  setState(() {
-                    _sheetExtent = newExtent;
-                  });
-                }
-                return false;
-              },
-              child: DraggableScrollableSheet(
-                initialChildSize: _sheetInitialExtent,
-                minChildSize: _sheetMinExtent,
-                maxChildSize: _sheetMaxExtent,
-                builder: (context, controller) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(24),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 20,
-                          offset: Offset(0, -8),
-                        ),
-                      ],
-                    ),
-                    child: PointerInterceptor(
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Colors.black12,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: stores.when(
-                              data: (items) {
-                                final sortedItems = _sortStores(
-                                  items,
-                                  currentLocation,
-                                );
-                                return ListView(
-                                  controller: controller,
-                                  children: [
-                                    ListView.separated(
-                                      shrinkWrap: true,
-                                      physics:
-                                          const NeverScrollableScrollPhysics(),
-                                      itemBuilder: (context, index) {
-                                        final item = sortedItems[index];
-                                        return StoreCard(
-                                          store: item,
-                                          isSelected:
-                                              _selectedStore?.id == item.id,
-                                          onTap: () => _selectStore(item),
-                                        );
-                                      },
-                                      separatorBuilder: (context, index) =>
-                                          const SizedBox(height: 12),
-                                      itemCount: sortedItems.length,
-                                    ),
-                                  ],
-                                );
-                              },
-                              loading: () => const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                              error: (error, stackTrace) => const Center(
-                                child: Text('지점 정보를 불러오지 못했어요.'),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
           ),
@@ -664,60 +435,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: selectedCardBottom,
+              bottom: bottomPadding,
               child: PointerInterceptor(
-                child: GestureDetector(
+                child: _ReviewedStoreBottomCard(
+                  store: _selectedStore!,
                   onTap: () => context.go('/map/store/${_selectedStore!.id}'),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.cardBorder),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 12,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: AppColors.backgroundLight,
-                          child: const Icon(
-                            Icons.store,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedStore!.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${_selectedStore!.rating.toStringAsFixed(2)} · ${_selectedStore!.reviewCount} 리뷰',
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right),
-                      ],
-                    ),
-                  ),
                 ),
               ),
             ),
@@ -725,73 +447,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: selectedCardBottom,
+              bottom: bottomPadding,
               child: PointerInterceptor(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.cardBorder),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 12,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  //여기
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: AppColors.backgroundLight,
-                        child: const Icon(
-                          Icons.place,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _selectedPlace!.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _selectedPlace!.roadAddress.isNotEmpty
-                                  ? _selectedPlace!.roadAddress
-                                  : _selectedPlace!.address,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () => _openReviewWrite(_selectedPlace!),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          minimumSize: const Size(64, 36),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                        ),
-                        child: const Text('리뷰'),
-                      ),
-                    ],
-                  ),
+                child: _NewCafeBottomCard(
+                  place: _selectedPlace!,
+                  onReviewTap: () => _openReviewWrite(_selectedPlace!),
                 ),
               ),
             ),
@@ -799,72 +459,272 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       ),
     );
   }
+
+  String _placeMarkerId(PlaceSearchResult place) {
+    return 'place-${place.mapx}-${place.mapy}';
+  }
 }
 
-class _SearchResultPanel extends StatelessWidget {
-  final bool isLoading;
+class _MapStatusBanner extends StatelessWidget {
+  final bool isSearching;
   final String? errorMessage;
-  final List<PlaceSearchResult> results;
-  final ValueChanged<PlaceSearchResult> onSelect;
+  final int reviewedStoreCount;
+  final int newCafeCount;
 
-  const _SearchResultPanel({
-    required this.isLoading,
+  const _MapStatusBanner({
+    required this.isSearching,
     required this.errorMessage,
-    required this.results,
-    required this.onSelect,
+    required this.reviewedStoreCount,
+    required this.newCafeCount,
   });
 
   @override
   Widget build(BuildContext context) {
+    String message;
+    if (isSearching) {
+      message = '현재 위치 근처의 새로운 카페를 찾는 중이에요.';
+    } else if (errorMessage != null) {
+      message = errorMessage!;
+    } else if (newCafeCount > 0) {
+      message = '리뷰된 카페 $reviewedStoreCount곳과 새 카페 $newCafeCount곳을 지도에 표시했어요.';
+    } else {
+      message = '리뷰가 쌓인 카페만 지도에 보여줘요. 새로운 카페는 버튼으로 탐색할 수 있어요.';
+    }
+
+    final isError = !isSearching && errorMessage != null;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isError ? const Color(0xFFFFF1F2) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isError ? const Color(0xFFFDA4AF) : AppColors.cardBorder,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 12,
+            blurRadius: 10,
             offset: Offset(0, 6),
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          if (isLoading)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: CircularProgressIndicator(),
+          if (isSearching)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2.2),
+            )
+          else
+            Icon(
+              isError ? Icons.error_outline : Icons.info_outline,
+              color: isError ? const Color(0xFFE11D48) : AppColors.primary,
             ),
-          if (!isLoading && errorMessage != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                errorMessage!,
-                style: const TextStyle(color: Colors.red),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 12,
+                color:
+                    isError ? const Color(0xFFBE123C) : AppColors.textSecondary,
               ),
             ),
-          if (!isLoading && errorMessage == null)
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (context, index) {
-                final item = results[index];
-                final address = item.roadAddress.isNotEmpty
-                    ? item.roadAddress
-                    : item.address;
-                return ListTile(
-                  leading: const Icon(Icons.place, color: AppColors.primary),
-                  title: Text(item.name),
-                  subtitle: Text(address),
-                  onTap: () => onSelect(item),
-                );
-              },
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 1, color: AppColors.cardBorder),
-              itemCount: results.length,
-            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewedStoreBottomCard extends StatelessWidget {
+  final StoreSummary store;
+  final VoidCallback onTap;
+
+  const _ReviewedStoreBottomCard({
+    required this.store,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 16,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            _CardImage(
+              imageUrl: store.imageUrl,
+              fallbackIcon: Icons.local_cafe_rounded,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '리뷰된 카페',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    store.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${store.rating.toStringAsFixed(2)} · ${store.reviewCount} 리뷰',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewCafeBottomCard extends StatelessWidget {
+  final PlaceSearchResult place;
+  final VoidCallback onReviewTap;
+
+  const _NewCafeBottomCard({
+    required this.place,
+    required this.onReviewTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final address =
+        place.roadAddress.isNotEmpty ? place.roadAddress : place.address;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const _CardImage(
+            imageUrl: '',
+            fallbackIcon: Icons.place_rounded,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '새로운 카페',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  place.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  address,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: onReviewTap,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              minimumSize: const Size(74, 38),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+            ),
+            child: const Text('리뷰'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CardImage extends StatelessWidget {
+  final String imageUrl;
+  final IconData fallbackIcon;
+
+  const _CardImage({
+    required this.imageUrl,
+    required this.fallbackIcon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl.trim();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 72,
+        height: 72,
+        color: AppColors.backgroundLight,
+        padding: const EdgeInsets.all(8),
+        child: url.isEmpty
+            ? Icon(fallbackIcon, color: AppColors.primary, size: 28)
+            : Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    Icon(fallbackIcon, color: AppColors.primary, size: 28),
+              ),
       ),
     );
   }

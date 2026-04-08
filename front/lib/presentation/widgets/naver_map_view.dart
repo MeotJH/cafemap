@@ -36,6 +36,7 @@ class MapMarkerData {
   final String? description;
   final String? iconUrl;
   final bool useDefaultMarker;
+  final String? badgeText;
 
   const MapMarkerData({
     required this.id,
@@ -45,5 +46,6 @@ class MapMarkerData {
     this.description,
     this.iconUrl,
     this.useDefaultMarker = false,
+    this.badgeText,
   });
 }
