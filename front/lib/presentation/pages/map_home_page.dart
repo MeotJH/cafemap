@@ -471,7 +471,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         _placeMarkerId(place): place,
     };
     final mapKey = ValueKey(
-      'map-${markers.map((marker) => marker.id).join('|')}-${_selectedStore?.id ?? _selectedPlaceMarkerId() ?? 'none'}',
+      'map-${markers.map((marker) => marker.id).join('|')}',
     );
     final bottomPadding = MediaQuery.paddingOf(context).bottom + 16;
     final statusBottomPadding =
