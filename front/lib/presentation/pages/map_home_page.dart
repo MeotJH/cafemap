@@ -251,6 +251,8 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
       setState(() {
+        _selectedStore = null;
+        _selectedPlace = null;
         _searchResults = [];
         _placeSearchError = null;
       });
@@ -259,6 +261,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
     setState(() {
       _isPlaceSearching = true;
+      _selectedStore = null;
+      _selectedPlace = null;
+      _searchResults = const [];
       _placeSearchError = null;
     });
 
