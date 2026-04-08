@@ -103,3 +103,8 @@ final authStateProvider = StreamProvider<User?>((ref) {
   final auth = ref.watch(firebaseAuthProvider);
   return auth.authStateChanges();
 });
+
+final kakaoLoginEnabledProvider = Provider<bool>((ref) {
+  final raw = dotenv.env['KAKAO_LOGIN_ENABLED']?.trim().toLowerCase();
+  return raw == '1' || raw == 'true' || raw == 'yes' || raw == 'on';
+});

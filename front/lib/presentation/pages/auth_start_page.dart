@@ -68,6 +68,7 @@ class AuthStartPage extends ConsumerWidget {
   // 로그인 시작 화면 UI를 렌더링한다.
   Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
+    final showKakaoLogin = ref.watch(kakaoLoginEnabledProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -167,18 +168,21 @@ class AuthStartPage extends ConsumerWidget {
                                 onPressed: () =>
                                     _signInWithGoogle(context, ref),
                               ),
-                              const SizedBox(height: 12),
-                              _AuthButton(
-                                label: '카카오로 계속하기',
-                                backgroundColor: const Color(0xFFFEE500),
-                                foregroundColor: const Color(0xFF191919),
-                                icon: const Icon(
-                                  Icons.chat_bubble_rounded,
-                                  size: 22,
-                                  color: Color(0xFF191919),
+                              if (showKakaoLogin) ...[
+                                const SizedBox(height: 12),
+                                _AuthButton(
+                                  label: '카카오로 계속하기',
+                                  backgroundColor: const Color(0xFFFEE500),
+                                  foregroundColor: const Color(0xFF191919),
+                                  icon: const Icon(
+                                    Icons.chat_bubble_rounded,
+                                    size: 22,
+                                    color: Color(0xFF191919),
+                                  ),
+                                  onPressed: () =>
+                                      _signInWithKakao(context, ref),
                                 ),
-                                onPressed: () => _signInWithKakao(context, ref),
-                              ),
+                              ],
                               const SizedBox(height: 14),
                               TextButton(
                                 onPressed: () => context.go('/ranking'),
