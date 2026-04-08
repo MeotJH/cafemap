@@ -25,6 +25,7 @@ class MapHomePage extends ConsumerStatefulWidget {
 class _MapHomePageState extends ConsumerState<MapHomePage> {
   static const int _newCafeDisplayCount = 20;
   static const int _newCafePageCount = 4;
+  static const double _markerFocusOffsetMeters = 140;
   final _searchController = TextEditingController();
 
   List<PlaceSearchResult> _newPlaces = [];
@@ -40,6 +41,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   double _mapLng = AppLocationController.defaultLng;
   bool _isCurrentLocationResolved = false;
   MapViewportData? _viewport;
+  AppLocationState? _lastAppliedLocation;
 
   final String _reviewedCafeMarkerIconUrl = _buildMarkerIconUrl(
     label: '☕',
@@ -97,7 +99,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   }
 
   Future<void> _focusStoreOnMap(StoreSummary store) async {
-    await _focusMapTo(store.lat, store.lng, zoom: 16);
+    await _focusMarkerOnMap(store.lat, store.lng, zoom: 16);
   }
 
   Future<void> _focusMapTo(
@@ -116,20 +118,32 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     await controller.updateCamera(update);
   }
 
+  Future<void> _focusMarkerOnMap(
+    double lat,
+    double lng, {
+    required double zoom,
+  }) async {
+    final adjustedLat = lat - (_markerFocusOffsetMeters / 111320.0);
+    await _focusMapTo(adjustedLat, lng, zoom: zoom);
+  }
+
   Future<void> _applyCurrentLocation(
     AppLocationState location, {
     required bool focusMap,
   }) async {
     final changed =
-        (_mapLat - location.latitude).abs() > 0.000001 ||
-        (_mapLng - location.longitude).abs() > 0.000001 ||
-        _isCurrentLocationResolved != location.fromDevice;
+        _lastAppliedLocation == null ||
+        (_lastAppliedLocation!.latitude - location.latitude).abs() > 0.000001 ||
+        (_lastAppliedLocation!.longitude - location.longitude).abs() >
+            0.000001 ||
+        _lastAppliedLocation!.fromDevice != location.fromDevice;
     if (!changed || !mounted) return;
 
     setState(() {
       _mapLat = location.latitude;
       _mapLng = location.longitude;
       _isCurrentLocationResolved = location.fromDevice;
+      _lastAppliedLocation = location;
     });
 
     if (kDebugMode) {
@@ -325,7 +339,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       _searchResults = const [];
       _searchController.text = item.name;
     });
-    await _focusMapTo(coords.$1, coords.$2, zoom: 16);
+    await _focusMarkerOnMap(coords.$1, coords.$2, zoom: 16);
   }
 
   void _selectStore(StoreSummary store) {
@@ -354,9 +368,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   @override
   Widget build(BuildContext context) {
     final currentLocation = ref.watch(currentLocationProvider);
-    if ((_mapLat - currentLocation.latitude).abs() > 0.000001 ||
-        (_mapLng - currentLocation.longitude).abs() > 0.000001 ||
-        _isCurrentLocationResolved != currentLocation.fromDevice) {
+    final shouldApplyCurrentLocation =
+        _lastAppliedLocation == null ||
+        (_lastAppliedLocation!.latitude - currentLocation.latitude).abs() >
+            0.000001 ||
+        (_lastAppliedLocation!.longitude - currentLocation.longitude).abs() >
+            0.000001 ||
+        _lastAppliedLocation!.fromDevice != currentLocation.fromDevice;
+    if (shouldApplyCurrentLocation) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _applyCurrentLocation(currentLocation, focusMap: true);
       });

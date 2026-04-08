@@ -507,11 +507,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         behavior: HitTestBehavior.opaque,
         onTap: () => FocusScope.of(context).unfocus(),
         child: SafeArea(
-          child: AnimatedPadding(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.only(bottom: viewInsets.bottom),
-            child: ListView(
+          child: ListView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(
                 16,
@@ -908,7 +904,6 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                   const SizedBox(height: 16),
               ],
             ),
-          ),
         ),
       ),
     );
