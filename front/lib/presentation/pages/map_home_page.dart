@@ -24,10 +24,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   static const double _newCafeRadiusKm = 3.0;
   static const int _newCafeDisplayCount = 20;
   static const int _newCafePageCount = 4;
+  final _searchController = TextEditingController();
 
   List<PlaceSearchResult> _newPlaces = [];
+  List<PlaceSearchResult> _searchResults = [];
   bool _isSearching = false;
+  bool _isPlaceSearching = false;
   String? _searchError;
+  String? _placeSearchError;
   StoreSummary? _selectedStore;
   PlaceSearchResult? _selectedPlace;
   NaverMapController? _mapController;
@@ -84,6 +88,12 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     }
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _focusStoreOnMap(StoreSummary store) async {
     await _focusMapTo(store.lat, store.lng, zoom: 16);
   }
@@ -131,6 +141,16 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     AppLocationState location,
     List<StoreSummary> reviewedStores,
   ) async {
+    if (!location.fromDevice) {
+      setState(() {
+        _newPlaces = [];
+        _selectedStore = null;
+        _selectedPlace = null;
+        _searchError = '현재 위치를 확인하지 못했어요. 위치 권한을 허용한 뒤 다시 시도해주세요.';
+      });
+      return;
+    }
+
     setState(() {
       _isSearching = true;
       _searchError = null;
@@ -153,7 +173,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       setState(() {
         _newPlaces = filtered;
         if (filtered.isEmpty) {
-          _searchError = '현재 위치 근처의 새로운 카페를 찾지 못했어요.';
+          _searchError = '현재 위치 반경에서 새 카페 결과가 없어요. 조금 이동해서 다시 시도해주세요.';
         }
       });
     } catch (_) {
@@ -164,6 +184,43 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       if (mounted) {
         setState(() {
           _isSearching = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _searchPlaces(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _placeSearchError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isPlaceSearching = true;
+      _placeSearchError = null;
+    });
+
+    try {
+      final repository = ref.read(placeSearchRepositoryProvider);
+      final results = await repository.searchPlaces(trimmed, display: 8);
+      setState(() {
+        _searchResults = results;
+        if (results.isEmpty) {
+          _placeSearchError = '검색 결과가 없어요.';
+        }
+      });
+    } catch (_) {
+      setState(() {
+        _placeSearchError = '검색에 실패했어요. 다시 시도해주세요.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlaceSearching = false;
         });
       }
     }
@@ -249,6 +306,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       _selectedStore = null;
       _selectedPlace = item;
       _searchError = null;
+      _placeSearchError = null;
+      _searchResults = const [];
+      _searchController.text = item.name;
     });
     await _focusMapTo(coords.$1, coords.$2, zoom: 16);
   }
@@ -331,6 +391,10 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       'map-${markers.map((marker) => marker.id).join('|')}-${_selectedStore?.id ?? _selectedPlaceMarkerId() ?? 'none'}',
     );
     final bottomPadding = MediaQuery.paddingOf(context).bottom + 16;
+    final statusBottomPadding = bottomPadding +
+        ((_selectedStore != null || _selectedPlace != null) ? 104 : 0);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final actionWidth = (screenWidth * 0.26).clamp(104.0, 132.0);
 
     return Scaffold(
       body: Stack(
@@ -368,7 +432,88 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                     Row(
                       children: [
                         Expanded(
-                          child: FilledButton.icon(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppColors.cardBorder),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: TextField(
+                              controller: _searchController,
+                              onSubmitted: _searchPlaces,
+                              decoration: InputDecoration(
+                                hintText: '카페 검색',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _searchController.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _searchController.clear();
+                                            _searchResults = const [];
+                                            _placeSearchError = null;
+                                          });
+                                        },
+                                        icon: const Icon(Icons.close),
+                                      ),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                              ),
+                              onChanged: (_) {
+                                setState(() {});
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: _isPlaceSearching
+                              ? null
+                              : () => _searchPlaces(_searchController.text),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(52, 52),
+                          ),
+                          icon: _isPlaceSearching
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.search),
+                        ),
+                      ],
+                    ),
+                    if (_searchResults.isNotEmpty ||
+                        _placeSearchError != null) ...[
+                      const SizedBox(height: 10),
+                      _MapSearchResultPanel(
+                        results: _searchResults,
+                        errorMessage: _placeSearchError,
+                        onSelect: _selectSearchResult,
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: actionWidth,
+                          child: FilledButton(
                             onPressed: _isSearching
                                 ? null
                                 : () => _searchNearbyNewPlaces(
@@ -378,14 +523,29 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(52),
+                              minimumSize: const Size.fromHeight(48),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            icon: const Icon(Icons.explore_outlined),
-                            label: Text(
-                              _newPlaces.isEmpty ? '새로운 카페 찾기' : '새 카페 다시 찾기',
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.explore_outlined, size: 18),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _newPlaces.isEmpty ? '새 카페 찾기' : '다시 찾기',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -397,25 +557,33 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                             style: IconButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: AppColors.primary,
-                              minimumSize: const Size(52, 52),
+                              minimumSize: const Size(48, 48),
                             ),
                             icon: const Icon(Icons.close),
                           ),
                         ],
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    _MapStatusBanner(
-                      isSearching: _isSearching,
-                      errorMessage: _searchError,
-                      reviewedStoreCount: reviewedStores.length,
-                      newCafeCount: _newPlaces.length,
-                    ),
                   ],
                 ),
               ),
             ),
           ),
+          if (_isSearching || _searchError != null)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: statusBottomPadding,
+              child: PointerInterceptor(
+                child: _MapStatusBanner(
+                  isSearching: _isSearching,
+                  errorMessage: _searchError,
+                  hasResolvedLocation: currentLocation.fromDevice,
+                  reviewedStoreCount: reviewedStores.length,
+                  newCafeCount: _newPlaces.length,
+                ),
+              ),
+            ),
           if (_selectedStore != null)
             Positioned(
               left: 16,
@@ -453,12 +621,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 class _MapStatusBanner extends StatelessWidget {
   final bool isSearching;
   final String? errorMessage;
+  final bool hasResolvedLocation;
   final int reviewedStoreCount;
   final int newCafeCount;
 
   const _MapStatusBanner({
     required this.isSearching,
     required this.errorMessage,
+    required this.hasResolvedLocation,
     required this.reviewedStoreCount,
     required this.newCafeCount,
   });
@@ -472,6 +642,8 @@ class _MapStatusBanner extends StatelessWidget {
       message = errorMessage!;
     } else if (newCafeCount > 0) {
       message = '리뷰된 카페 $reviewedStoreCount곳과 새 카페 $newCafeCount곳을 지도에 표시했어요.';
+    } else if (!hasResolvedLocation) {
+      message = '위치 권한이 없어서 기본 지역으로 보고 있어요. 새 카페 찾기는 위치 허용 후 사용할 수 있어요.';
     } else {
       message = '리뷰가 쌓인 카페만 지도에 보여줘요. 새로운 카페는 버튼으로 탐색할 수 있어요.';
     }
@@ -520,6 +692,78 @@ class _MapStatusBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MapSearchResultPanel extends StatelessWidget {
+  final List<PlaceSearchResult> results;
+  final String? errorMessage;
+  final ValueChanged<PlaceSearchResult> onSelect;
+
+  const _MapSearchResultPanel({
+    required this.results,
+    required this.errorMessage,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 280),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: errorMessage != null
+          ? Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                errorMessage!,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: results.length,
+              separatorBuilder: (context, index) =>
+                  const Divider(height: 1, color: AppColors.cardBorder),
+              itemBuilder: (context, index) {
+                final item = results[index];
+                final address = item.roadAddress.isNotEmpty
+                    ? item.roadAddress
+                    : item.address;
+                return ListTile(
+                  leading: const Icon(
+                    Icons.place_outlined,
+                    color: AppColors.primary,
+                  ),
+                  title: Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    address,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => onSelect(item),
+                );
+              },
+            ),
     );
   }
 }
