@@ -293,7 +293,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     setState(() {
       _newPlaces = [];
       _searchError = null;
+      _selectedStore = null;
       _selectedPlace = null;
+      _searchResults = const [];
+      _placeSearchError = null;
+      _searchController.clear();
     });
   }
 
