@@ -45,6 +45,7 @@ class ReviewWritePage extends ConsumerStatefulWidget {
 }
 
 class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
+  static const String _localBrandId = 'brand-local';
   List<String> _activeDimensions = dimensionsForCategory(null);
   Map<String, double> _scores = {
     for (final key in dimensionsForCategory(null)) key: 3.0,
@@ -68,7 +69,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   bool get _isBrandLocked =>
       (widget.brandId?.isNotEmpty ?? false) ||
       (widget.brandName?.isNotEmpty ?? false);
-  bool get _isLocalBrandSelected => _selectedBrand?.id == 'brand-local';
+  bool get _isLocalBrandSelected => _selectedBrand?.id == _localBrandId;
 
   Future<void> _showTopToast(String message) async {
     if (!mounted) return;
@@ -101,11 +102,8 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     try {
       final repository = ref.read(menuRepositoryProvider);
       final brands = await repository.fetchBrands();
-      final matched = widget.brandId == null || widget.brandId!.isEmpty
-          ? (_findBrandByName(brands, widget.brandName ?? '') ??
-              _matchBrand(brands, widget.storeName ?? '') ??
-              _findBrandById(brands, 'brand-local'))
-          : _findBrandById(brands, widget.brandId!) ?? brands.first;
+      final localBrand = _findBrandById(brands, _localBrandId);
+      final matched = _resolveInitialBrand(brands, localBrand);
       setState(() {
         _brands = brands;
         _selectedBrand = matched;
@@ -123,6 +121,9 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
 
   Brand? _matchBrand(List<Brand> brands, String storeName) {
     final normalized = _normalizeSearchText(storeName);
+    if (_isLocalHint(normalized)) {
+      return _findBrandById(brands, _localBrandId);
+    }
     for (final brand in brands) {
       for (final token in _brandMatchTokens(brand)) {
         if (token.isNotEmpty && normalized.contains(token)) {
@@ -143,15 +144,59 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   Brand? _findBrandByName(List<Brand> brands, String brandName) {
     final target = _normalizeSearchText(brandName);
     if (target.isEmpty) return null;
+    if (_isLocalHint(target)) {
+      return _findBrandById(brands, _localBrandId);
+    }
     for (final brand in brands) {
       if (_brandMatchTokens(brand).contains(target)) return brand;
     }
     return null;
   }
 
+  Brand? _resolveInitialBrand(List<Brand> brands, Brand? localBrand) {
+    final fallbackBrand = brands.isNotEmpty ? brands.first : null;
+    final incomingBrandId = widget.brandId?.trim() ?? '';
+    if (incomingBrandId.isNotEmpty) {
+      if (incomingBrandId == _localBrandId ||
+          incomingBrandId.toLowerCase() == 'local') {
+        return localBrand ?? fallbackBrand;
+      }
+      return _findBrandById(brands, incomingBrandId) ??
+          (_isLocalHint(_normalizeSearchText(widget.brandName ?? ''))
+              ? localBrand
+              : null) ??
+          fallbackBrand;
+    }
+
+    return _findBrandByName(brands, widget.brandName ?? '') ??
+        _matchBrand(brands, widget.storeName ?? '') ??
+        localBrand ??
+        fallbackBrand;
+  }
+
+  bool _isLocalHint(String normalized) {
+    if (normalized.isEmpty) return false;
+    return normalized == 'local' ||
+        normalized == '로컬' ||
+        normalized == '개인카페' ||
+        normalized == '개인카페로리뷰를작성해요' ||
+        normalized.contains('개인카페') ||
+        normalized.contains('로컬카페');
+  }
+
   Set<String> _brandMatchTokens(Brand brand) {
     final normalized = _normalizeSearchText(brand.name);
     final tokens = <String>{normalized};
+    if (brand.id == _localBrandId) {
+      tokens.addAll({
+        '개인카페',
+        '개인',
+        '로컬',
+        '로컬카페',
+        'local',
+        'localcafe',
+      });
+    }
     if (normalized.contains('메가')) {
       tokens.addAll({'메가커피', '메가mgc커피'});
     }
