@@ -108,7 +108,8 @@ class ReviewCard extends StatelessWidget {
   bool _isCafeMaster(String email) {
     final normalized = email.trim().toLowerCase();
     return normalized == 'marionette934@gmail.com' ||
-        normalized == 'businesskim93@gmail.com';
+        normalized == 'businesskim93@gmail.com' ||
+        normalized == 'sumdubu1234@gmail.com';
   }
 
   String _reviewerDisplayName(String email) {
