@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 
@@ -29,6 +30,9 @@ app.add_middleware(
 
 # /api prefix 아래에 실제 라우트 등록
 app.include_router(router=cafemap_router)
+static_dir = Path(__file__).with_name("static")
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # if __name__ == "__main__" and os.getenv("ENV") != "lambda":
 #     import uvicorn

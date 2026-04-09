@@ -16,6 +16,7 @@ from cafemap.core.rating_dimensions import (
     top_highlights,
 )
 from cafemap.core.config import SEED_CATALOG_ON_STARTUP, SEED_SAMPLE_DATA_ON_STARTUP
+from cafemap.db.brand_catalog import BRAND_CATALOG
 from cafemap.db.session import Base, engine
 from cafemap.models.entities import (
     Brand,
@@ -35,48 +36,35 @@ LOCAL_BRAND_ID = "brand-local"
 STORE_TYPE_LOCAL = "local"
 STORE_TYPE_FRANCHISE = "franchise"
 
-BRAND_SEEDS: dict[str, dict[str, object]] = {
-    "brand-starbucks": {
-        "name": "스타벅스",
-        "logo_url": "https://upload.wikimedia.org/wikipedia/ko/thumb/9/9f/Starbucks_Corporation_Logo_2011.svg/512px-Starbucks_Corporation_Logo_2011.svg.png",
-        "store_name": "스타벅스 시청점",
+
+def _default_brand_store(index: int, brand_name: str) -> dict[str, object]:
+    row = index // 6
+    col = index % 6
+    return {
+        "store_name": f"{brand_name} 대표점",
         "address": "서울 중구 세종대로 110",
-        "lat": 37.5663,
-        "lng": 126.9779,
-    },
-    "brand-twosome": {
-        "name": "투썸플레이스",
-        "logo_url": "https://www.twosome.co.kr/resources/images/common/logo.png",
-        "store_name": "투썸플레이스 광화문점",
-        "address": "서울 종로구 세종대로 172",
-        "lat": 37.5720,
-        "lng": 126.9769,
-    },
-    "brand-ediya": {
-        "name": "이디야커피",
-        "logo_url": "https://www.ediya.com/images/common/logo.png",
-        "store_name": "이디야커피 서울역점",
-        "address": "서울 중구 한강대로 405",
-        "lat": 37.5547,
-        "lng": 126.9706,
-    },
-    "brand-mega": {
-        "name": "메가커피",
-        "logo_url": "",
-        "store_name": "메가MGC커피 강남역점",
-        "address": "서울 강남구 강남대로 396",
-        "lat": 37.4981,
-        "lng": 127.0276,
-    },
-    "brand-local": {
-        "name": "개인 카페",
-        "logo_url": "",
-        "store_name": "홍대 로컬 카페",
-        "address": "서울 마포구 와우산로 227-15",
-        "lat": 37.5617,
-        "lng": 126.9257,
-    },
-}
+        "lat": 37.5665 + (row * 0.0022),
+        "lng": 126.9780 + (col * 0.0022),
+    }
+
+
+def _build_brand_seeds() -> dict[str, dict[str, object]]:
+    seeds: dict[str, dict[str, object]] = {}
+    for index, entry in enumerate(BRAND_CATALOG):
+        defaults = _default_brand_store(index, str(entry["name"]))
+        logo_file = f"{str(entry['id']).removeprefix('brand-')}.svg"
+        seeds[str(entry["id"])] = {
+            "name": str(entry["name"]),
+            "logo_url": f"/static/brand-logos/{logo_file}",
+            "store_name": str(entry.get("store_name") or defaults["store_name"]),
+            "address": str(entry.get("address") or defaults["address"]),
+            "lat": float(entry.get("lat") or defaults["lat"]),
+            "lng": float(entry.get("lng") or defaults["lng"]),
+        }
+    return seeds
+
+
+BRAND_SEEDS: dict[str, dict[str, object]] = _build_brand_seeds()
 
 COMMON_CAFE_MENU_SEEDS: tuple[tuple[str, str], ...] = (
     ("아메리카노", "커피"),

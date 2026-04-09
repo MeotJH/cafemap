@@ -4,7 +4,7 @@ import logging
 
 
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from sqlalchemy.orm import Session
 
@@ -87,11 +87,33 @@ logger = logging.getLogger(__name__)
 
 
 
-def _resolve_store_image_url(brand_logo_url: str | None) -> str:
+def _resolve_asset_url(request: Request, raw_url: str | None) -> str:
+
+    value = (raw_url or "").strip()
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    forwarded_host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    request_base_url = str(request.base_url).rstrip("/")
+    if forwarded_proto and forwarded_host:
+        base_url = f"{forwarded_proto}://{forwarded_host}"
+    else:
+        base_url = request_base_url
+    if not value:
+        return ""
+    if value.startswith(("http://", "https://")):
+        return value
+    if value.startswith("//"):
+        scheme = forwarded_proto or request.url.scheme
+        return f"{scheme}:{value}"
+    if value.startswith("/"):
+        return f"{base_url}{value}"
+    return f"{base_url}/{value.lstrip('/')}"
+
+
+def _resolve_store_image_url(request: Request, brand_logo_url: str | None) -> str:
 
     # ??? ??? ??? ??? ?? ???? ??? ? ???? ????.
 
-    return (brand_logo_url or "").strip()
+    return _resolve_asset_url(request, brand_logo_url)
 
 
 def _store_type_for_response(store) -> str:
@@ -230,7 +252,7 @@ def sync_user(
 
 @router.get("/rankings", response_model=list[BrandMenuRankingOut])
 
-def list_rankings(db: Session = Depends(get_db)):
+def list_rankings(request: Request, db: Session = Depends(get_db)):
 
     # ??? ?? ?? ???? ????.
 
@@ -266,7 +288,7 @@ def list_rankings(db: Session = Depends(get_db)):
 
             imageUrl=menu_image_url,
 
-            brandLogoUrl=brand_logo_url,
+            brandLogoUrl=_resolve_asset_url(request, brand_logo_url),
 
         )
 
@@ -352,7 +374,7 @@ def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
 
 @router.get("/stores", response_model=list[StoreSummaryOut])
 
-def list_stores(db: Session = Depends(get_db)):
+def list_stores(request: Request, db: Session = Depends(get_db)):
 
     # ?? ?? ???? ????.
 
@@ -382,7 +404,7 @@ def list_stores(db: Session = Depends(get_db)):
 
             distanceKm=store.distance_km,
 
-            imageUrl=_resolve_store_image_url(brand_logo_url),
+            imageUrl=_resolve_store_image_url(request, brand_logo_url),
 
             lat=store.lat,
 
@@ -413,7 +435,7 @@ def list_stores(db: Session = Depends(get_db)):
 
 @router.get("/store-rankings", response_model=list[StoreRankingOut])
 
-def list_store_rankings(db: Session = Depends(get_db)):
+def list_store_rankings(request: Request, db: Session = Depends(get_db)):
 
     rows = store_service.get_store_rankings(db)
 
@@ -441,7 +463,7 @@ def list_store_rankings(db: Session = Depends(get_db)):
 
             distanceKm=store.distance_km,
 
-            imageUrl=_resolve_store_image_url(brand_logo_url),
+            imageUrl=_resolve_store_image_url(request, brand_logo_url),
 
             lat=store.lat,
 
@@ -475,7 +497,7 @@ def list_store_rankings(db: Session = Depends(get_db)):
 
 @router.get("/stores/{store_id}", response_model=StoreSummaryOut)
 
-def get_store_detail(store_id: str, db: Session = Depends(get_db)):
+def get_store_detail(store_id: str, request: Request, db: Session = Depends(get_db)):
 
     # ?? ?? ??? ????.
 
@@ -509,7 +531,7 @@ def get_store_detail(store_id: str, db: Session = Depends(get_db)):
 
         distanceKm=store.distance_km,
 
-        imageUrl=_resolve_store_image_url(brand_logo_url),
+        imageUrl=_resolve_store_image_url(request, brand_logo_url),
 
         lat=store.lat,
 
@@ -900,7 +922,7 @@ def search_places(
 
 @router.get("/brands", response_model=list[BrandOut])
 
-def list_brands(db: Session = Depends(get_db)):
+def list_brands(request: Request, db: Session = Depends(get_db)):
 
     # ??? ??? ????.
 
@@ -908,7 +930,11 @@ def list_brands(db: Session = Depends(get_db)):
 
     return [
 
-        BrandOut(id=brand.id, name=brand.name, logoUrl=brand.logo_url)
+        BrandOut(
+            id=brand.id,
+            name=brand.name,
+            logoUrl=_resolve_asset_url(request, brand.logo_url),
+        )
 
         for brand in brands
 
@@ -945,5 +971,3 @@ def list_brand_menus(brand_id: str, query: str | None = None, db: Session = Depe
         for menu in menus
 
     ]
-
-

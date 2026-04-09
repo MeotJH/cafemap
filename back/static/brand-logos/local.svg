@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="32" fill="#6f4e37"/>
+  <circle cx="128" cy="96" r="48" fill="#ffffff" opacity="0.96"/>
+  <text x="128" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#6f4e37">☕</text>
+  <text x="128" y="188" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">개인 카페</text>
+  <title>개인 카페</title>
+</svg>
