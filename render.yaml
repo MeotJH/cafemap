@@ -12,6 +12,8 @@
         sync: false
       - key: NAVER_LOCAL_CLIENT_SECRET
         sync: false
+      - key: KAKAO_REST_API_KEY
+        sync: false
       - key: NCP_GEOCODE_API_KEY_ID
         sync: false
       - key: NCP_GEOCODE_API_KEY
