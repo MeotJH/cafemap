@@ -416,7 +416,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
     await launchUrl(
       uri,
-      mode: LaunchMode.externalApplication,
+      mode: kIsWeb
+          ? LaunchMode.platformDefault
+          : LaunchMode.externalApplication,
       webOnlyWindowName: '_blank',
     );
   }
