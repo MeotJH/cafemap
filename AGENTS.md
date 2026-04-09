@@ -21,6 +21,7 @@ Apply ECC-style harness engineering here by keeping instructions stable, task ex
 - Treat UTF-8 as the default encoding for source files, config, and user-facing text.
 - When editing files that include Korean text, check for encoding corruption before and after changes.
 - Do not overwrite visibly garbled text blindly; verify file encoding first and preserve or restore UTF-8 text safely.
+- Follow commit message prefixes: `feat(scope): ...`, `fix(scope): ...`, `refactor(scope): ...`, `chore(scope): ...`, `docs(scope): ...`, `style(scope): ...`, `test(scope): ...`.
 
 ## Project-Specific Notes
 
