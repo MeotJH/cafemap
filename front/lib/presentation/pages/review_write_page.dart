@@ -18,6 +18,7 @@ import 'package:front/presentation/utils/web_image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/data/remote/review_api.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/gestures.dart';
 import 'package:image_picker/image_picker.dart';
 
 // 리뷰 작성 화면이다.
@@ -791,17 +792,26 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                                   child: SizedBox(
                                     width:
                                         MediaQuery.of(context).size.width - 64,
-                                    child: ListView.builder(
-                                      padding: const EdgeInsets.all(8),
-                                      shrinkWrap: true,
-                                      itemCount: list.length,
-                                      itemBuilder: (context, index) {
-                                        final menu = list[index];
-                                        return ListTile(
-                                          title: Text(menu.name),
-                                          onTap: () => onSelected(menu),
-                                        );
-                                      },
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxHeight: 280,
+                                      ),
+                                      child: ScrollConfiguration(
+                                        behavior:
+                                            const _MenuOptionsScrollBehavior(),
+                                        child: ListView.builder(
+                                          primary: false,
+                                          padding: const EdgeInsets.all(8),
+                                          itemCount: list.length,
+                                          itemBuilder: (context, index) {
+                                            final menu = list[index];
+                                            return ListTile(
+                                              title: Text(menu.name),
+                                              onTap: () => onSelected(menu),
+                                            );
+                                          },
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -953,6 +963,19 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       ),
     );
   }
+}
+
+class _MenuOptionsScrollBehavior extends MaterialScrollBehavior {
+  const _MenuOptionsScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.unknown,
+      };
 }
 
 class _SelectedReviewImage {
