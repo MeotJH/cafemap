@@ -16,6 +16,7 @@ import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/presentation/providers/app_providers.dart';
 import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/utils/auth_navigation.dart';
+import 'package:front/presentation/utils/external_link.dart';
 import 'package:front/presentation/widgets/naver_map_view.dart';
 
 class MapHomePage extends ConsumerStatefulWidget {
@@ -414,11 +415,14 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     final uri = Uri.tryParse(link);
     if (uri == null) return;
 
+    if (kIsWeb) {
+      await openExternalLink(uri.toString(), target: '_blank');
+      return;
+    }
+
     await launchUrl(
       uri,
-      mode: kIsWeb
-          ? LaunchMode.platformDefault
-          : LaunchMode.externalApplication,
+      mode: LaunchMode.externalApplication,
       webOnlyWindowName: '_blank',
     );
   }
