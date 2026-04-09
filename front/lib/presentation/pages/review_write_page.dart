@@ -554,7 +554,8 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: SafeArea(
           child: ListView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.manual,
               padding: EdgeInsets.fromLTRB(
                 16,
                 16,
