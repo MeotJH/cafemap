@@ -46,6 +46,29 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   MapViewportData? _viewport;
   AppLocationState? _lastAppliedLocation;
   bool _cameraIdleUpdateQueued = false;
+  final String _reviewedCafeMarkerIconUrl = _buildMarkerIconUrl(
+    label: '☕',
+    backgroundColor: '#ECD7A9',
+    borderColor: '#FFFFFF',
+    textColor: '#FFFFFF',
+  );
+
+  static String _buildMarkerIconUrl({
+    required String label,
+    required String backgroundColor,
+    required String borderColor,
+    required String textColor,
+  }) {
+    final svg =
+        '''
+<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+  <circle cx="17" cy="17" r="15" fill="$backgroundColor" stroke="$borderColor" stroke-width="2"/>
+  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="16" font-weight="700" fill="$textColor">$label</text>
+</svg>
+''';
+    return 'data:image/svg+xml;utf8,${Uri.encodeComponent(svg)}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -424,7 +447,8 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             lng: store.lng,
             caption: store.name,
             description: store.address,
-            useDefaultMarker: true,
+            iconUrl: _reviewedCafeMarkerIconUrl,
+            badgeText: '☕',
           ),
         )
         .toList();
