@@ -873,6 +873,10 @@ def search_places(
     lng: float | None = None,
     radiusKm: float | None = None,
     pages: int | None = None,
+    southLat: float | None = None,
+    westLng: float | None = None,
+    northLat: float | None = None,
+    eastLng: float | None = None,
 ):
 
     # ??? ?? ?? API? ?? ??? ????.
@@ -884,6 +888,10 @@ def search_places(
         lng=lng,
         radius_km=radiusKm,
         pages=pages,
+        south_lat=southLat,
+        west_lng=westLng,
+        north_lat=northLat,
+        east_lng=eastLng,
     )
 
 

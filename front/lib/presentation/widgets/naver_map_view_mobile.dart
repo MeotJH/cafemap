@@ -46,11 +46,16 @@ Widget buildNaverMapViewImpl({
         controller.addOverlay(nMarker);
       }
       onMapReady?.call(controller);
+      final bounds = await controller.getContentBounds();
       onCameraIdle?.call(
         MapViewportData(
           lat: lat,
           lng: lng,
           zoom: zoom,
+          southLat: bounds.southWest.latitude,
+          westLng: bounds.southWest.longitude,
+          northLat: bounds.northEast.latitude,
+          eastLng: bounds.northEast.longitude,
         ),
       );
     },
@@ -58,11 +63,16 @@ Widget buildNaverMapViewImpl({
       final controller = mapController;
       if (controller == null) return;
       final position = await controller.getCameraPosition();
+      final bounds = await controller.getContentBounds();
       onCameraIdle?.call(
         MapViewportData(
           lat: position.target.latitude,
           lng: position.target.longitude,
           zoom: position.zoom,
+          southLat: bounds.southWest.latitude,
+          westLng: bounds.southWest.longitude,
+          northLat: bounds.northEast.latitude,
+          eastLng: bounds.northEast.longitude,
         ),
       );
     },

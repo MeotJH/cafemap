@@ -17,6 +17,10 @@ class PlaceSearchApi {
     double? lng,
     double? radiusKm,
     int? pages,
+    double? southLat,
+    double? westLng,
+    double? northLat,
+    double? eastLng,
   }) async {
     final queryParameters = <String, Object>{
       'query': query,
@@ -26,6 +30,10 @@ class PlaceSearchApi {
     if (lng != null) queryParameters['lng'] = lng;
     if (radiusKm != null) queryParameters['radiusKm'] = radiusKm;
     if (pages != null) queryParameters['pages'] = pages;
+    if (southLat != null) queryParameters['southLat'] = southLat;
+    if (westLng != null) queryParameters['westLng'] = westLng;
+    if (northLat != null) queryParameters['northLat'] = northLat;
+    if (eastLng != null) queryParameters['eastLng'] = eastLng;
 
     final response = await _dio.get(
       '$_baseUrl/api/cafemap/places/search',

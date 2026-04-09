@@ -16,6 +16,10 @@ class RemotePlaceSearchRepository implements PlaceSearchRepository {
     double? lng,
     double? radiusKm,
     int? pages,
+    double? southLat,
+    double? westLng,
+    double? northLat,
+    double? eastLng,
   }) {
     return _api.search(
       query,
@@ -24,6 +28,10 @@ class RemotePlaceSearchRepository implements PlaceSearchRepository {
       lng: lng,
       radiusKm: radiusKm,
       pages: pages,
+      southLat: southLat,
+      westLng: westLng,
+      northLat: northLat,
+      eastLng: eastLng,
     );
   }
 }

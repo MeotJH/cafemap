@@ -10,5 +10,9 @@ abstract class PlaceSearchRepository {
     double? lng,
     double? radiusKm,
     int? pages,
+    double? southLat,
+    double? westLng,
+    double? northLat,
+    double? eastLng,
   });
 }

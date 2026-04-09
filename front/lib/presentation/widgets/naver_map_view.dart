@@ -56,10 +56,24 @@ class MapViewportData {
   final double lat;
   final double lng;
   final double zoom;
+  final double? southLat;
+  final double? westLng;
+  final double? northLat;
+  final double? eastLng;
 
   const MapViewportData({
     required this.lat,
     required this.lng,
     required this.zoom,
+    this.southLat,
+    this.westLng,
+    this.northLat,
+    this.eastLng,
   });
+
+  bool get hasBounds =>
+      southLat != null &&
+      westLng != null &&
+      northLat != null &&
+      eastLng != null;
 }

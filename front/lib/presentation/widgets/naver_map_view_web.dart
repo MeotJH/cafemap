@@ -102,14 +102,29 @@ void _attachCameraIdleListener({
 MapViewportData? _viewportDataFromMap(NaverMap map) {
   try {
     final center = map.getCenter() as JSObject;
+    final bounds = map.getBounds() as JSObject;
+    final southWest = bounds.callMethod('getSW'.toJS) as JSObject;
+    final northEast = bounds.callMethod('getNE'.toJS) as JSObject;
     final latValue = center.callMethod('lat'.toJS);
     final lngValue = center.callMethod('lng'.toJS);
     final lat = (latValue.dartify() as num).toDouble();
     final lng = (lngValue.dartify() as num).toDouble();
+    final southLat = (southWest.callMethod('lat'.toJS).dartify() as num)
+        .toDouble();
+    final westLng = (southWest.callMethod('lng'.toJS).dartify() as num)
+        .toDouble();
+    final northLat = (northEast.callMethod('lat'.toJS).dartify() as num)
+        .toDouble();
+    final eastLng = (northEast.callMethod('lng'.toJS).dartify() as num)
+        .toDouble();
     return MapViewportData(
       lat: lat,
       lng: lng,
       zoom: map.getZoom().toDouble(),
+      southLat: southLat,
+      westLng: westLng,
+      northLat: northLat,
+      eastLng: eastLng,
     );
   } catch (e) {
     if (kDebugMode) {

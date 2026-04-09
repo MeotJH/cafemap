@@ -18,6 +18,9 @@ Apply ECC-style harness engineering here by keeping instructions stable, task ex
 - When changing shared domain concepts, check both frontend and backend copies.
 - Do not rewrite unrelated files or generated artifacts unless the task requires it.
 - If a task changes behavior, include the smallest relevant verification step before finishing.
+- Treat UTF-8 as the default encoding for source files, config, and user-facing text.
+- When editing files that include Korean text, check for encoding corruption before and after changes.
+- Do not overwrite visibly garbled text blindly; verify file encoding first and preserve or restore UTF-8 text safely.
 
 ## Project-Specific Notes
 
@@ -52,6 +55,7 @@ Run backend commands from `back/`.
 - Flutter UI or Dart changes: run at least `flutter analyze` in `front/`.
 - Backend Python changes: run the narrowest executable validation available for the touched path.
 - Cross-cutting domain changes: verify both sides if the concept is duplicated across `front/` and `back/`.
+- If a change touches Korean strings, API payload text, logs, or localized UI copy, include a quick encoding sanity check in the relevant file or response path.
 
 ## Task Execution Pattern
 

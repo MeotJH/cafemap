@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/domain/entities/place_search_result.dart';
@@ -25,8 +26,8 @@ class MapHomePage extends ConsumerStatefulWidget {
 }
 
 class _MapHomePageState extends ConsumerState<MapHomePage> {
-  static const int _newCafeDisplayCount = 20;
-  static const int _newCafePageCount = 4;
+  static const int _newCafeDisplayCount = 45;
+  static const int _newCafePageCount = 3;
   static const double _markerFocusOffsetMeters = 140;
   final _searchController = TextEditingController();
 
@@ -45,35 +46,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   MapViewportData? _viewport;
   AppLocationState? _lastAppliedLocation;
   bool _cameraIdleUpdateQueued = false;
-
-  final String _reviewedCafeMarkerIconUrl = _buildMarkerIconUrl(
-    label: '☕',
-    backgroundColor: '#6F4E37',
-    borderColor: '#6F4E37',
-    textColor: '#FFFFFF',
-  );
-  final String _newCafeMarkerIconUrl = _buildMarkerIconUrl(
-    label: '+',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#6F4E37',
-    textColor: '#6F4E37',
-  );
-  static String _buildMarkerIconUrl({
-    required String label,
-    required String backgroundColor,
-    required String borderColor,
-    required String textColor,
-  }) {
-    final svg =
-        '''
-<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
-  <circle cx="17" cy="17" r="15" fill="$backgroundColor" stroke="$borderColor" stroke-width="2"/>
-  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="16" font-weight="700" fill="$textColor">$label</text>
-</svg>
-''';
-    return 'data:image/svg+xml;utf8,${Uri.encodeComponent(svg)}';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -160,8 +132,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   Future<void> _searchNearbyNewPlaces(List<StoreSummary> reviewedStores) async {
     final viewport =
         _viewport ?? MapViewportData(lat: _mapLat, lng: _mapLng, zoom: 14);
-    final radiusKm = _radiusKmForZoom(viewport.zoom);
-
     setState(() {
       _isSearching = true;
       _searchError = null;
@@ -176,8 +146,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         display: _newCafeDisplayCount,
         lat: viewport.lat,
         lng: viewport.lng,
-        radiusKm: radiusKm,
         pages: _newCafePageCount,
+        southLat: viewport.southLat,
+        westLng: viewport.westLng,
+        northLat: viewport.northLat,
+        eastLng: viewport.eastLng,
       );
       final filtered = _filterNearbyPlaces(results, reviewedStores);
 
@@ -206,7 +179,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         _viewport == null ||
         (_viewport!.lat - viewport.lat).abs() > 0.000001 ||
         (_viewport!.lng - viewport.lng).abs() > 0.000001 ||
-        (_viewport!.zoom - viewport.zoom).abs() > 0.001;
+        (_viewport!.zoom - viewport.zoom).abs() > 0.001 ||
+        (_viewport!.southLat != viewport.southLat) ||
+        (_viewport!.westLng != viewport.westLng) ||
+        (_viewport!.northLat != viewport.northLat) ||
+        (_viewport!.eastLng != viewport.eastLng);
     if (!hasMeaningfulChange) return;
 
     void applyViewport() {
@@ -237,16 +214,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     applyViewport();
   }
 
-  double _radiusKmForZoom(double zoom) {
-    if (zoom >= 17) return 0.5;
-    if (zoom >= 16) return 0.8;
-    if (zoom >= 15) return 1.2;
-    if (zoom >= 14) return 2.0;
-    if (zoom >= 13) return 3.5;
-    if (zoom >= 12) return 6.0;
-    return 10.0;
-  }
-
   Future<void> _searchPlaces(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
@@ -269,7 +236,17 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
     try {
       final repository = ref.read(placeSearchRepositoryProvider);
-      final results = await repository.searchPlaces(trimmed, display: 8);
+      final viewport = _viewport;
+      final results = await repository.searchPlaces(
+        trimmed,
+        display: 8,
+        lat: viewport?.lat ?? _mapLat,
+        lng: viewport?.lng ?? _mapLng,
+        southLat: viewport?.southLat,
+        westLng: viewport?.westLng,
+        northLat: viewport?.northLat,
+        eastLng: viewport?.eastLng,
+      );
       setState(() {
         _searchResults = results;
         if (results.isEmpty) {
@@ -314,7 +291,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       final bDistance = b.distanceKm ?? double.infinity;
       return aDistance.compareTo(bDistance);
     });
-    return nearby.take(12).toList();
+    return nearby.take(_newCafeDisplayCount).toList();
   }
 
   bool _looksLikeReviewedStore(
@@ -407,6 +384,20 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     context.push(uri.toString());
   }
 
+  Future<void> _openPlaceLink(PlaceSearchResult item) async {
+    final link = item.link.trim();
+    if (link.isEmpty) return;
+
+    final uri = Uri.tryParse(link);
+    if (uri == null) return;
+
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentLocation = ref.watch(currentLocationProvider);
@@ -433,8 +424,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             lng: store.lng,
             caption: store.name,
             description: store.address,
-            iconUrl: _reviewedCafeMarkerIconUrl,
-            badgeText: '☕',
+            useDefaultMarker: true,
           ),
         )
         .toList();
@@ -450,9 +440,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             description: place.roadAddress.isNotEmpty
                 ? place.roadAddress
                 : place.address,
-            iconUrl: _newCafeMarkerIconUrl,
             useDefaultMarker: true,
-            badgeText: '+',
           );
         })
         .whereType<MapMarkerData>()
@@ -728,6 +716,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
               child: PointerInterceptor(
                 child: _NewCafeBottomCard(
                   place: _selectedPlace!,
+                  onTap: () => _openPlaceLink(_selectedPlace!),
                   onReviewTap: () => _openReviewWrite(_selectedPlace!),
                 ),
               ),
@@ -967,78 +956,91 @@ class _ReviewedStoreBottomCard extends StatelessWidget {
 
 class _NewCafeBottomCard extends StatelessWidget {
   final PlaceSearchResult place;
+  final VoidCallback onTap;
   final VoidCallback onReviewTap;
 
-  const _NewCafeBottomCard({required this.place, required this.onReviewTap});
+  const _NewCafeBottomCard({
+    required this.place,
+    required this.onTap,
+    required this.onReviewTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final address = place.roadAddress.isNotEmpty
         ? place.roadAddress
         : place.address;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    final hasLink = place.link.trim().isNotEmpty;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: hasLink ? onTap : null,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.cardBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 16,
-            offset: Offset(0, 6),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 16,
+                offset: Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const _CardImage(imageUrl: '', fallbackIcon: Icons.place_rounded),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '새로운 카페',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
+          child: Row(
+            children: [
+              const _CardImage(imageUrl: '', fallbackIcon: Icons.place_rounded),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasLink ? '새로운 카페 · 상세 보기' : '새로운 카페',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      place.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      address,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  place.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: onReviewTap,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size(74, 38),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  address,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+                child: const Text('리뷰'),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: onReviewTap,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              minimumSize: const Size(74, 38),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-            ),
-            child: const Text('리뷰'),
-          ),
-        ],
+        ),
       ),
     );
   }
