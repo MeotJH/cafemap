@@ -332,6 +332,7 @@ class _BrandMeta extends StatelessWidget {
                     width: 24,
                     height: 24,
                     fit: BoxFit.cover,
+                    webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
                     errorBuilder: (context, error, stackTrace) => const Icon(
                       Icons.restaurant,
                       size: 14,
@@ -401,6 +402,7 @@ class _NetworkImageWithFallback extends StatelessWidget {
         url,
         key: ValueKey('net_$url'),
         fit: fit,
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
         errorBuilder: (context, error, stackTrace) => Image.asset(
           fallbackAssetPath,
           key: ValueKey('asset_$fallbackAssetPath'),
