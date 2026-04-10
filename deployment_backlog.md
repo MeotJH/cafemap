@@ -9,7 +9,7 @@ Goal: prepare and run a Cafemap deployment flow by referencing the sibling `chic
 - Firebase project: `painting-diary-fd8b3`
 - Firebase Hosting site: `cafemap`
 - Frontend URL: `https://cafemap.web.app/`
-- Backend URL: `https://cafemap.3.36.208.227.nip.io`
+- Backend URL: `https://cafemap.13.124.77.254.nip.io`
 - Backend container: `cafemap-back`
 - Backend port mapping: host `2027` -> container `8000`
 - Chickenmap port retained: host `2026` -> container `8000`
@@ -83,7 +83,7 @@ Goal: prepare and run a Cafemap deployment flow by referencing the sibling `chic
 
 ## Open Questions
 
-- Resolved: Cafemap uses host `3.36.208.227` and SSH user `ec2-user`, matching the active Chickenmap deployment target.
+- Resolved: Cafemap uses host `13.124.77.254` and SSH user `ec2-user`.
 - Resolved: Cafemap reserves host port `2027`, while Chickenmap keeps host port `2026`.
 - Resolved: Cafemap keeps the existing root `deploy.sh` with `--front`, `--back`, and `--all`.
 - Resolved: Frontend hosting remains Firebase Hosting, using site `cafemap` under project `painting-diary-fd8b3`.

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Defaults (override via env vars if needed)
-BACKEND_HOST="${BACKEND_HOST:-3.36.208.227}"
+BACKEND_HOST="${BACKEND_HOST:-13.124.77.254}"
 BACKEND_USER="${BACKEND_USER:-ec2-user}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-$ROOT_DIR/../chickenmap/LightsailDefaultKey-ap-northeast-2.pem}"
 BACKEND_REMOTE_DIR="${BACKEND_REMOTE_DIR:-/home/ec2-user/cafemap-back}"
@@ -12,6 +12,7 @@ BACKEND_CONTAINER_NAME="${BACKEND_CONTAINER_NAME:-cafemap-back}"
 BACKEND_IMAGE_NAME="${BACKEND_IMAGE_NAME:-cafemap-back:latest}"
 BACKEND_PORT_BIND="${BACKEND_PORT_BIND:-2027:8000}"
 BACKEND_PUBLIC_URL="${BACKEND_PUBLIC_URL:-https://cafemap.${BACKEND_HOST}.nip.io}"
+FRONTEND_PUBLIC_URL="${FRONTEND_PUBLIC_URL:-https://cafemap.web.app}"
 UPLOAD_BACKEND_ENV="${UPLOAD_BACKEND_ENV:-false}"
 
 DEPLOY_FRONT=false
@@ -36,6 +37,7 @@ Env overrides:
   BACKEND_IMAGE_NAME
   BACKEND_PORT_BIND
   BACKEND_PUBLIC_URL
+  FRONTEND_PUBLIC_URL
   UPLOAD_BACKEND_ENV=true  Upload local back/.env to the remote directory
 EOF
 }
@@ -82,7 +84,7 @@ deploy_frontend() {
   echo "[deploy] Frontend (Firebase) start"
   cd "$ROOT_DIR/front"
   ./scripts/deploy_web.sh
-  echo "[deploy] Frontend done: https://cafemap.web.app"
+  echo "[deploy] Frontend done: ${FRONTEND_PUBLIC_URL}"
 }
 
 deploy_backend() {

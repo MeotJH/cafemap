@@ -41,7 +41,7 @@ Future<void> _loadEnv() async {
   // so local `.env` values cannot be overridden by stale production values.
   await dotenv.load(fileName: '.env', isOptional: true);
   final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? '';
-  if (kDebugMode && apiBaseUrl.contains('3.36.208.227')) {
+  if (kDebugMode && apiBaseUrl.contains('.nip.io')) {
     dotenv.env['API_BASE_URL'] = 'http://localhost:8080';
   }
   debugPrint(

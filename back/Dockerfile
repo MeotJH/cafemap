@@ -21,4 +21,4 @@ COPY . /app
 # -----------------------------
 # 4) FastAPI 실행 (운영 모드)
 # -----------------------------
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${UVICORN_WORKERS:-2}"]
