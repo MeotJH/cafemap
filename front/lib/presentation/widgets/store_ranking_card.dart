@@ -221,7 +221,6 @@ class _StoreImageWithFallback extends StatelessWidget {
       Image.network(
         url,
         fit: BoxFit.contain,
-        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
         errorBuilder: (context, error, stackTrace) =>
             Image.asset(_storeRankingDefaultImageAsset),
       ),

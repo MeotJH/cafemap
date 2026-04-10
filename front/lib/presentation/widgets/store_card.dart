@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/utils/formatters.dart';
@@ -39,9 +39,7 @@ class StoreCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: _StoreImageWithFallback(
-                imageUrl: store.imageUrl,
-              ),
+              child: _StoreImageWithFallback(imageUrl: store.imageUrl),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -56,7 +54,9 @@ class StoreCard extends StatelessWidget {
                   Text(
                     store.address,
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Row(
@@ -71,7 +71,9 @@ class StoreCard extends StatelessWidget {
                       Text(
                         '${store.reviewCount} 리뷰',
                         style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary),
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -95,21 +97,15 @@ class _StoreImageWithFallback extends StatelessWidget {
     final url = imageUrl.trim();
     if (url.isEmpty) {
       return _buildSquareFrame(
-        Image.asset(
-          _storeDefaultImageAsset,
-          fit: BoxFit.contain,
-        ),
+        Image.asset(_storeDefaultImageAsset, fit: BoxFit.contain),
       );
     }
     return _buildSquareFrame(
       Image.network(
         url,
         fit: BoxFit.contain,
-        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
-        errorBuilder: (context, error, stackTrace) => Image.asset(
-          _storeDefaultImageAsset,
-          fit: BoxFit.contain,
-        ),
+        errorBuilder: (context, error, stackTrace) =>
+            Image.asset(_storeDefaultImageAsset, fit: BoxFit.contain),
       ),
     );
   }
@@ -124,4 +120,3 @@ class _StoreImageWithFallback extends StatelessWidget {
     );
   }
 }
-

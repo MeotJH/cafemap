@@ -535,27 +535,33 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
     return Scaffold(
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          buildNaverMapView(
-            context: context,
-            lat: _mapLat,
-            lng: _mapLng,
-            zoom: 14,
-            markers: markers,
-            selectedMarkerId: _selectedStore?.id ?? _selectedPlaceMarkerId(),
-            onMarkerTap: (markerId) {
-              final store = storeById[markerId];
-              if (store != null) {
-                _selectStore(store);
-                return;
-              }
-              final place = placeById[markerId];
-              if (place != null) {
-                _selectSearchResult(place);
-              }
-            },
-            onMapReady: _handleMapReady,
-            onCameraIdle: _handleCameraIdle,
+          Positioned.fill(
+            child: ClipRect(
+              child: buildNaverMapView(
+                context: context,
+                lat: _mapLat,
+                lng: _mapLng,
+                zoom: 14,
+                markers: markers,
+                selectedMarkerId:
+                    _selectedStore?.id ?? _selectedPlaceMarkerId(),
+                onMarkerTap: (markerId) {
+                  final store = storeById[markerId];
+                  if (store != null) {
+                    _selectStore(store);
+                    return;
+                  }
+                  final place = placeById[markerId];
+                  if (place != null) {
+                    _selectSearchResult(place);
+                  }
+                },
+                onMapReady: _handleMapReady,
+                onCameraIdle: _handleCameraIdle,
+              ),
+            ),
           ),
           SafeArea(
             child: Padding(
