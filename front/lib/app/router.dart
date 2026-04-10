@@ -36,6 +36,13 @@ final GoRouter appRouter = GoRouter(
           },
           routes: <RouteBase>[
             GoRoute(
+              path: 'store/:id',
+              builder: (BuildContext context, GoRouterState state) {
+                final id = state.pathParameters['id'] ?? '';
+                return StoreDetailPage(storeId: id);
+              },
+            ),
+            GoRoute(
               path: ':id',
               builder: (BuildContext context, GoRouterState state) {
                 final id = state.pathParameters['id'] ?? '';

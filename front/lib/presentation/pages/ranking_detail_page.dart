@@ -151,7 +151,13 @@ class RankingDetailPage extends ConsumerWidget {
                         .map(
                           (review) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: ReviewCard(review: review),
+                            child: ReviewCard(
+                              review: review,
+                              onTap: () => context.push(
+                                '/review/${review.id}',
+                                extra: review,
+                              ),
+                            ),
                           ),
                         )
                         .toList(),
@@ -240,4 +246,3 @@ class _ScoreProgressRow extends StatelessWidget {
     );
   }
 }
-

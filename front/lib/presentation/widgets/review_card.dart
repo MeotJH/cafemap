@@ -5,8 +5,9 @@ import 'package:front/domain/entities/review.dart';
 
 class ReviewCard extends StatelessWidget {
   final Review review;
+  final VoidCallback? onTap;
 
-  const ReviewCard({super.key, required this.review});
+  const ReviewCard({super.key, required this.review, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -15,51 +16,85 @@ class ReviewCard extends StatelessWidget {
         ? '카페 마스터'
         : _reviewerDisplayName(review.userEmail);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  '${review.brandName} · ${review.menuName}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isCafeMaster)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF2E5D8),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'Master',
-                        style: TextStyle(
+                  Expanded(
+                    child: Text(
+                      '${review.brandName} · ${review.menuName}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (isCafeMaster)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF2E5D8),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            'Master',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      if (isCafeMaster) const SizedBox(height: 6),
+                      Text(
+                        reviewerName,
+                        style: const TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
+                          color: AppColors.textSecondary,
                         ),
                       ),
-                    ),
-                  if (isCafeMaster) const SizedBox(height: 6),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                review.storeName,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.star, size: 16, color: AppColors.ratingStar),
+                  const SizedBox(width: 4),
                   Text(
-                    reviewerName,
+                    RatingFormatter.score(review.overall),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${review.createdAt.year}.${review.createdAt.month}.${review.createdAt.day}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
@@ -67,40 +102,13 @@ class ReviewCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (review.comment.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(review.comment, style: const TextStyle(fontSize: 13)),
+              ],
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            review.storeName,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.star, size: 16, color: AppColors.ratingStar),
-              const SizedBox(width: 4),
-              Text(
-                RatingFormatter.score(review.overall),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${review.createdAt.year}.${review.createdAt.month}.${review.createdAt.day}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          if (review.comment.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(review.comment, style: const TextStyle(fontSize: 13)),
-          ],
-        ],
+        ),
       ),
     );
   }

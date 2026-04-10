@@ -172,8 +172,9 @@ class _RankingHomePageState extends ConsumerState<RankingHomePage> {
                                   ranking,
                                   currentLocation,
                                 ),
-                                onTap: () =>
-                                    context.go('/map/store/${ranking.storeId}'),
+                                onTap: () => context.push(
+                                  '/ranking/store/${ranking.storeId}',
+                                ),
                               );
                             },
                             separatorBuilder: (_, _) =>
