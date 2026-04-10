@@ -1,10 +1,13 @@
 import math
 import re
+import logging
 
 import requests
 
 from cafemap.repositories import place_search_repository
 from cafemap.services import reverse_geocode_service
+
+logger = logging.getLogger(__name__)
 
 
 _ALLOWED_CATEGORIES = {
@@ -59,6 +62,92 @@ def search_places(
     results: list[dict] = []
     seen_place_ids: set[str] = set()
 
+    _collect_results(
+        provider=provider,
+        queries=queries,
+        per_page=per_page,
+        page_count=page_count,
+        lat=lat,
+        lng=lng,
+        radius_m=radius_m,
+        rect=rect,
+        sort=sort,
+        category_group_code=category_group_code,
+        south_lat=south_lat,
+        west_lng=west_lng,
+        north_lat=north_lat,
+        east_lng=east_lng,
+        radius_km=radius_km,
+        requested_display=requested_display,
+        seen_place_ids=seen_place_ids,
+        results=results,
+    )
+
+    # 위치 기준 검색에서 0건인 경우, 전역 키워드 검색으로 한 번 더 시도한다.
+    if (
+        not results
+        and lat is not None
+        and lng is not None
+        and query.strip()
+        and not _is_cafe_query(query)
+    ):
+        _collect_results(
+            provider=provider,
+            queries=[query.strip()],
+            per_page=per_page,
+            page_count=page_count,
+            lat=lat,
+            lng=lng,
+            radius_m=None,
+            rect=None,
+            sort=None,
+            category_group_code=category_group_code,
+            south_lat=None,
+            west_lng=None,
+            north_lat=None,
+            east_lng=None,
+            radius_km=None,
+            requested_display=requested_display,
+            seen_place_ids=seen_place_ids,
+            results=results,
+        )
+
+    if lat is not None and lng is not None:
+        results.sort(key=lambda item: item["distanceKm"] or float("inf"))
+
+    logger.info(
+        "place_search query=%s provider=%s result_count=%s lat=%s lng=%s rect=%s",
+        query,
+        provider.provider_name,
+        len(results),
+        lat,
+        lng,
+        bool(rect),
+    )
+    return results[:requested_display]
+
+
+def _collect_results(
+    *,
+    provider: place_search_repository.PlaceSearchProvider,
+    queries: list[str],
+    per_page: int,
+    page_count: int,
+    lat: float | None,
+    lng: float | None,
+    radius_m: int | None,
+    rect: str | None,
+    sort: str | None,
+    category_group_code: str | None,
+    south_lat: float | None,
+    west_lng: float | None,
+    north_lat: float | None,
+    east_lng: float | None,
+    radius_km: float | None,
+    requested_display: int,
+    seen_place_ids: set[str],
+    results: list[dict],
+) -> None:
     for search_query in queries:
         for page_index in range(page_count):
             start = page_index * per_page + 1
@@ -76,7 +165,14 @@ def search_places(
                         category_group_code=category_group_code,
                     )
                 )
-            except requests.RequestException:
+            except requests.RequestException as exc:
+                logger.warning(
+                    "place_search upstream_error query=%s provider=%s page=%s error=%s",
+                    search_query,
+                    provider.provider_name,
+                    page_index + 1,
+                    str(exc),
+                )
                 break
 
             if not items:
@@ -117,11 +213,6 @@ def search_places(
                 break
         if len(results) >= requested_display:
             break
-
-    if lat is not None and lng is not None:
-        results.sort(key=lambda item: item["distanceKm"] or float("inf"))
-
-    return results[:requested_display]
 
 
 def _search_queries(query: str, *, lat: float | None, lng: float | None) -> list[str]:

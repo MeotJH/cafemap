@@ -260,12 +260,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
     try {
       final repository = ref.read(placeSearchRepositoryProvider);
-      final viewport = _viewport;
       final results = await repository.searchPlaces(
         trimmed,
         display: 8,
-        lat: viewport?.lat ?? _mapLat,
-        lng: viewport?.lng ?? _mapLng,
       );
       setState(() {
         _searchResults = results;
