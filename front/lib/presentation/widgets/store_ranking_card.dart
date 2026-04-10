@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/store_ranking.dart';
-
-const _storeRankingDefaultImageAsset = 'assets/cafe_store_default.png';
 
 class StoreRankingCard extends StatelessWidget {
   final StoreRanking ranking;
@@ -43,42 +42,51 @@ class StoreRankingCard extends StatelessWidget {
           children: [
             _StoreRankBadge(rankIndex: rankIndex),
             const SizedBox(width: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: _StoreImageWithFallback(imageUrl: ranking.imageUrl),
-            ),
-            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
-                          ranking.storeName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _StoreBrandLogo(
+                              brandName: ranking.brandName,
+                              imageUrl: ranking.imageUrl,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              ranking.storeName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              ranking.brandName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),
-                      _StoreTypePill(isLocal: ranking.isLocal),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: _StoreTypePill(isLocal: ranking.isLocal),
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    ranking.brandName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                    ),
                   ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -118,6 +126,86 @@ class StoreRankingCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _StoreBrandLogo extends StatelessWidget {
+  final String brandName;
+  final String imageUrl;
+
+  const _StoreBrandLogo({required this.brandName, required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl.trim();
+    if (url.isEmpty) {
+      return _StoreBrandLogoFrame(
+        child: Text(
+          brandName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+    final isSvgImage = url.toLowerCase().endsWith('.svg');
+    return _StoreBrandLogoFrame(
+      child: isSvgImage
+          ? SizedBox.expand(
+              child: SvgPicture.network(
+                url,
+                fit: BoxFit.contain,
+                placeholderBuilder: (context) => const Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 1.6),
+                  ),
+                ),
+              ),
+            )
+          : SizedBox.expand(
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => Text(
+                  brandName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _StoreBrandLogoFrame extends StatelessWidget {
+  final Widget child;
+
+  const _StoreBrandLogoFrame({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 112,
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F8F8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: child,
     );
   }
 }
@@ -202,38 +290,6 @@ class _MetricChip extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _StoreImageWithFallback extends StatelessWidget {
-  final String imageUrl;
-
-  const _StoreImageWithFallback({required this.imageUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final url = imageUrl.trim();
-    if (url.isEmpty) {
-      return _buildFrame(Image.asset(_storeRankingDefaultImageAsset));
-    }
-    return _buildFrame(
-      Image.network(
-        url,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) =>
-            Image.asset(_storeRankingDefaultImageAsset),
-      ),
-    );
-  }
-
-  Widget _buildFrame(Widget image) {
-    return Container(
-      width: 84,
-      height: 84,
-      color: const Color(0xFFF8F8F8),
-      padding: const EdgeInsets.all(8),
-      child: image,
     );
   }
 }

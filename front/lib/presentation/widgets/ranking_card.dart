@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/utils/formatters.dart';
@@ -320,26 +321,42 @@ class _BrandMeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasLogo = _isValidHttpUrl(brandLogoUrl);
+    final isSvgLogo = brandLogoUrl.trim().toLowerCase().endsWith('.svg');
     return Row(
       children: [
-        CircleAvatar(
-          radius: 12,
-          backgroundColor: Colors.white,
+        Container(
+          width: 52,
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
           child: hasLogo
-              ? ClipOval(
-                  child: Image.network(
-                    brandLogoUrl,
-                    width: 24,
-                    height: 24,
-                    fit: BoxFit.cover,
-                    webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.restaurant,
-                      size: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                )
+              ? isSvgLogo
+                    ? SvgPicture.network(
+                        brandLogoUrl,
+                        fit: BoxFit.contain,
+                        placeholderBuilder: (context) => const Center(
+                          child: SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 1.6),
+                          ),
+                        ),
+                      )
+                    : Image.network(
+                        brandLogoUrl,
+                        fit: BoxFit.contain,
+                        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(
+                              Icons.restaurant,
+                              size: 14,
+                              color: AppColors.textSecondary,
+                            ),
+                      )
               : const Icon(
                   Icons.restaurant,
                   size: 14,
