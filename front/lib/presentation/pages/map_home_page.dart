@@ -266,10 +266,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         display: 8,
         lat: viewport?.lat ?? _mapLat,
         lng: viewport?.lng ?? _mapLng,
-        southLat: viewport?.southLat,
-        westLng: viewport?.westLng,
-        northLat: viewport?.northLat,
-        eastLng: viewport?.eastLng,
       );
       setState(() {
         _searchResults = results;
