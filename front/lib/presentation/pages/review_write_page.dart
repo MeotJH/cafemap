@@ -360,7 +360,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     }
     final detail = _errorDetail(error.response?.data);
     if (detail.isNotEmpty) {
-      return '리뷰 등록에 실패했어요. ' + detail;
+      return '리뷰 등록에 실패했어요. $detail';
     }
     return '리뷰 등록에 실패했어요. 잠시 후 다시 시도해 주세요.';
   }

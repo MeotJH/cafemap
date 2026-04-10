@@ -34,7 +34,7 @@ class RankingCard extends StatelessWidget {
               border: Border.all(color: AppColors.cardBorder),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),
@@ -136,7 +136,7 @@ class _VisualPanel extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.85),
+                color: Colors.white.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
@@ -156,7 +156,7 @@ class _VisualPanel extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.88),
+                color: Colors.white.withValues(alpha: 0.88),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
@@ -186,11 +186,11 @@ class _VisualPanel extends StatelessWidget {
               height: posterHeight,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.94),
+                color: Colors.white.withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(6),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFB57954).withOpacity(0.25),
+                    color: const Color(0xFFB57954).withValues(alpha: 0.25),
                     blurRadius: compact ? 34 : 26,
                     offset: const Offset(-8, 12),
                   ),

@@ -23,10 +23,10 @@ class RatingSlider extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isOverall ? AppColors.primary.withOpacity(0.08) : Colors.white,
+        color: isOverall ? AppColors.primary.withValues(alpha: 0.08) : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isOverall ? AppColors.primary.withOpacity(0.3) : AppColors.cardBorder,
+          color: isOverall ? AppColors.primary.withValues(alpha: 0.3) : AppColors.cardBorder,
           width: isOverall ? 2 : 1,
         ),
       ),
@@ -59,7 +59,7 @@ class RatingSlider extends StatelessWidget {
             divisions: isOverall ? 40 : 8,
             onChanged: isOverall ? null : onChanged,
             activeColor: AppColors.primary,
-            inactiveColor: AppColors.primary.withOpacity(0.2),
+            inactiveColor: AppColors.primary.withValues(alpha: 0.2),
           ),
         ],
       ),
