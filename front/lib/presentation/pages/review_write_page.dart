@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
+import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/widgets/rating_slider.dart';
 import 'package:front/domain/entities/brand.dart';
 import 'package:front/domain/entities/menu.dart';
@@ -189,14 +190,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     final normalized = _normalizeSearchText(brand.name);
     final tokens = <String>{normalized};
     if (brand.id == _localBrandId) {
-      tokens.addAll({
-        '개인카페',
-        '개인',
-        '로컬',
-        '로컬카페',
-        'local',
-        'localcafe',
-      });
+      tokens.addAll({'개인카페', '개인', '로컬', '로컬카페', 'local', 'localcafe'});
     }
     if (normalized.contains('메가')) {
       tokens.addAll({'메가커피', '메가mgc커피'});
@@ -294,8 +288,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     });
     try {
       final imageUrls = await _uploadSelectedImages(auth);
-      final repository = ref.read(reviewRepositoryProvider);
-      final review = await repository.createReview(
+      final review = await _createReviewWithRecovery(
         ReviewCreateRequest(
           storeName: storeName,
           address: widget.address ?? '',
@@ -308,7 +301,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
           comment: _commentController.text.trim(),
           imageUrls: imageUrls,
         ),
-        auth: auth,
+        auth,
       );
       ref.invalidate(myReviewsProvider);
       ref.invalidate(rankingListProvider);
@@ -318,11 +311,15 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     } on DioException catch (e, stackTrace) {
       debugPrint('Error submitting review: $e');
       debugPrint('Stack trace: $stackTrace');
-      final status = e.response?.statusCode;
-      final detail = e.response?.data;
+      final needsReauth = _isRecoverableUserSessionError(e);
       await _showTopToast(
-        '리뷰 제출 실패${status == null ? '' : ' ($status)'}: ${detail ?? e.message}',
+        needsReauth
+            ? '로그인 정보를 확인하지 못했어요. 다시 로그인 후 리뷰를 등록해 주세요.'
+            : _messageForSubmitError(e),
       );
+      if (needsReauth && mounted) {
+        context.push('/auth');
+      }
     } catch (e, stackTrace) {
       debugPrint('Error submitting review: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -334,6 +331,48 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         });
       }
     }
+  }
+
+  Future<Review> _createReviewWithRecovery(
+    ReviewCreateRequest payload,
+    AuthContext auth,
+  ) async {
+    final repository = ref.read(reviewRepositoryProvider);
+    try {
+      return await repository.createReview(payload, auth: auth);
+    } on DioException catch (e) {
+      if (!_isRecoverableUserSessionError(e)) rethrow;
+      await ref.read(authApiProvider).syncUser(auth);
+      return repository.createReview(payload, auth: auth);
+    }
+  }
+
+  bool _isRecoverableUserSessionError(DioException error) {
+    if (error.response?.statusCode != 401) return false;
+    final detail = _errorDetail(error.response?.data).toLowerCase();
+    return detail.contains('user session not initialized') ||
+        detail.contains('user_not_synced');
+  }
+
+  String _messageForSubmitError(DioException error) {
+    if (error.response?.statusCode == 401) {
+      return '로그인 정보를 확인하지 못했어요. 다시 로그인 후 리뷰를 등록해 주세요.';
+    }
+    final detail = _errorDetail(error.response?.data);
+    if (detail.isNotEmpty) {
+      return '리뷰 등록에 실패했어요. ' + detail;
+    }
+    return '리뷰 등록에 실패했어요. 잠시 후 다시 시도해 주세요.';
+  }
+
+  String _errorDetail(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final detail = data['detail'];
+      if (detail is String && detail.isNotEmpty) return detail;
+      final code = data['code'];
+      if (code is String && code.isNotEmpty) return code;
+    }
+    return data?.toString() ?? '';
   }
 
   Menu? _resolveSelectedMenu() {
@@ -554,237 +593,214 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: SafeArea(
           child: ListView(
-              keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior.manual,
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                24 + bottomSafeArea,
-              ),
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.2),
-                        ),
-                        color: AppColors.backgroundLight,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomSafeArea),
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.2),
                       ),
-                      child: const Icon(Icons.store, color: AppColors.primary),
+                      color: AppColors.backgroundLight,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    child: const Icon(Icons.store, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.storeName ?? '카페를 선택해주세요.',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (widget.address != null &&
+                            widget.address!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
                           Text(
-                            widget.storeName ?? '카페를 선택해주세요.',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            widget.address!,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                          if (widget.address != null &&
-                              widget.address!.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.address!,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                              ),
+                        ],
+                        const SizedBox(height: 8),
+                        if (_isLocalBrandSelected && !_isBrandLocked) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 14,
                             ),
-                          ],
-                          const SizedBox(height: 8),
-                          if (_isLocalBrandSelected && !_isBrandLocked) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 14,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.cardBorder),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.storefront_rounded,
-                                    color: AppColors.primary,
-                                    size: 18,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '개인 카페로 리뷰를 작성해요',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.cardBorder),
                             ),
-                          ] else ...[
-                            DropdownButtonFormField<Brand>(
-                              initialValue: _selectedBrand,
-                              items: _brands
-                                  .map(
-                                    (brand) => DropdownMenuItem(
-                                      value: brand,
-                                      child: Text(brand.name),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.storefront_rounded,
+                                  color: AppColors.primary,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '개인 카페로 리뷰를 작성해요',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
                                     ),
-                                  )
-                                  .toList(),
-                              onChanged: _isBrandLocked
-                                  ? null
-                                  : (brand) async {
-                                      if (brand == null) return;
-                                      if (!await _confirmBrandChange(brand)) {
-                                        return;
-                                      }
-                                      setState(() {
-                                        _selectedBrand = brand;
-                                        _lastConfirmedBrand = brand;
-                                        _selectedMenu = null;
-                                        _menuSearchController.clear();
-                                        _syncActiveDimensions(null);
-                                      });
-                                      _loadMenus(brand.id);
-                                    },
-                              decoration: InputDecoration(
-                                hintText: '브랜드 선택',
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: AppColors.cardBorder,
                                   ),
                                 ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: AppColors.cardBorder,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: AppColors.cardBorder,
-                                    width: 1.4,
-                                  ),
-                                ),
-                              ),
+                              ],
                             ),
-                          ],
-                          const SizedBox(height: 8),
-                          Autocomplete<Menu>(
-                            optionsBuilder: (textEditingValue) {
-                              final query =
-                                  textEditingValue.text.trim().toLowerCase();
-                              if (query.isEmpty) return _menus;
-                              final queryKeys = _menuMatchKeys(query);
-                              return _menus.where(
-                                (menu) {
-                                  final menuText =
-                                      _normalizeSearchText(menu.name);
-                                  return menuText.contains(
-                                          _normalizeSearchText(query)) ||
-                                      queryKeys
-                                          .intersection(
-                                              _menuMatchKeys(menu.name))
-                                          .isNotEmpty;
-                                },
-                              );
-                            },
-                            displayStringForOption: (menu) => menu.name,
-                            onSelected: (menu) {
-                              setState(() {
-                                _selectedMenu = menu;
-                                _syncActiveDimensions(menu.category);
-                              });
-                              _menuSearchController.text = menu.name;
-                            },
-                            fieldViewBuilder:
-                                (context, controller, focusNode, onSubmitted) {
-                              if (controller.text !=
-                                  _menuSearchController.text) {
-                                controller.value = _menuSearchController.value;
-                              }
-                              return TextField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                scrollPadding: const EdgeInsets.only(
-                                  left: 16,
-                                  right: 16,
-                                  top: 24,
-                                  bottom: 160,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: _loadingMenus
-                                      ? '메뉴 불러오는 중...'
-                                      : '표준 메뉴 검색 후 선택',
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.cardBorder,
-                                    ),
+                          ),
+                        ] else ...[
+                          DropdownButtonFormField<Brand>(
+                            initialValue: _selectedBrand,
+                            items: _brands
+                                .map(
+                                  (brand) => DropdownMenuItem(
+                                    value: brand,
+                                    child: Text(brand.name),
                                   ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.cardBorder,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                      color: AppColors.cardBorder,
-                                      width: 1.4,
-                                    ),
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  _menuSearchController.value =
-                                      controller.value;
-                                  final selected = _selectedMenu;
-                                  if (selected != null &&
-                                      selected.name != value) {
+                                )
+                                .toList(),
+                            onChanged: _isBrandLocked
+                                ? null
+                                : (brand) async {
+                                    if (brand == null) return;
+                                    if (!await _confirmBrandChange(brand)) {
+                                      return;
+                                    }
                                     setState(() {
+                                      _selectedBrand = brand;
+                                      _lastConfirmedBrand = brand;
                                       _selectedMenu = null;
+                                      _menuSearchController.clear();
                                       _syncActiveDimensions(null);
                                     });
-                                  }
-                                },
-                                onSubmitted: (_) => onSubmitted(),
-                              );
-                            },
-                            optionsViewBuilder: (context, onSelected, options) {
-                              final list = options.toList(growable: false);
-                              if (list.isEmpty) {
-                                return Align(
-                                  alignment: Alignment.topLeft,
-                                  child: Material(
-                                    elevation: 4,
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: SizedBox(
-                                      width: MediaQuery.of(context).size.width -
-                                          64,
-                                      child: const Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: Text('등록된 표준 메뉴가 없어요.'),
+                                    _loadMenus(brand.id);
+                                  },
+                            decoration: InputDecoration(
+                              hintText: '브랜드 선택',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppColors.cardBorder,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppColors.cardBorder,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: AppColors.cardBorder,
+                                  width: 1.4,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Autocomplete<Menu>(
+                          optionsBuilder: (textEditingValue) {
+                            final query = textEditingValue.text
+                                .trim()
+                                .toLowerCase();
+                            if (query.isEmpty) return _menus;
+                            final queryKeys = _menuMatchKeys(query);
+                            return _menus.where((menu) {
+                              final menuText = _normalizeSearchText(menu.name);
+                              return menuText.contains(
+                                    _normalizeSearchText(query),
+                                  ) ||
+                                  queryKeys
+                                      .intersection(_menuMatchKeys(menu.name))
+                                      .isNotEmpty;
+                            });
+                          },
+                          displayStringForOption: (menu) => menu.name,
+                          onSelected: (menu) {
+                            setState(() {
+                              _selectedMenu = menu;
+                              _syncActiveDimensions(menu.category);
+                            });
+                            _menuSearchController.text = menu.name;
+                          },
+                          fieldViewBuilder:
+                              (context, controller, focusNode, onSubmitted) {
+                                if (controller.text !=
+                                    _menuSearchController.text) {
+                                  controller.value =
+                                      _menuSearchController.value;
+                                }
+                                return TextField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  scrollPadding: const EdgeInsets.only(
+                                    left: 16,
+                                    right: 16,
+                                    top: 24,
+                                    bottom: 160,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: _loadingMenus
+                                        ? '메뉴 불러오는 중...'
+                                        : '표준 메뉴 검색 후 선택',
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.cardBorder,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.cardBorder,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.cardBorder,
+                                        width: 1.4,
                                       ),
                                     ),
                                   ),
+                                  onChanged: (value) {
+                                    _menuSearchController.value =
+                                        controller.value;
+                                    final selected = _selectedMenu;
+                                    if (selected != null &&
+                                        selected.name != value) {
+                                      setState(() {
+                                        _selectedMenu = null;
+                                        _syncActiveDimensions(null);
+                                      });
+                                    }
+                                  },
+                                  onSubmitted: (_) => onSubmitted(),
                                 );
-                              }
+                              },
+                          optionsViewBuilder: (context, onSelected, options) {
+                            final list = options.toList(growable: false);
+                            if (list.isEmpty) {
                               return Align(
                                 alignment: Alignment.topLeft,
                                 child: Material(
@@ -793,173 +809,178 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                                   child: SizedBox(
                                     width:
                                         MediaQuery.of(context).size.width - 64,
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxHeight: 280,
-                                      ),
-                                      child: ScrollConfiguration(
-                                        behavior:
-                                            const _MenuOptionsScrollBehavior(),
-                                        child: ListView.builder(
-                                          primary: false,
-                                          padding: const EdgeInsets.all(8),
-                                          itemCount: list.length,
-                                          itemBuilder: (context, index) {
-                                            final menu = list[index];
-                                            return ListTile(
-                                              title: Text(menu.name),
-                                              onTap: () => onSelected(menu),
-                                            );
-                                          },
-                                        ),
-                                      ),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Text('등록된 표준 메뉴가 없어요.'),
                                     ),
                                   ),
                                 ),
                               );
-                            },
-                          ),
-                          if (_menuError != null) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              _menuError!,
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 12,
+                            }
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4,
+                                borderRadius: BorderRadius.circular(12),
+                                child: SizedBox(
+                                  width: MediaQuery.of(context).size.width - 64,
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 280,
+                                    ),
+                                    child: ScrollConfiguration(
+                                      behavior:
+                                          const _MenuOptionsScrollBehavior(),
+                                      child: ListView.builder(
+                                        primary: false,
+                                        padding: const EdgeInsets.all(8),
+                                        itemCount: list.length,
+                                        itemBuilder: (context, index) {
+                                          final menu = list[index];
+                                          return ListTile(
+                                            title: Text(menu.name),
+                                            onTap: () => onSelected(menu),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
+                            );
+                          },
+                        ),
+                        if (_menuError != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            _menuError!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
                             ),
-                          ],
+                          ),
                         ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  '경험을 평가해주세요',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                ..._activeDimensions.expand(
-                  (key) => [
-                    RatingSlider(
-                      label: ratingLabel(key),
-                      value: _scores[key] ?? 3.0,
-                      onChanged: (v) => _updateScore(key, v),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                RatingSlider(
-                  label: '총점',
-                  value: overall,
-                  isOverall: true,
-                  onChanged: (_) {},
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '매장 경험도 알려주세요',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                ...storeExperienceDimensions.expand(
-                  (key) => [
-                    RatingSlider(
-                      label: ratingLabel(key),
-                      value: _storeScores[key] ?? 3.0,
-                      onChanged: (v) => _updateStoreScore(key, v),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '사진 추가',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 106,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _selectedImages.length + 1,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return _ReviewImageAddTile(
-                          count: _selectedImages.length,
-                          maxCount: 2,
-                          disabled: _isSubmitting,
-                          onTap: _pickImages,
-                        );
-                      }
-                      final item = _selectedImages[index - 1];
-                      return _ReviewImagePreviewTile(
-                        bytes: item.bytes,
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                '경험을 평가해주세요',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ..._activeDimensions.expand(
+                (key) => [
+                  RatingSlider(
+                    label: ratingLabel(key),
+                    value: _scores[key] ?? 3.0,
+                    onChanged: (v) => _updateScore(key, v),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+              const SizedBox(height: 8),
+              RatingSlider(
+                label: '총점',
+                value: overall,
+                isOverall: true,
+                onChanged: (_) {},
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '매장 경험도 알려주세요',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ...storeExperienceDimensions.expand(
+                (key) => [
+                  RatingSlider(
+                    label: ratingLabel(key),
+                    value: _storeScores[key] ?? 3.0,
+                    onChanged: (v) => _updateStoreScore(key, v),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '사진 추가',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 106,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _selectedImages.length + 1,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _ReviewImageAddTile(
+                        count: _selectedImages.length,
+                        maxCount: 2,
                         disabled: _isSubmitting,
-                        onRemove: () => _removeImageAt(index - 1),
+                        onTap: _pickImages,
                       );
-                    },
+                    }
+                    final item = _selectedImages[index - 1];
+                    return _ReviewImagePreviewTile(
+                      bytes: item.bytes,
+                      disabled: _isSubmitting,
+                      onRemove: () => _removeImageAt(index - 1),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '후기를 남겨주세요',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _commentController,
+                maxLines: 6,
+                scrollPadding: const EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 24,
+                  bottom: 160,
+                ),
+                decoration: InputDecoration(
+                  hintText: '카페 분위기와 메뉴 평가를 자유롭게 남겨주세요. 다른 사용자에게 큰 도움이 됩니다.',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: AppColors.cardBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: AppColors.cardBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: AppColors.cardBorder,
+                      width: 1.4,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  '후기를 남겨주세요',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _commentController,
-                  maxLines: 6,
-                  scrollPadding: const EdgeInsets.only(
-                    left: 16,
-                    right: 16,
-                    top: 24,
-                    bottom: 160,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '카페 분위기와 메뉴 평가를 자유롭게 남겨주세요. 다른 사용자에게 큰 도움이 됩니다.',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(
-                        color: AppColors.cardBorder,
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(
-                        color: AppColors.cardBorder,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(
-                        color: AppColors.cardBorder,
-                        width: 1.4,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                if (!isKeyboardVisible)
-                  WriteCafeReviewButton(
-                    onPressed: _isSubmitting ? () {} : _submitReview,
-                    text: _isSubmitting ? '제출 중...' : '리뷰 제출',
-                  )
-                else
-                  const SizedBox(height: 16),
-              ],
-            ),
+              ),
+              const SizedBox(height: 24),
+              if (!isKeyboardVisible)
+                WriteCafeReviewButton(
+                  onPressed: _isSubmitting ? () {} : _submitReview,
+                  text: _isSubmitting ? '제출 중...' : '리뷰 제출',
+                )
+              else
+                const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -971,12 +992,12 @@ class _MenuOptionsScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.unknown,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.unknown,
+  };
 }
 
 class _SelectedReviewImage {

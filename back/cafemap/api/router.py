@@ -740,10 +740,9 @@ def create_review(
     # ??? ???? ????.
 
     user = get_user(db, auth_user.uid)
-
     if user is None:
-
-        raise HTTPException(status_code=401, detail="User session not initialized")
+        user = upsert_user(db, auth_user)
+        db.flush()
 
     try:
 
