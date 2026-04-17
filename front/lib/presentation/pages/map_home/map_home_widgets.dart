@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:front/presentation/pages/map_home/map_search_page.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'package:front/core/constants/app_colors.dart';
@@ -69,6 +70,9 @@ class MapHomeTopOverlay extends StatelessWidget {
                         ],
                       ),
                       child: TextField(
+                        onTap: () {
+                          showFullScreenSearchDialog(context);
+                        },
                         controller: searchController,
                         onSubmitted: onSearchSubmitted,
                         decoration: InputDecoration(
