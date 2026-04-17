@@ -13,9 +13,9 @@ import 'package:front/domain/entities/place_search_result.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/presentation/pages/map_home/map_home_marker_bundle.dart';
 import 'package:front/presentation/pages/map_home/map_home_place_logic.dart';
-import 'package:front/presentation/pages/map_home/map_home_view_state.dart';
 import 'package:front/presentation/pages/map_home/map_home_widgets.dart';
 import 'package:front/presentation/providers/app_providers.dart';
+import 'package:front/presentation/providers/map_home_provider.dart';
 import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:front/presentation/utils/external_link.dart';
@@ -29,43 +29,59 @@ class MapHomePage extends ConsumerStatefulWidget {
 }
 
 class _MapHomePageState extends ConsumerState<MapHomePage> {
-  static const int _newCafePageCount = 3;
   static const double _markerFocusOffsetMeters = 140;
 
   final _searchController = TextEditingController();
   final _reviewedCafeMarkerIconUrl =
       MapHomePlaceLogic.buildReviewedCafeMarkerIconUrl();
 
-  late MapHomeViewState _viewState;
   NaverMapController? _mapController;
   bool _cameraIdleUpdateQueued = false;
+  ProviderSubscription<AppLocationState>? _locationSubscription;
 
   @override
   void initState() {
     super.initState();
-    _viewState = MapHomeViewState.initial(
-      defaultLat: AppLocationController.defaultLat,
-      defaultLng: AppLocationController.defaultLng,
+    _locationSubscription = ref.listenManual<AppLocationState>(
+      currentLocationProvider,
+      (previous, next) async {
+        Future<void>(() async {
+          final changed =
+              ref.read(mapHomeControllerProvider.notifier).applyCurrentLocation(
+                    next,
+                  );
+          if (changed && next.fromDevice) {
+            await _focusMapTo(next.latitude, next.longitude, zoom: 15);
+          }
+        });
+      },
     );
-    final location = ref.read(currentLocationProvider);
-    _applyCurrentLocation(location, focusMap: false);
+
+    Future<void>(() async {
+      final location = ref.read(currentLocationProvider);
+      ref.read(mapHomeControllerProvider.notifier).applyCurrentLocation(
+            location,
+          );
+    });
   }
 
   @override
   void dispose() {
+    _locationSubscription?.close();
     _searchController.dispose();
     super.dispose();
   }
 
   void _handleMapReady(dynamic controller) {
-    if (controller is NaverMapController) {
-      _mapController = controller;
-      if (_viewState.isCurrentLocationResolved) {
-        _focusMapTo(_viewState.mapLat, _viewState.mapLng, zoom: 15);
-      }
+    if (controller is! NaverMapController) return;
+    _mapController = controller;
+
+    final state = ref.read(mapHomeControllerProvider);
+    if (state.isCurrentLocationResolved) {
+      _focusMapTo(state.mapLat, state.mapLng, zoom: 15);
     }
 
-    final selectedStore = _viewState.selectedStore;
+    final selectedStore = state.selectedStore;
     if (selectedStore != null) {
       _focusStoreOnMap(selectedStore);
     }
@@ -100,119 +116,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     await _focusMapTo(adjustedLat, lng, zoom: zoom);
   }
 
-  Future<void> _applyCurrentLocation(
-    AppLocationState location, {
-    required bool focusMap,
-  }) async {
-    final lastAppliedLocation = _viewState.lastAppliedLocation;
-    final changed =
-        lastAppliedLocation == null ||
-        (lastAppliedLocation.latitude - location.latitude).abs() > 0.000001 ||
-        (lastAppliedLocation.longitude - location.longitude).abs() > 0.000001 ||
-        lastAppliedLocation.fromDevice != location.fromDevice;
-    if (!changed || !mounted) return;
-
-    setState(() {
-      _viewState = _viewState.copyWith(
-        mapLat: location.latitude,
-        mapLng: location.longitude,
-        isCurrentLocationResolved: location.fromDevice,
-        lastAppliedLocation: location,
-      );
-    });
-
-    if (kDebugMode) {
-      debugPrint(
-        '[MapHome] currentLocation=${_viewState.mapLat},${_viewState.mapLng}',
-      );
-    }
-    if (focusMap && _viewState.isCurrentLocationResolved) {
-      await _focusMapTo(_viewState.mapLat, _viewState.mapLng, zoom: 15);
-    }
-  }
-
-  Future<void> _searchNearbyNewPlaces(List<StoreSummary> reviewedStores) async {
-    final viewport = _viewState.viewport ??
-        MapViewportData(
-          lat: _viewState.mapLat,
-          lng: _viewState.mapLng,
-          zoom: 14,
-        );
-
-    setState(() {
-      _viewState = _viewState.copyWith(
-        isSearching: true,
-        searchError: null,
-        selectedStore: null,
-        selectedPlace: null,
-      );
-    });
-
-    try {
-      final repository = ref.read(placeSearchRepositoryProvider);
-      final results = await repository.searchPlaces(
-        '카페',
-        display: MapHomePlaceLogic.newCafeDisplayCount,
-        lat: viewport.lat,
-        lng: viewport.lng,
-        pages: _newCafePageCount,
-        southLat: viewport.southLat,
-        westLng: viewport.westLng,
-        northLat: viewport.northLat,
-        eastLng: viewport.eastLng,
-      );
-      final filtered = MapHomePlaceLogic.filterNearbyPlaces(
-        results,
-        reviewedStores,
-      );
-
-      setState(() {
-        _viewState = _viewState.copyWith(
-          newPlaces: filtered,
-          searchError: filtered.isEmpty
-              ? '현재 지도 영역에서 새 카페 결과가 없어요. 지도를 이동한 뒤 다시 시도해 주세요.'
-              : null,
-        );
-      });
-    } catch (_) {
-      setState(() {
-        _viewState = _viewState.copyWith(
-          searchError: '새 카페를 찾지 못했어요. 다시 시도해 주세요.',
-        );
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _viewState = _viewState.copyWith(isSearching: false);
-        });
-      }
-    }
-  }
-
   void _handleCameraIdle(MapViewportData viewport) {
-    if (!mounted) return;
-
-    final currentViewport = _viewState.viewport;
-    final hasMeaningfulChange =
-        currentViewport == null ||
-        (currentViewport.lat - viewport.lat).abs() > 0.000001 ||
-        (currentViewport.lng - viewport.lng).abs() > 0.000001 ||
-        (currentViewport.zoom - viewport.zoom).abs() > 0.001 ||
-        currentViewport.southLat != viewport.southLat ||
-        currentViewport.westLng != viewport.westLng ||
-        currentViewport.northLat != viewport.northLat ||
-        currentViewport.eastLng != viewport.eastLng;
-    if (!hasMeaningfulChange) return;
+    final notifier = ref.read(mapHomeControllerProvider.notifier);
 
     void applyViewport() {
-      if (!mounted) return;
-      setState(() {
-        _viewState = _viewState.copyWith(
-          viewport: viewport,
-          mapLat: viewport.lat,
-          mapLng: viewport.lng,
-        );
-      });
+      notifier.updateViewport(viewport);
     }
 
     final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
@@ -234,108 +142,17 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     applyViewport();
   }
 
-  Future<void> _searchPlaces(String query) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      setState(() {
-        _viewState = _viewState.copyWith(
-          selectedStore: null,
-          selectedPlace: null,
-          searchResults: const [],
-          placeSearchError: null,
-        );
-      });
-      return;
-    }
-
-    setState(() {
-      _viewState = _viewState.copyWith(
-        isPlaceSearching: true,
-        selectedStore: null,
-        selectedPlace: null,
-        searchResults: const [],
-        placeSearchError: null,
-      );
-    });
-
-    try {
-      final repository = ref.read(placeSearchRepositoryProvider);
-      final results = await repository.searchPlaces(trimmed, display: 8);
-      setState(() {
-        _viewState = _viewState.copyWith(
-          searchResults: results,
-          placeSearchError: results.isEmpty ? '검색 결과가 없어요.' : null,
-        );
-      });
-    } catch (_) {
-      setState(() {
-        _viewState = _viewState.copyWith(
-          placeSearchError: '검색에 실패했어요. 다시 시도해 주세요.',
-        );
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _viewState = _viewState.copyWith(isPlaceSearching: false);
-        });
-      }
-    }
-  }
-
-  void _clearSearch() {
-    setState(() {
-      _searchController.clear();
-      _viewState = _viewState.copyWith(
-        searchResults: const [],
-        placeSearchError: null,
-      );
-    });
-  }
-
-  void _clearNewPlaces() {
-    setState(() {
-      _searchController.clear();
-      _viewState = _viewState.copyWith(
-        newPlaces: const [],
-        searchError: null,
-        selectedStore: null,
-        selectedPlace: null,
-        searchResults: const [],
-        placeSearchError: null,
-      );
-    });
-  }
-
-  String? _selectedPlaceMarkerId() {
-    final selected = _viewState.selectedPlace;
-    if (selected == null) return null;
-    return MapHomePlaceLogic.placeMarkerId(selected);
-  }
-
   Future<void> _selectSearchResult(PlaceSearchResult item) async {
     final coords = MapHomePlaceLogic.coordsFromPlace(item);
     if (coords == null) return;
 
-    setState(() {
-      _searchController.text = item.name;
-      _viewState = _viewState.copyWith(
-        selectedStore: null,
-        selectedPlace: item,
-        searchError: null,
-        placeSearchError: null,
-        searchResults: const [],
-      );
-    });
+    _searchController.text = item.name;
+    ref.read(mapHomeControllerProvider.notifier).selectSearchResult(item);
     await _focusMarkerOnMap(coords.$1, coords.$2, zoom: 16);
   }
 
   void _selectStore(StoreSummary store) {
-    setState(() {
-      _viewState = _viewState.copyWith(
-        selectedStore: store,
-        selectedPlace: null,
-      );
-    });
+    ref.read(mapHomeControllerProvider.notifier).selectStore(store);
     _focusStoreOnMap(store);
   }
 
@@ -373,38 +190,31 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     );
   }
 
+  String? _selectedPlaceMarkerId(PlaceSearchResult? place) {
+    if (place == null) return null;
+    return MapHomePlaceLogic.placeMarkerId(place);
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentLocation = ref.watch(currentLocationProvider);
-    final lastAppliedLocation = _viewState.lastAppliedLocation;
-    final shouldApplyCurrentLocation =
-        lastAppliedLocation == null ||
-        (lastAppliedLocation.latitude - currentLocation.latitude).abs() >
-            0.000001 ||
-        (lastAppliedLocation.longitude - currentLocation.longitude).abs() >
-            0.000001 ||
-        lastAppliedLocation.fromDevice != currentLocation.fromDevice;
-
-    if (shouldApplyCurrentLocation) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _applyCurrentLocation(currentLocation, focusMap: true);
-      });
-    }
+    final state = ref.watch(mapHomeControllerProvider);
+    final notifier = ref.read(mapHomeControllerProvider.notifier);
 
     final stores = ref.watch(nearbyStoresProvider);
     final reviewedStores = stores.asData?.value ?? const <StoreSummary>[];
     final markerBundle = MapHomeMarkerBundle.fromData(
       reviewedStores: reviewedStores,
-      newPlaces: _viewState.newPlaces,
-      searchResults: _viewState.searchResults,
-      selectedPlace: _viewState.selectedPlace,
+      newPlaces: state.newPlaces,
+      searchResults: state.searchResults,
+      selectedPlace: state.selectedPlace,
       reviewedCafeMarkerIconUrl: _reviewedCafeMarkerIconUrl,
     );
 
     final bottomPadding = MediaQuery.paddingOf(context).bottom + 16;
     final statusBottomPadding =
         bottomPadding +
-        ((_viewState.selectedStore != null || _viewState.selectedPlace != null)
+        ((state.selectedStore != null || state.selectedPlace != null)
             ? 104
             : 0);
 
@@ -416,12 +226,13 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             child: ClipRect(
               child: buildNaverMapView(
                 context: context,
-                lat: _viewState.mapLat,
-                lng: _viewState.mapLng,
+                lat: state.mapLat,
+                lng: state.mapLng,
                 zoom: 14,
                 markers: markerBundle.markers,
                 selectedMarkerId:
-                    _viewState.selectedStore?.id ?? _selectedPlaceMarkerId(),
+                    state.selectedStore?.id ??
+                    _selectedPlaceMarkerId(state.selectedPlace),
                 onMarkerTap: (markerId) {
                   final store = markerBundle.storeById[markerId];
                   if (store != null) {
@@ -440,59 +251,63 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
           ),
           MapHomeTopOverlay(
             searchController: _searchController,
-            isPlaceSearching: _viewState.isPlaceSearching,
-            isSearching: _viewState.isSearching,
-            searchResults: _viewState.searchResults,
-            placeSearchError: _viewState.placeSearchError,
-            selectedStore: _viewState.selectedStore,
-            selectedPlace: _viewState.selectedPlace,
-            newPlaces: _viewState.newPlaces,
-            onSearchSubmitted: _searchPlaces,
-            onSearchChanged: (_) => setState(() {}),
-            onSearchPressed: () => _searchPlaces(_searchController.text),
-            onSearchClear: _clearSearch,
+            isPlaceSearching: state.isPlaceSearching,
+            isSearching: state.isSearching,
+            searchResults: state.searchResults,
+            placeSearchError: state.placeSearchError,
+            selectedStore: state.selectedStore,
+            selectedPlace: state.selectedPlace,
+            newPlaces: state.newPlaces,
+            onSearchSubmitted: notifier.searchPlaces,
+            onSearchPressed: () => notifier.searchPlaces(_searchController.text),
+            onSearchClear: () {
+              _searchController.clear();
+              notifier.clearSearch();
+            },
             onSearchResultSelected: _selectSearchResult,
-            onDiscoverPressed: () => _searchNearbyNewPlaces(reviewedStores),
-            onClearNewPlaces: _clearNewPlaces,
+            onDiscoverPressed: () => notifier.searchNearbyNewPlaces(reviewedStores),
+            onClearNewPlaces: () {
+              _searchController.clear();
+              notifier.clearNewPlaces();
+            },
           ),
-          if (_viewState.isSearching || _viewState.searchError != null)
+          if (state.isSearching || state.searchError != null)
             Positioned(
               left: 16,
               right: 16,
               bottom: statusBottomPadding,
               child: PointerInterceptor(
                 child: MapStatusBanner(
-                  isSearching: _viewState.isSearching,
-                  errorMessage: _viewState.searchError,
+                  isSearching: state.isSearching,
+                  errorMessage: state.searchError,
                   hasResolvedLocation: currentLocation.fromDevice,
                   reviewedStoreCount: reviewedStores.length,
-                  newCafeCount: _viewState.newPlaces.length,
+                  newCafeCount: state.newPlaces.length,
                 ),
               ),
             ),
-          if (_viewState.selectedStore != null)
+          if (state.selectedStore != null)
             Positioned(
               left: 16,
               right: 16,
               bottom: bottomPadding,
               child: PointerInterceptor(
                 child: ReviewedStoreBottomCard(
-                  store: _viewState.selectedStore!,
-                  onTap: () =>
-                      context.go('/map/store/${_viewState.selectedStore!.id}'),
+                  store: state.selectedStore!,
+                  onTap: () => context.go('/map/store/${state.selectedStore!.id}'),
                 ),
               ),
             ),
-          if (_viewState.selectedStore == null && _viewState.selectedPlace != null)
+          if (state.selectedStore == null && state.selectedPlace != null)
             Positioned(
               left: 16,
               right: 16,
               bottom: bottomPadding,
               child: PointerInterceptor(
                 child: NewCafeBottomCard(
-                  place: _viewState.selectedPlace!,
-                  onTap: () => _openPlaceLink(_viewState.selectedPlace!),
-                  onReviewTap: () => _openReviewWrite(_viewState.selectedPlace!),
+                  place: state.selectedPlace!,
+                  onTap: () => _openPlaceLink(state.selectedPlace!),
+                  onReviewTap: () => _openReviewWrite(state.selectedPlace!),
                 ),
               ),
             ),

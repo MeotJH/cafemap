@@ -16,7 +16,6 @@ class MapHomeTopOverlay extends StatelessWidget {
   final PlaceSearchResult? selectedPlace;
   final List<PlaceSearchResult> newPlaces;
   final ValueChanged<String> onSearchSubmitted;
-  final ValueChanged<String> onSearchChanged;
   final VoidCallback onSearchPressed;
   final VoidCallback onSearchClear;
   final ValueChanged<PlaceSearchResult> onSearchResultSelected;
@@ -34,7 +33,6 @@ class MapHomeTopOverlay extends StatelessWidget {
     required this.selectedPlace,
     required this.newPlaces,
     required this.onSearchSubmitted,
-    required this.onSearchChanged,
     required this.onSearchPressed,
     required this.onSearchClear,
     required this.onSearchResultSelected,
@@ -73,16 +71,21 @@ class MapHomeTopOverlay extends StatelessWidget {
                       child: TextField(
                         controller: searchController,
                         onSubmitted: onSearchSubmitted,
-                        onChanged: onSearchChanged,
                         decoration: InputDecoration(
                           hintText: '카페 검색',
                           prefixIcon: const Icon(Icons.search),
-                          suffixIcon: searchController.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  onPressed: onSearchClear,
-                                  icon: const Icon(Icons.close),
-                                ),
+                          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: searchController,
+                            builder: (context, value, child) {
+                              if (value.text.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return IconButton(
+                                onPressed: onSearchClear,
+                                icon: const Icon(Icons.close),
+                              );
+                            },
+                          ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,

@@ -8,7 +8,7 @@ class MapHomePlaceLogic {
 
   static String buildReviewedCafeMarkerIconUrl() {
     return _buildMarkerIconUrl(
-      label: 'R',
+      label: '☕',
       backgroundColor: '#ECD7A9',
       borderColor: '#FFFFFF',
       textColor: '#FFFFFF',

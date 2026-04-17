@@ -32,7 +32,7 @@ class MapHomeMarkerBundle {
             caption: store.name,
             description: store.address,
             iconUrl: reviewedCafeMarkerIconUrl,
-            badgeText: 'R',
+            badgeText: '☕',
           ),
         )
         .toList();
