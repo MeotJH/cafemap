@@ -1,18 +1,22 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:front/core/constants/app_colors.dart';
+import 'package:front/domain/entities/place_search_result.dart';
+import 'package:front/presentation/pages/map_home/map_home_place_logic.dart';
+import 'package:front/presentation/providers/app_providers.dart';
 
-Future<String?> showFullScreenSearchDialog(
+Future<PlaceSearchResult?> showFullScreenSearchDialog(
   BuildContext context, {
   String initialQuery = '',
 }) {
   FocusScope.of(context).unfocus();
 
-  return showGeneralDialog<String>(
+  return showGeneralDialog<PlaceSearchResult>(
     context: context,
     barrierDismissible: false,
     barrierLabel: 'Full Screen Search',
@@ -80,9 +84,7 @@ class MapSearchHistoryStorage {
 
   Future<List<MapSearchHistoryItem>> add(String keyword) async {
     final trimmed = keyword.trim();
-    if (trimmed.isEmpty) {
-      return load();
-    }
+    if (trimmed.isEmpty) return load();
 
     final items = await load();
     final deduped = items.where((item) => item.keyword != trimmed).toList();
@@ -117,24 +119,29 @@ class MapSearchHistoryStorage {
   }
 }
 
-class _FullScreenSearchDialog extends StatefulWidget {
+class _FullScreenSearchDialog extends ConsumerStatefulWidget {
   final String initialQuery;
 
   const _FullScreenSearchDialog({required this.initialQuery});
 
   @override
-  State<_FullScreenSearchDialog> createState() =>
+  ConsumerState<_FullScreenSearchDialog> createState() =>
       _FullScreenSearchDialogState();
 }
 
-class _FullScreenSearchDialogState extends State<_FullScreenSearchDialog> {
+class _FullScreenSearchDialogState
+    extends ConsumerState<_FullScreenSearchDialog> {
   final _searchController = TextEditingController();
   final _focusNode = FocusNode();
   final _historyStorage = const MapSearchHistoryStorage();
   final _dateFormat = DateFormat('MM.dd.');
 
   List<MapSearchHistoryItem> _history = const <MapSearchHistoryItem>[];
-  bool _isLoading = true;
+  List<PlaceSearchResult> _results = const <PlaceSearchResult>[];
+  String? _errorMessage;
+  bool _isLoadingHistory = true;
+  bool _isSearching = false;
+  bool _hasActiveSearch = false;
 
   bool get _hasQuery => _searchController.text.trim().isNotEmpty;
 
@@ -165,7 +172,9 @@ class _FullScreenSearchDialogState extends State<_FullScreenSearchDialog> {
   }
 
   void _handleTextChanged() {
-    if (mounted) {
+    if (_searchController.text.trim().isEmpty && _hasActiveSearch) {
+      _resetSearchState();
+    } else if (mounted) {
       setState(() {});
     }
   }
@@ -176,17 +185,67 @@ class _FullScreenSearchDialogState extends State<_FullScreenSearchDialog> {
 
     setState(() {
       _history = history;
-      _isLoading = false;
+      _isLoadingHistory = false;
     });
   }
 
-  Future<void> _submitSearch([String? keyword]) async {
-    final value = (keyword ?? _searchController.text).trim();
-    if (value.isEmpty) return;
-
-    await _historyStorage.add(value);
+  void _resetSearchState() {
     if (!mounted) return;
-    Navigator.of(context).pop(value);
+    setState(() {
+      _results = const <PlaceSearchResult>[];
+      _errorMessage = null;
+      _hasActiveSearch = false;
+      _isSearching = false;
+    });
+  }
+
+  Future<void> _performSearch([String? keyword]) async {
+    final query = (keyword ?? _searchController.text).trim();
+    if (query.isEmpty) {
+      _searchController.clear();
+      _resetSearchState();
+      return;
+    }
+
+    _searchController.text = query;
+    _searchController.selection = TextSelection.fromPosition(
+      TextPosition(offset: query.length),
+    );
+
+    setState(() {
+      _isSearching = true;
+      _hasActiveSearch = true;
+      _results = const <PlaceSearchResult>[];
+      _errorMessage = null;
+    });
+
+    await _historyStorage.add(query);
+    final updatedHistory = await _historyStorage.load();
+
+    try {
+      final repository = ref.read(placeSearchRepositoryProvider);
+      final results = await repository.searchPlaces(query, display: 8);
+      if (!mounted) return;
+
+      setState(() {
+        _history = updatedHistory;
+        _results = results;
+        _errorMessage = results.isEmpty ? '검색 결과가 없어요.' : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _history = updatedHistory;
+        _errorMessage = '검색에 실패했어요. 다시 시도해 주세요.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
+    }
   }
 
   Future<void> _removeHistory(String keyword) async {
@@ -207,6 +266,10 @@ class _FullScreenSearchDialogState extends State<_FullScreenSearchDialog> {
     });
   }
 
+  void _selectResult(PlaceSearchResult item) {
+    Navigator.of(context).pop(item);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -222,9 +285,13 @@ class _FullScreenSearchDialogState extends State<_FullScreenSearchDialog> {
                 child: _SearchBar(
                   controller: _searchController,
                   focusNode: _focusNode,
+                  isSearching: _isSearching,
                   onBack: () => Navigator.of(context).pop(),
-                  onClear: () => _searchController.clear(),
-                  onSubmitted: _submitSearch,
+                  onClear: () {
+                    _searchController.clear();
+                    _resetSearchState();
+                  },
+                  onSubmitted: _performSearch,
                 ),
               ),
               Expanded(
@@ -236,20 +303,7 @@ class _FullScreenSearchDialogState extends State<_FullScreenSearchDialog> {
                       top: Radius.circular(24),
                     ),
                   ),
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _hasQuery
-                      ? _SearchGuide(
-                          keyword: _searchController.text.trim(),
-                          onSearch: () => _submitSearch(),
-                        )
-                      : _SearchHistorySection(
-                          history: _history,
-                          dateFormat: _dateFormat,
-                          onSelect: _submitSearch,
-                          onDelete: _removeHistory,
-                          onClearAll: _clearHistory,
-                        ),
+                  child: _buildBody(),
                 ),
               ),
             ],
@@ -258,11 +312,42 @@ class _FullScreenSearchDialogState extends State<_FullScreenSearchDialog> {
       ),
     );
   }
+
+  Widget _buildBody() {
+    if (_isLoadingHistory) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_hasActiveSearch) {
+      return _SearchResultSection(
+        isSearching: _isSearching,
+        results: _results,
+        errorMessage: _errorMessage,
+        onSelect: _selectResult,
+      );
+    }
+
+    if (_hasQuery) {
+      return _SearchGuide(
+        keyword: _searchController.text.trim(),
+        onSearch: () => _performSearch(),
+      );
+    }
+
+    return _SearchHistorySection(
+      history: _history,
+      dateFormat: _dateFormat,
+      onSelect: _performSearch,
+      onDelete: _removeHistory,
+      onClearAll: _clearHistory,
+    );
+  }
 }
 
 class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
+  final bool isSearching;
   final VoidCallback onBack;
   final VoidCallback onClear;
   final ValueChanged<String> onSubmitted;
@@ -270,6 +355,7 @@ class _SearchBar extends StatelessWidget {
   const _SearchBar({
     required this.controller,
     required this.focusNode,
+    required this.isSearching,
     required this.onBack,
     required this.onClear,
     required this.onSubmitted,
@@ -321,7 +407,9 @@ class _SearchBar extends StatelessWidget {
             ),
           const SizedBox(width: 8),
           FilledButton(
-            onPressed: hasText ? () => onSubmitted(controller.text) : null,
+            onPressed: isSearching || !hasText
+                ? null
+                : () => onSubmitted(controller.text),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -331,7 +419,16 @@ class _SearchBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Icon(Icons.search),
+            child: isSearching
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.search),
           ),
         ],
       ),
@@ -399,6 +496,114 @@ class _SearchGuide extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SearchResultSection extends StatelessWidget {
+  final bool isSearching;
+  final List<PlaceSearchResult> results;
+  final String? errorMessage;
+  final ValueChanged<PlaceSearchResult> onSelect;
+
+  const _SearchResultSection({
+    required this.isSearching,
+    required this.results,
+    required this.errorMessage,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isSearching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      itemCount: results.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final item = results[index];
+        return Material(
+          color: AppColors.chipBackground,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            onTap: () => onSelect(item),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: AppColors.backgroundLight,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.place_rounded,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          MapHomePlaceLogic.resolveAddress(item),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

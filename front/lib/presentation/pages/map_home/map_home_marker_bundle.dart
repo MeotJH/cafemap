@@ -19,7 +19,6 @@ class MapHomeMarkerBundle {
   factory MapHomeMarkerBundle.fromData({
     required List<StoreSummary> reviewedStores,
     required List<PlaceSearchResult> newPlaces,
-    required List<PlaceSearchResult> searchResults,
     required PlaceSearchResult? selectedPlace,
     required String reviewedCafeMarkerIconUrl,
   }) {
@@ -42,19 +41,10 @@ class MapHomeMarkerBundle {
         .whereType<MapMarkerData>()
         .toList();
 
-    final searchResultMarkers = searchResults
-        .where(
-          (place) => !newPlaces.any((item) => item.placeId == place.placeId),
-        )
-        .map(_placeMarker)
-        .whereType<MapMarkerData>()
-        .toList();
-
     final selectedPlaceMarker = (() {
       final place = selectedPlace;
       if (place == null) return null;
-      if (newPlaces.any((item) => item.placeId == place.placeId) ||
-          searchResults.any((item) => item.placeId == place.placeId)) {
+      if (newPlaces.any((item) => item.placeId == place.placeId)) {
         return null;
       }
       return _placeMarker(place);
@@ -62,7 +52,6 @@ class MapHomeMarkerBundle {
 
     final placeItems = [
       ...newPlaces,
-      ...searchResults,
       ...[if (selectedPlace != null) selectedPlace],
     ];
 
@@ -70,7 +59,6 @@ class MapHomeMarkerBundle {
       markers: [
         ...reviewedMarkers,
         ...newPlaceMarkers,
-        ...searchResultMarkers,
         ...[if (selectedPlaceMarker != null) selectedPlaceMarker],
       ],
       storeById: {for (final store in reviewedStores) store.id: store},

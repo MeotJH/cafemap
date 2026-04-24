@@ -1,23 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:front/presentation/pages/map_home/map_search_page.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/domain/entities/place_search_result.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/presentation/pages/map_home/map_home_place_logic.dart';
+import 'package:front/presentation/pages/map_home/map_search_page.dart';
 
 class MapHomeTopOverlay extends StatelessWidget {
   final TextEditingController searchController;
-  final bool isPlaceSearching;
   final bool isSearching;
-  final List<PlaceSearchResult> searchResults;
-  final String? placeSearchError;
-  final StoreSummary? selectedStore;
   final PlaceSearchResult? selectedPlace;
   final List<PlaceSearchResult> newPlaces;
-  final ValueChanged<String> onSearchSubmitted;
-  final VoidCallback onSearchPressed;
   final VoidCallback onSearchClear;
   final ValueChanged<PlaceSearchResult> onSearchResultSelected;
   final VoidCallback onDiscoverPressed;
@@ -26,20 +20,28 @@ class MapHomeTopOverlay extends StatelessWidget {
   const MapHomeTopOverlay({
     super.key,
     required this.searchController,
-    required this.isPlaceSearching,
     required this.isSearching,
-    required this.searchResults,
-    required this.placeSearchError,
-    required this.selectedStore,
     required this.selectedPlace,
     required this.newPlaces,
-    required this.onSearchSubmitted,
-    required this.onSearchPressed,
     required this.onSearchClear,
     required this.onSearchResultSelected,
     required this.onDiscoverPressed,
     required this.onClearNewPlaces,
   });
+
+  Future<void> _openSearch(BuildContext context) async {
+    final result = await showFullScreenSearchDialog(
+      context,
+      initialQuery: searchController.text,
+    );
+    if (result == null) return;
+
+    searchController.text = result.name;
+    searchController.selection = TextSelection.fromPosition(
+      TextPosition(offset: result.name.length),
+    );
+    onSearchResultSelected(result);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,24 +73,8 @@ class MapHomeTopOverlay extends StatelessWidget {
                       ),
                       child: TextField(
                         readOnly: true,
-                        onTap: () async {
-                          final keyword = await showFullScreenSearchDialog(
-                            context,
-                            initialQuery: searchController.text,
-                          );
-                          if (keyword == null || keyword.trim().isEmpty) {
-                            return;
-                          }
-
-                          searchController.text = keyword;
-                          searchController.selection =
-                              TextSelection.fromPosition(
-                                TextPosition(offset: keyword.length),
-                              );
-                          onSearchSubmitted(keyword);
-                        },
+                        onTap: () => _openSearch(context),
                         controller: searchController,
-                        onSubmitted: onSearchSubmitted,
                         decoration: InputDecoration(
                           hintText: '카페 검색',
                           prefixIcon: const Icon(Icons.search),
@@ -115,7 +101,7 @@ class MapHomeTopOverlay extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: isPlaceSearching ? null : onSearchPressed,
+                    onPressed: () => _openSearch(context),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
@@ -125,32 +111,11 @@ class MapHomeTopOverlay extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: isPlaceSearching
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.search),
+                    child: const Icon(Icons.search),
                   ),
                 ],
               ),
             ),
-            if (selectedStore == null &&
-                selectedPlace == null &&
-                (searchResults.isNotEmpty || placeSearchError != null)) ...[
-              const SizedBox(height: 10),
-              PointerInterceptor(
-                child: MapSearchResultPanel(
-                  results: searchResults,
-                  errorMessage: placeSearchError,
-                  onSelect: onSearchResultSelected,
-                ),
-              ),
-            ],
             const SizedBox(height: 10),
             PointerInterceptor(
               child: Row(
@@ -287,76 +252,6 @@ class MapStatusBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class MapSearchResultPanel extends StatelessWidget {
-  final List<PlaceSearchResult> results;
-  final String? errorMessage;
-  final ValueChanged<PlaceSearchResult> onSelect;
-
-  const MapSearchResultPanel({
-    super.key,
-    required this.results,
-    required this.errorMessage,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 280),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.cardBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 12,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: errorMessage != null
-          ? Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(
-                errorMessage!,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                ),
-              ),
-            )
-          : ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: results.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 1, color: AppColors.cardBorder),
-              itemBuilder: (context, index) {
-                final item = results[index];
-                return ListTile(
-                  leading: const Icon(
-                    Icons.place_outlined,
-                    color: AppColors.primary,
-                  ),
-                  title: Text(
-                    item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    MapHomePlaceLogic.resolveAddress(item),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () => onSelect(item),
-                );
-              },
-            ),
     );
   }
 }

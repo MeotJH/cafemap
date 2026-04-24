@@ -62,8 +62,8 @@ class MapHomeController extends Notifier<MapHomeViewState> {
   }
 
   Future<void> searchNearbyNewPlaces(List<StoreSummary> reviewedStores) async {
-    final viewport = state.viewport ??
-        MapViewportData(lat: state.mapLat, lng: state.mapLng, zoom: 14);
+    final viewport =
+        state.viewport ?? MapViewportData(lat: state.mapLat, lng: state.mapLng, zoom: 14);
 
     state = state.copyWith(
       isSearching: true,
@@ -93,7 +93,7 @@ class MapHomeController extends Notifier<MapHomeViewState> {
       state = state.copyWith(
         newPlaces: filtered,
         searchError: filtered.isEmpty
-            ? '현재 지도 영역에서 새 카페 결과가 없어요. 지도를 이동한 뒤 다시 시도해 주세요.'
+            ? '현재 지도 영역에서는 새 카페를 찾지 못했어요. 지도를 이동한 뒤 다시 시도해 주세요.'
             : null,
       );
     } catch (_) {
@@ -105,46 +105,9 @@ class MapHomeController extends Notifier<MapHomeViewState> {
     }
   }
 
-  Future<void> searchPlaces(String query) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      state = state.copyWith(
-        selectedStore: null,
-        selectedPlace: null,
-        searchResults: const [],
-        placeSearchError: null,
-      );
-      return;
-    }
-
-    state = state.copyWith(
-      isPlaceSearching: true,
-      selectedStore: null,
-      selectedPlace: null,
-      searchResults: const [],
-      placeSearchError: null,
-    );
-
-    try {
-      final repository = ref.read(placeSearchRepositoryProvider);
-      final results = await repository.searchPlaces(trimmed, display: 8);
-      state = state.copyWith(
-        searchResults: results,
-        placeSearchError: results.isEmpty ? '검색 결과가 없어요.' : null,
-      );
-    } catch (_) {
-      state = state.copyWith(
-        placeSearchError: '검색에 실패했어요. 다시 시도해 주세요.',
-      );
-    } finally {
-      state = state.copyWith(isPlaceSearching: false);
-    }
-  }
-
   void clearSearch() {
     state = state.copyWith(
-      searchResults: const [],
-      placeSearchError: null,
+      selectedPlace: null,
     );
   }
 
@@ -154,8 +117,6 @@ class MapHomeController extends Notifier<MapHomeViewState> {
       searchError: null,
       selectedStore: null,
       selectedPlace: null,
-      searchResults: const [],
-      placeSearchError: null,
     );
   }
 
@@ -164,8 +125,6 @@ class MapHomeController extends Notifier<MapHomeViewState> {
       selectedStore: null,
       selectedPlace: item,
       searchError: null,
-      placeSearchError: null,
-      searchResults: const [],
     );
   }
 
@@ -179,5 +138,5 @@ class MapHomeController extends Notifier<MapHomeViewState> {
 
 final mapHomeControllerProvider =
     NotifierProvider<MapHomeController, MapHomeViewState>(
-  MapHomeController.new,
-);
+      MapHomeController.new,
+    );

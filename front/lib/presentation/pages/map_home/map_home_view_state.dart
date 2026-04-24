@@ -7,11 +7,8 @@ const _sentinel = Object();
 
 class MapHomeViewState {
   final List<PlaceSearchResult> newPlaces;
-  final List<PlaceSearchResult> searchResults;
   final bool isSearching;
-  final bool isPlaceSearching;
   final String? searchError;
-  final String? placeSearchError;
   final StoreSummary? selectedStore;
   final PlaceSearchResult? selectedPlace;
   final double mapLat;
@@ -22,11 +19,8 @@ class MapHomeViewState {
 
   const MapHomeViewState({
     required this.newPlaces,
-    required this.searchResults,
     required this.isSearching,
-    required this.isPlaceSearching,
     required this.searchError,
-    required this.placeSearchError,
     required this.selectedStore,
     required this.selectedPlace,
     required this.mapLat,
@@ -42,11 +36,8 @@ class MapHomeViewState {
   }) {
     return MapHomeViewState(
       newPlaces: const [],
-      searchResults: const [],
       isSearching: false,
-      isPlaceSearching: false,
       searchError: null,
-      placeSearchError: null,
       selectedStore: null,
       selectedPlace: null,
       mapLat: defaultLat,
@@ -59,11 +50,8 @@ class MapHomeViewState {
 
   MapHomeViewState copyWith({
     List<PlaceSearchResult>? newPlaces,
-    List<PlaceSearchResult>? searchResults,
     bool? isSearching,
-    bool? isPlaceSearching,
     Object? searchError = _sentinel,
-    Object? placeSearchError = _sentinel,
     Object? selectedStore = _sentinel,
     Object? selectedPlace = _sentinel,
     double? mapLat,
@@ -74,15 +62,10 @@ class MapHomeViewState {
   }) {
     return MapHomeViewState(
       newPlaces: newPlaces ?? this.newPlaces,
-      searchResults: searchResults ?? this.searchResults,
       isSearching: isSearching ?? this.isSearching,
-      isPlaceSearching: isPlaceSearching ?? this.isPlaceSearching,
       searchError: identical(searchError, _sentinel)
           ? this.searchError
           : searchError as String?,
-      placeSearchError: identical(placeSearchError, _sentinel)
-          ? this.placeSearchError
-          : placeSearchError as String?,
       selectedStore: identical(selectedStore, _sentinel)
           ? this.selectedStore
           : selectedStore as StoreSummary?,

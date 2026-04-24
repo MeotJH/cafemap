@@ -206,7 +206,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     final markerBundle = MapHomeMarkerBundle.fromData(
       reviewedStores: reviewedStores,
       newPlaces: state.newPlaces,
-      searchResults: state.searchResults,
       selectedPlace: state.selectedPlace,
       reviewedCafeMarkerIconUrl: _reviewedCafeMarkerIconUrl,
     );
@@ -251,15 +250,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
           ),
           MapHomeTopOverlay(
             searchController: _searchController,
-            isPlaceSearching: state.isPlaceSearching,
             isSearching: state.isSearching,
-            searchResults: state.searchResults,
-            placeSearchError: state.placeSearchError,
-            selectedStore: state.selectedStore,
             selectedPlace: state.selectedPlace,
             newPlaces: state.newPlaces,
-            onSearchSubmitted: notifier.searchPlaces,
-            onSearchPressed: () => notifier.searchPlaces(_searchController.text),
             onSearchClear: () {
               _searchController.clear();
               notifier.clearSearch();
