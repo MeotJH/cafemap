@@ -34,6 +34,7 @@ class AppLocationState {
 class AppLocationController extends Notifier<AppLocationState> {
   static const double defaultLat = 37.5665;
   static const double defaultLng = 126.9780;
+  static const Duration _requestTimeout = Duration(seconds: 8);
 
   @override
   AppLocationState build() {
@@ -46,7 +47,8 @@ class AppLocationController extends Notifier<AppLocationState> {
 
   Future<void> initialize() async {
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled()
+          .timeout(_requestTimeout);
       if (!serviceEnabled) {
         if (kDebugMode) {
           debugPrint(
@@ -56,9 +58,13 @@ class AppLocationController extends Notifier<AppLocationState> {
         return;
       }
 
-      var permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission().timeout(
+        _requestTimeout,
+      );
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        permission = await Geolocator.requestPermission().timeout(
+          _requestTimeout,
+        );
       }
 
       if (permission == LocationPermission.denied ||
@@ -72,15 +78,19 @@ class AppLocationController extends Notifier<AppLocationState> {
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition().timeout(
+        _requestTimeout,
+      );
       state = AppLocationState(
         latitude: position.latitude,
         longitude: position.longitude,
         fromDevice: true,
       );
-    } catch (_) {
+    } catch (error) {
       if (kDebugMode) {
-        debugPrint('[Location] exception -> fallback=$defaultLat,$defaultLng');
+        debugPrint(
+          '[Location] exception($error) -> fallback=$defaultLat,$defaultLng',
+        );
       }
       // ?? ???, ???? ??, ?? ?? ? ?? ??? ????.
     }

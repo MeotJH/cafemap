@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -70,7 +72,6 @@ Future<void> main() async {
     await initNaverMap(clientId);
 
     final container = ProviderContainer();
-    await container.read(currentLocationProvider.notifier).initialize();
 
     runApp(
       UncontrolledProviderScope(
@@ -78,6 +79,10 @@ Future<void> main() async {
         child: const CafeMapApp(),
       ),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(container.read(currentLocationProvider.notifier).initialize());
+    });
   } catch (error, stackTrace) {
     debugPrint('App bootstrap failed: $error');
     debugPrintStack(stackTrace: stackTrace);
