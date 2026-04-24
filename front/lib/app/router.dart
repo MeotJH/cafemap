@@ -111,6 +111,8 @@ final GoRouter appRouter = GoRouter(
           storeName: params['storeName'],
           address: params['address'],
           placeId: params['placeId'],
+          lat: double.tryParse(params['lat'] ?? ''),
+          lng: double.tryParse(params['lng'] ?? ''),
           menuName: params['menuName'],
           brandId: params['brandId'],
           brandName: params['brandName'],

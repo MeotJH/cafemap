@@ -92,6 +92,7 @@ def create_review(db: Session, payload, user_id: str):
 
 
     place_id = (getattr(payload, "placeId", "") or "").strip()
+    payload_coords = _coords_from_payload(payload)
     store = _find_existing_store(
         db,
         brand.id,
@@ -102,7 +103,7 @@ def create_review(db: Session, payload, user_id: str):
 
     if store is None:
 
-        coords = geocode_service.geocode(payload.address)
+        coords = payload_coords or geocode_service.geocode(payload.address)
 
         store = Store(
 
@@ -128,9 +129,11 @@ def create_review(db: Session, payload, user_id: str):
 
         db.add(store)
 
-    elif store.lat == 0.0 and store.lng == 0.0 and payload.address:
+    elif store.lat == 0.0 and store.lng == 0.0:
 
-        coords = geocode_service.geocode(payload.address)
+        coords = payload_coords or (
+            geocode_service.geocode(payload.address) if payload.address else None
+        )
 
         if coords:
 
@@ -581,6 +584,23 @@ def _find_existing_store(
         ):
             return candidate
     return None
+
+
+def _coords_from_payload(payload) -> tuple[float, float] | None:
+    lat = getattr(payload, "lat", None)
+    lng = getattr(payload, "lng", None)
+    if lat is None or lng is None:
+        return None
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return None
+    if lat == 0.0 and lng == 0.0:
+        return None
+    if abs(lat) > 90 or abs(lng) > 180:
+        return None
+    return lat, lng
 
 
 

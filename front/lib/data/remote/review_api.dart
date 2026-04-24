@@ -91,6 +91,8 @@ class ReviewCreateRequest {
   final String storeName;
   final String address;
   final String placeId;
+  final double? lat;
+  final double? lng;
   final String brandId;
   final String menuName;
   final Map<String, double> scores;
@@ -103,6 +105,8 @@ class ReviewCreateRequest {
     required this.storeName,
     required this.address,
     required this.placeId,
+    this.lat,
+    this.lng,
     required this.brandId,
     required this.menuName,
     required this.scores,
@@ -116,6 +120,8 @@ class ReviewCreateRequest {
         'storeName': storeName,
         'address': address,
         'placeId': placeId,
+        'lat': lat,
+        'lng': lng,
         'brandId': brandId,
         'menuName': menuName,
         'scores': scores,

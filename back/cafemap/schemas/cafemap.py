@@ -132,6 +132,8 @@ class ReviewCreateIn(BaseModel):
     storeName: str
     address: str
     placeId: str = ""
+    lat: float | None = None
+    lng: float | None = None
     brandId: str
     menuName: str
     scores: dict[str, float] = Field(default_factory=dict)

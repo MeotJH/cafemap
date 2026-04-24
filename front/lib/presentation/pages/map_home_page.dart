@@ -166,6 +166,8 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         'storeName': item.name,
         'address': MapHomePlaceLogic.resolveAddress(item),
         'placeId': item.placeId,
+        if (item.lat != null) 'lat': item.lat!.toString(),
+        if (item.lng != null) 'lng': item.lng!.toString(),
       },
     );
     context.push(uri.toString());
