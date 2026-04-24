@@ -20,6 +20,10 @@ class StoreDetailPage extends ConsumerStatefulWidget {
 }
 
 class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
+  static const String _coffeeSection = 'coffee';
+  static const String _storeSection = 'store';
+
+  String _selectedSection = _coffeeSection;
   String _selectedCategory = '';
 
   List<MapEntry<String, double>> _scoreEntries(Map<String, double> scores) {
@@ -51,6 +55,15 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
     final allowed =
         categoryRatingDimensions[selectedCategory] ?? const <String>[];
     final filtered = all.where((entry) => allowed.contains(entry.key)).toList();
+    if (filtered.isEmpty) return all;
+    return filtered;
+  }
+
+  List<MapEntry<String, double>> _storeEntries(Map<String, double> scores) {
+    final all = _scoreEntries(scores);
+    final filtered = all
+        .where((entry) => storeExperienceDimensions.contains(entry.key))
+        .toList();
     if (filtered.isEmpty) return all;
     return filtered;
   }
@@ -218,15 +231,92 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                     : (reviewedCategories.isNotEmpty
                                           ? reviewedCategories.first
                                           : '');
-                                final entries = _filteredEntries(
-                                  data.scores,
-                                  selected,
-                                );
+                                final isCoffeeSection =
+                                    _selectedSection == _coffeeSection;
+                                final entries = isCoffeeSection
+                                    ? _filteredEntries(data.scores, selected)
+                                    : _storeEntries(data.scores);
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (reviewedCategories.isNotEmpty) ...[
+                                    SizedBox(
+                                      height: 36,
+                                      child: Row(
+                                        children: [
+                                          ChoiceChip(
+                                            label: const Text('커피'),
+                                            selected:
+                                                _selectedSection ==
+                                                _coffeeSection,
+                                            onSelected: (_) {
+                                              setState(() {
+                                                _selectedSection =
+                                                    _coffeeSection;
+                                              });
+                                            },
+                                            labelStyle: TextStyle(
+                                              color:
+                                                  _selectedSection ==
+                                                      _coffeeSection
+                                                  ? Colors.white
+                                                  : AppColors.textSecondary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            backgroundColor: Colors.white,
+                                            selectedColor: AppColors.primary,
+                                            side: BorderSide(
+                                              color:
+                                                  _selectedSection ==
+                                                      _coffeeSection
+                                                  ? AppColors.primary
+                                                  : AppColors.cardBorder,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          ChoiceChip(
+                                            label: const Text('가게'),
+                                            selected:
+                                                _selectedSection ==
+                                                _storeSection,
+                                            onSelected: (_) {
+                                              setState(() {
+                                                _selectedSection =
+                                                    _storeSection;
+                                              });
+                                            },
+                                            labelStyle: TextStyle(
+                                              color:
+                                                  _selectedSection ==
+                                                      _storeSection
+                                                  ? Colors.white
+                                                  : AppColors.textSecondary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            backgroundColor: Colors.white,
+                                            selectedColor: AppColors.primary,
+                                            side: BorderSide(
+                                              color:
+                                                  _selectedSection ==
+                                                      _storeSection
+                                                  ? AppColors.primary
+                                                  : AppColors.cardBorder,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    if (isCoffeeSection &&
+                                        reviewedCategories.length > 1) ...[
                                       SizedBox(
                                         height: 36,
                                         child: ListView.separated(
@@ -336,6 +426,8 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                   queryParameters: {
                     if (data != null) 'storeName': data.name,
                     if (data != null) 'address': data.address,
+                    if (data != null) 'lat': data.lat.toString(),
+                    if (data != null) 'lng': data.lng.toString(),
                     if (data != null) 'brandName': data.brandName,
                   },
                 );

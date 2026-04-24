@@ -1,6 +1,6 @@
+import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:another_flushbar/flushbar.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
@@ -10,7 +10,6 @@ import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
 import 'package:go_router/go_router.dart';
 
-// 리뷰 상세 화면이다.
 class ReviewDetailPage extends ConsumerWidget {
   final String reviewId;
   final Review? initialReview;
@@ -53,7 +52,7 @@ class ReviewDetailPage extends ConsumerWidget {
             ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
-          await _showTopToast(context, '내 활동은 로그인 후 확인할 수 있어요.');
+          await _showTopToast(context, '활동은 로그인 후에 확인할 수 있어요.');
           if (context.mounted) context.go('/auth');
           return;
         }
@@ -109,14 +108,26 @@ class ReviewDetailPage extends ConsumerWidget {
   }
 }
 
-class _ReviewDetailBody extends StatelessWidget {
+class _ReviewDetailBody extends StatefulWidget {
   final Review review;
 
   const _ReviewDetailBody({required this.review});
 
   @override
+  State<_ReviewDetailBody> createState() => _ReviewDetailBodyState();
+}
+
+class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
+  static const String _coffeeSection = 'coffee';
+  static const String _storeSection = 'store';
+
+  String _selectedSection = _coffeeSection;
+
+  @override
   Widget build(BuildContext context) {
-    final entries = _orderedEntries();
+    final entries = _selectedSection == _coffeeSection
+        ? _orderedCoffeeEntries()
+        : _orderedStoreEntries();
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -128,7 +139,7 @@ class _ReviewDetailBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                review.storeName,
+                widget.review.storeName,
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 16,
@@ -137,7 +148,7 @@ class _ReviewDetailBody extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                review.menuName,
+                widget.review.menuName,
                 style: const TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w800,
@@ -146,7 +157,7 @@ class _ReviewDetailBody extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '${review.createdAt.year}년 ${review.createdAt.month}월 ${review.createdAt.day}일 작성',
+                '${widget.review.createdAt.year}년 ${widget.review.createdAt.month}월 ${widget.review.createdAt.day}일 작성',
                 style: const TextStyle(
                   color: Color(0xFF64748B),
                   fontSize: 17,
@@ -168,7 +179,7 @@ class _ReviewDetailBody extends StatelessWidget {
                   const Icon(Icons.star, size: 56, color: AppColors.ratingStar),
                   const SizedBox(width: 10),
                   Text(
-                    RatingFormatter.score(review.overall),
+                    RatingFormatter.score(widget.review.overall),
                     style: const TextStyle(
                       fontSize: 64,
                       fontWeight: FontWeight.w800,
@@ -208,6 +219,74 @@ class _ReviewDetailBody extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
+              SizedBox(
+                height: 36,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('커피'),
+                      selected: _selectedSection == _coffeeSection,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedSection = _coffeeSection;
+                        });
+                      },
+                      labelStyle: TextStyle(
+                        color: _selectedSection == _coffeeSection
+                            ? Colors.white
+                            : AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      backgroundColor: Colors.white,
+                      selectedColor: AppColors.primary,
+                      side: BorderSide(
+                        color: _selectedSection == _coffeeSection
+                            ? AppColors.primary
+                            : AppColors.cardBorder,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('가게'),
+                      selected: _selectedSection == _storeSection,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedSection = _storeSection;
+                        });
+                      },
+                      labelStyle: TextStyle(
+                        color: _selectedSection == _storeSection
+                            ? Colors.white
+                            : AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      backgroundColor: Colors.white,
+                      selectedColor: AppColors.primary,
+                      side: BorderSide(
+                        color: _selectedSection == _storeSection
+                            ? AppColors.primary
+                            : AppColors.cardBorder,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (entries.isEmpty)
+                const Text(
+                  '표시할 평가 항목이 없어요.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ...entries.expand(
                 (entry) => [
                   _ScoreRow(label: ratingLabel(entry.key), value: entry.value),
@@ -248,7 +327,9 @@ class _ReviewDetailBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  review.comment.isEmpty ? '작성된 코멘트가 없어요.' : review.comment,
+                  widget.review.comment.isEmpty
+                      ? '작성된 코멘트가 없어요.'
+                      : widget.review.comment,
                   style: const TextStyle(
                     fontSize: 16,
                     height: 1.5,
@@ -259,7 +340,7 @@ class _ReviewDetailBody extends StatelessWidget {
             ),
           ),
         ),
-        if (review.imageUrls.isNotEmpty)
+        if (widget.review.imageUrls.isNotEmpty)
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -280,11 +361,11 @@ class _ReviewDetailBody extends StatelessWidget {
                   height: 120,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: review.imageUrls.length,
+                    itemCount: widget.review.imageUrls.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(width: 10),
                     itemBuilder: (context, index) {
-                      final imageUrl = review.imageUrls[index];
+                      final imageUrl = widget.review.imageUrls[index];
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: GestureDetector(
@@ -317,20 +398,27 @@ class _ReviewDetailBody extends StatelessWidget {
     );
   }
 
-  List<MapEntry<String, double>> _orderedEntries() {
-    final preferred = dimensionsForCategory(review.menuCategory);
+  List<MapEntry<String, double>> _orderedCoffeeEntries() {
+    final preferred = dimensionsForCategory(widget.review.menuCategory);
     final result = <MapEntry<String, double>>[];
 
     for (final key in preferred) {
-      final value = review.scores[key];
+      final value = widget.review.scores[key];
       if (value != null) {
         result.add(MapEntry(key, value));
       }
     }
 
-    for (final entry in review.scores.entries) {
-      if (!preferred.contains(entry.key)) {
-        result.add(entry);
+    return result;
+  }
+
+  List<MapEntry<String, double>> _orderedStoreEntries() {
+    final result = <MapEntry<String, double>>[];
+
+    for (final key in storeExperienceDimensions) {
+      final value = widget.review.scores[key];
+      if (value != null) {
+        result.add(MapEntry(key, value));
       }
     }
 
