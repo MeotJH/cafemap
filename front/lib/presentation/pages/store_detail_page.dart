@@ -6,6 +6,7 @@ import 'package:front/core/constants/rating_dimensions.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/utils/auth_navigation.dart';
+import 'package:front/presentation/utils/place_external_link.dart';
 import 'package:front/presentation/widgets/review_card.dart';
 import 'package:go_router/go_router.dart';
 
@@ -95,13 +96,46 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                   data: (data) => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        data.name,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1F1F1F),
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              data.name,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1F1F1F),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          TextButton.icon(
+                            onPressed: () => openPlaceExternalLink(
+                              name: data.name,
+                              address: data.address,
+                            ),
+                            icon: const Icon(
+                              Icons.open_in_new_rounded,
+                              size: 18,
+                            ),
+                            label: const Text('가게 보기'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              backgroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              side: const BorderSide(
+                                color: AppColors.cardBorder,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(

@@ -1,13 +1,11 @@
 // ignore_for_file: use_null_aware_elements
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:front/domain/entities/place_search_result.dart';
 import 'package:front/domain/entities/store_summary.dart';
@@ -18,7 +16,7 @@ import 'package:front/presentation/providers/app_providers.dart';
 import 'package:front/presentation/providers/map_home_provider.dart';
 import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/utils/auth_navigation.dart';
-import 'package:front/presentation/utils/external_link.dart';
+import 'package:front/presentation/utils/place_external_link.dart';
 import 'package:front/presentation/widgets/naver_map_view.dart';
 
 class MapHomePage extends ConsumerStatefulWidget {
@@ -174,21 +172,10 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   }
 
   Future<void> _openPlaceLink(PlaceSearchResult item) async {
-    final link = item.link.trim();
-    if (link.isEmpty) return;
-
-    final uri = Uri.tryParse(link);
-    if (uri == null) return;
-
-    if (kIsWeb) {
-      await openExternalLink(uri.toString(), target: '_blank');
-      return;
-    }
-
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-      webOnlyWindowName: '_blank',
+    await openPlaceExternalLink(
+      name: item.name,
+      address: MapHomePlaceLogic.resolveAddress(item),
+      directLink: item.link,
     );
   }
 

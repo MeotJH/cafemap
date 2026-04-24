@@ -6,6 +6,7 @@ import 'package:front/domain/entities/place_search_result.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/presentation/pages/map_home/map_home_place_logic.dart';
 import 'package:front/presentation/pages/map_home/map_search_page.dart';
+import 'package:front/presentation/utils/place_external_link.dart';
 
 class MapHomeTopOverlay extends StatelessWidget {
   final TextEditingController searchController;
@@ -347,7 +348,11 @@ class NewCafeBottomCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final address = MapHomePlaceLogic.resolveAddress(place);
-    final hasLink = place.link.trim().isNotEmpty;
+    final hasLink = hasPlaceExternalLink(
+      name: place.name,
+      address: address,
+      directLink: place.link,
+    );
     return Material(
       color: Colors.transparent,
       child: InkWell(
