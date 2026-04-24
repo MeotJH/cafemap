@@ -320,7 +320,7 @@ def get_ranking_breakdown(ranking_id: str, db: Session = Depends(get_db)):
 
         scores=scores,
 
-        overall=compute_overall(scores, fallback=aggregate.rating),
+        overall=aggregate.rating,
 
     )
 
@@ -579,7 +579,7 @@ def get_store_breakdown(store_id: str, db: Session = Depends(get_db)):
 
         scores=scores,
 
-        overall=compute_overall(scores, fallback=aggregate.rating),
+        overall=aggregate.rating,
 
     )
 
