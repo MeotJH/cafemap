@@ -5,7 +5,8 @@ import 'package:front/presentation/pages/main_shell.dart';
 import 'package:front/presentation/pages/map_home_page.dart';
 import 'package:front/presentation/pages/my_activity_page.dart';
 import 'package:front/presentation/pages/ranking_detail_page.dart';
-import 'package:front/presentation/pages/ranking_home_page.dart';
+import 'package:front/presentation/pages/ranking_home/ranking_home_cafe.dart';
+import 'package:front/presentation/pages/ranking_home/ranking_home_menu.dart';
 import 'package:front/presentation/pages/review_detail_page.dart';
 import 'package:front/presentation/pages/review_write_page.dart';
 import 'package:front/presentation/pages/store_select_page.dart';
@@ -32,7 +33,7 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/ranking',
           builder: (BuildContext context, GoRouterState state) {
-            return const RankingHomePage();
+            return const RankingHomeCafe();
           },
           routes: <RouteBase>[
             GoRoute(
@@ -58,7 +59,7 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/menu-ranking',
           builder: (BuildContext context, GoRouterState state) {
-            return const RankingHomePage.menu();
+            return const RankingHomeMenu();
           },
           routes: <RouteBase>[
             GoRoute(
