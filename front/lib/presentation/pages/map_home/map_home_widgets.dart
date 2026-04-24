@@ -70,8 +70,22 @@ class MapHomeTopOverlay extends StatelessWidget {
                         ],
                       ),
                       child: TextField(
-                        onTap: () {
-                          showFullScreenSearchDialog(context);
+                        readOnly: true,
+                        onTap: () async {
+                          final keyword = await showFullScreenSearchDialog(
+                            context,
+                            initialQuery: searchController.text,
+                          );
+                          if (keyword == null || keyword.trim().isEmpty) {
+                            return;
+                          }
+
+                          searchController.text = keyword;
+                          searchController.selection =
+                              TextSelection.fromPosition(
+                                TextPosition(offset: keyword.length),
+                              );
+                          onSearchSubmitted(keyword);
                         },
                         controller: searchController,
                         onSubmitted: onSearchSubmitted,
@@ -100,14 +114,18 @@ class MapHomeTopOverlay extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton.filled(
+                  FilledButton(
                     onPressed: isPlaceSearching ? null : onSearchPressed,
-                    style: IconButton.styleFrom(
+                    style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      minimumSize: const Size(52, 52),
+                      minimumSize: const Size(68, 52),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    icon: isPlaceSearching
+                    child: isPlaceSearching
                         ? const SizedBox(
                             width: 18,
                             height: 18,
