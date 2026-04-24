@@ -1,11 +1,8 @@
 from cafemap.repositories import geocode_repository
 
 
-# ???? ???? ?? ????.
-
-
 def geocode(address: str):
-    # ??? ??? ???? `(lat, lng)`? ????.
+    # 첫 번째 geocode 결과를 `(lat, lng)` 튜플로 정규화한다.
     payload = geocode_repository.geocode_address(address)
     addresses = payload.get("addresses", [])
     if not addresses:
