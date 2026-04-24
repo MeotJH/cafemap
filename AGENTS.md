@@ -23,6 +23,14 @@ Apply ECC-style harness engineering here by keeping instructions stable, task ex
 - Do not overwrite visibly garbled text blindly; verify file encoding first and preserve or restore UTF-8 text safely.
 - Follow commit message prefixes: `feat(scope): ...`, `fix(scope): ...`, `refactor(scope): ...`, `chore(scope): ...`, `docs(scope): ...`, `style(scope): ...`, `test(scope): ...`.
 
+## Frontend Architecture Rules
+
+- For Flutter refactors, page boundaries should follow route boundaries before convenience of extraction.
+- Before restructuring a frontend page, inspect `front/lib/app/router.dart` and align file boundaries to the existing route structure first.
+- If two screens already have separate routes, do not keep them under one page widget with internal mode switching unless there is a clear lifecycle or shared-state reason.
+- Prefer per-route page files plus shared widgets/helpers over a single container page that branches by mode.
+- Use container pages only when one route owns multiple local sections or tabs that genuinely share lifecycle and state.
+
 ## Project-Specific Notes
 
 - Rating dimension logic exists in both frontend and backend:
