@@ -396,6 +396,8 @@ def list_stores(request: Request, db: Session = Depends(get_db)):
 
             address=store.address,
 
+            link=store.link,
+
             rating=aggregate.rating,
 
             displayScore=_display_score_for_store(aggregate),
@@ -454,6 +456,8 @@ def list_store_rankings(request: Request, db: Session = Depends(get_db)):
             storeType=_store_type_for_response(store),
 
             isLocal=_is_local_store(store),
+
+            link=store.link,
 
             rating=aggregate.rating,
 
@@ -522,6 +526,8 @@ def get_store_detail(store_id: str, request: Request, db: Session = Depends(get_
         isLocal=_is_local_store(store),
 
         address=store.address,
+
+        link=store.link,
 
         rating=aggregate.rating,
 

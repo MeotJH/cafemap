@@ -77,6 +77,8 @@ class _StoreSelectPageState extends ConsumerState<StoreSelectPage> {
       queryParameters: {
         'storeName': item.name,
         'address': address,
+        'placeId': item.placeId,
+        'link': item.link,
         if (item.lat != null) 'lat': item.lat!.toString(),
         if (item.lng != null) 'lng': item.lng!.toString(),
         'menuName': widget.menuName,

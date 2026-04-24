@@ -114,6 +114,8 @@ class Store(Base):
 
     place_id: Mapped[str] = mapped_column(String(120), default="")
 
+    link: Mapped[str] = mapped_column(String(1000), default="")
+
     distance_km: Mapped[float] = mapped_column(Float)
 
     lat: Mapped[float] = mapped_column(Float, default=0.0)
@@ -211,6 +213,5 @@ class Review(Base):
     comment: Mapped[str] = mapped_column(String(500))
 
     created_at: Mapped[datetime] = mapped_column(DateTime)
-
 
 

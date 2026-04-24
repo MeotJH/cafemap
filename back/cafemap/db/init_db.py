@@ -141,7 +141,7 @@ def _migrate_scores_json_columns(db: Session):
         "review": ("scores_json", "overall", "user_id", "image_urls_json"),
         "brand_menu_aggregate": ("scores_json",),
         "store_aggregate": ("scores_json", "counts_json"),
-        "store": ("store_type", "place_id"),
+        "store": ("store_type", "place_id", "link"),
     }
     for table_name, needed_columns in targets.items():
         columns = db.execute(text(f"PRAGMA table_info('{table_name}')")).fetchall()
@@ -184,6 +184,13 @@ def _migrate_scores_json_columns(db: Session):
                     text(
                         f"ALTER TABLE {table_name} "
                         "ADD COLUMN place_id VARCHAR NOT NULL DEFAULT ''"
+                    )
+                )
+            elif column_name == "link":
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        "ADD COLUMN link VARCHAR NOT NULL DEFAULT ''"
                     )
                 )
             else:
@@ -480,6 +487,7 @@ def seed_if_empty(db: Session):
                     address=str(seed["address"]),
                     store_type=store_type,
                     place_id=store_id,
+                    link="",
                     distance_km=0.8,
                     lat=float(seed["lat"]),
                     lng=float(seed["lng"]),
@@ -493,6 +501,7 @@ def seed_if_empty(db: Session):
                 existing_store.address = str(seed["address"])
                 existing_store.store_type = store_type
                 existing_store.place_id = existing_store.place_id or store_id
+                existing_store.link = existing_store.link or ""
                 existing_store.distance_km = 0.8
                 existing_store.lat = float(seed["lat"])
                 existing_store.lng = float(seed["lng"])

@@ -92,6 +92,7 @@ def create_review(db: Session, payload, user_id: str):
 
 
     place_id = (getattr(payload, "placeId", "") or "").strip()
+    place_link = (getattr(payload, "link", "") or "").strip()
     payload_coords = _coords_from_payload(payload)
     store = _find_existing_store(
         db,
@@ -119,6 +120,8 @@ def create_review(db: Session, payload, user_id: str):
 
             place_id=place_id,
 
+            link=place_link,
+
             distance_km=0.0,
 
             lat=coords[0] if coords else 0.0,
@@ -141,6 +144,8 @@ def create_review(db: Session, payload, user_id: str):
 
     if store is not None and place_id and not store.place_id:
         store.place_id = place_id
+    if store is not None and place_link and not store.link:
+        store.link = place_link
 
 
 

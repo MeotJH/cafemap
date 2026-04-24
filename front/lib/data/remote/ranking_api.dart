@@ -56,6 +56,7 @@ StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
     brandName: json['brandName'] as String? ?? '',
     storeType: json['storeType'] as String? ?? 'unknown',
     isLocal: json['isLocal'] as bool? ?? false,
+    link: json['link'] as String? ?? '',
     rating: (json['rating'] as num?)?.toDouble() ?? 0,
     displayScore: (json['displayScore'] as num?)?.toDouble() ?? 0,
     reviewCount: json['reviewCount'] as int? ?? 0,

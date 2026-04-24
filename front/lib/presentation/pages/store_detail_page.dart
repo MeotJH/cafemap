@@ -114,6 +114,7 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                             onPressed: () => openPlaceExternalLink(
                               name: data.name,
                               address: data.address,
+                              directLink: data.link,
                             ),
                             icon: const Icon(
                               Icons.open_in_new_rounded,
@@ -460,6 +461,7 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                   queryParameters: {
                     if (data != null) 'storeName': data.name,
                     if (data != null) 'address': data.address,
+                    if (data != null && data.link.isNotEmpty) 'link': data.link,
                     if (data != null) 'lat': data.lat.toString(),
                     if (data != null) 'lng': data.lng.toString(),
                     if (data != null) 'brandName': data.brandName,

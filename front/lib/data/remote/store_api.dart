@@ -52,6 +52,7 @@ StoreSummary _storeFromJson(Map<String, dynamic> json) {
     storeType: json['storeType'] as String? ?? 'unknown',
     isLocal: json['isLocal'] as bool? ?? false,
     address: json['address'] as String? ?? '',
+    link: json['link'] as String? ?? '',
     rating: (json['rating'] as num?)?.toDouble() ?? 0,
     displayScore: (json['displayScore'] as num?)?.toDouble() ?? 0,
     reviewCount: json['reviewCount'] as int? ?? 0,

@@ -31,6 +31,7 @@ class StoreSummaryOut(BaseModel):
     storeType: str
     isLocal: bool
     address: str
+    link: str = ""
     rating: float
     displayScore: float = 0.0
     reviewCount: int
@@ -55,6 +56,7 @@ class StoreRankingOut(BaseModel):
     brandName: str
     storeType: str
     isLocal: bool
+    link: str = ""
     rating: float
     displayScore: float
     reviewCount: int
@@ -132,6 +134,7 @@ class ReviewCreateIn(BaseModel):
     storeName: str
     address: str
     placeId: str = ""
+    link: str = ""
     lat: float | None = None
     lng: float | None = None
     brandId: str

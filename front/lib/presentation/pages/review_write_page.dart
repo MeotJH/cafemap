@@ -27,6 +27,7 @@ class ReviewWritePage extends ConsumerStatefulWidget {
   final String? storeName;
   final String? address;
   final String? placeId;
+  final String? link;
   final double? lat;
   final double? lng;
   final String? menuName;
@@ -38,6 +39,7 @@ class ReviewWritePage extends ConsumerStatefulWidget {
     this.storeName,
     this.address,
     this.placeId,
+    this.link,
     this.lat,
     this.lng,
     this.menuName,
@@ -297,6 +299,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
           storeName: storeName,
           address: widget.address ?? '',
           placeId: widget.placeId ?? '',
+          link: widget.link ?? '',
           lat: widget.lat,
           lng: widget.lng,
           brandId: _selectedBrand!.id,

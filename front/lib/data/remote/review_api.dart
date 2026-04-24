@@ -91,6 +91,7 @@ class ReviewCreateRequest {
   final String storeName;
   final String address;
   final String placeId;
+  final String link;
   final double? lat;
   final double? lng;
   final String brandId;
@@ -105,6 +106,7 @@ class ReviewCreateRequest {
     required this.storeName,
     required this.address,
     required this.placeId,
+    required this.link,
     this.lat,
     this.lng,
     required this.brandId,
@@ -120,6 +122,7 @@ class ReviewCreateRequest {
         'storeName': storeName,
         'address': address,
         'placeId': placeId,
+        'link': link,
         'lat': lat,
         'lng': lng,
         'brandId': brandId,

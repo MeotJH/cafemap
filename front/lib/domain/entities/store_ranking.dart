@@ -5,6 +5,7 @@ class StoreRanking {
   final String brandName;
   final String storeType;
   final bool isLocal;
+  final String link;
   final double rating;
   final double displayScore;
   final int reviewCount;
@@ -28,6 +29,7 @@ class StoreRanking {
     required this.brandName,
     required this.storeType,
     required this.isLocal,
+    required this.link,
     required this.rating,
     required this.displayScore,
     required this.reviewCount,

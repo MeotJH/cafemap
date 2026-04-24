@@ -6,6 +6,7 @@ class StoreSummary {
   final String storeType;
   final bool isLocal;
   final String address;
+  final String link;
   final double rating;
   final double displayScore;
   final int reviewCount;
@@ -29,6 +30,7 @@ class StoreSummary {
     required this.storeType,
     required this.isLocal,
     required this.address,
+    required this.link,
     required this.rating,
     required this.displayScore,
     required this.reviewCount,
