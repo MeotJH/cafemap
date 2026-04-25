@@ -14,7 +14,9 @@ from cafemap.core.rating_dimensions import (
     normalize_scores,
     normalize_store_scores,
     scores_json_dumps,
+    scores_json_loads,
     top_highlights,
+    visible_scores_for_category,
 )
 from cafemap.core.config import SEED_CATALOG_ON_STARTUP, SEED_SAMPLE_DATA_ON_STARTUP
 from cafemap.db.brand_catalog import BRAND_CATALOG
@@ -74,6 +76,7 @@ def init_db():
     with Session(engine) as db:
         _migrate_scores_json_columns(db)
         _backfill_menu_categories(db)
+        _backfill_brand_menu_highlights(db)
         if SEED_CATALOG_ON_STARTUP:
             seed_if_empty(db)
         else:
@@ -178,6 +181,24 @@ def _backfill_menu_categories(db: Session):
     menus = db.scalars(select(Menu)).all()
     for menu in menus:
         menu.category = _normalized_menu_category(menu.name, menu.category)
+
+
+def _backfill_brand_menu_highlights(db: Session):
+    rows = db.execute(
+        select(BrandMenuAggregate, Menu.category).join(
+            Menu,
+            Menu.id == BrandMenuAggregate.menu_id,
+        )
+    ).all()
+    for aggregate, menu_category in rows:
+        scores = scores_json_loads(aggregate.scores_json)
+        highlights = top_highlights(
+            visible_scores_for_category(menu_category, scores)
+        )
+        aggregate.highlight_label_a = highlights[0][0]
+        aggregate.highlight_score_a = highlights[0][1]
+        aggregate.highlight_label_b = highlights[1][0]
+        aggregate.highlight_score_b = highlights[1][1]
 
 
 def _brand_seeds() -> list[Brand]:
@@ -336,9 +357,9 @@ def _store_type_for_brand(brand_id: str) -> str:
 
 
 def _default_temperature_option(category: str) -> str:
-    if category in {"커피", "라떼", "차", "핸드드립"}:
+    if category in {"coffee", "latte", "tea", "hand_drip"}:
         return "hot"
-    if category == "콜드브루":
+    if category == "cold_brew":
         return "ice"
     return ""
 

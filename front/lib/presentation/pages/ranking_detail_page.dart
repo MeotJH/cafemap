@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
@@ -17,9 +17,17 @@ class RankingDetailPage extends ConsumerWidget {
   const RankingDetailPage({super.key, required this.rankingId, this.ranking});
 
   List<MapEntry<String, double>> _scoreEntries(Map<String, double> scores) {
-    final entries = scores.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return entries;
+    final allowed = ranking == null
+        ? null
+        : dimensionsForCategory(ranking!.category).toSet();
+    final source = allowed == null
+        ? scores.entries
+        : scores.entries.where((entry) => allowed.contains(entry.key));
+    final entries = source.toList()..sort((a, b) => b.value.compareTo(a.value));
+    if (entries.isNotEmpty || allowed == null) {
+      return entries;
+    }
+    return scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
   }
 
   @override

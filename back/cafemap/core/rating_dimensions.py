@@ -2,7 +2,7 @@ import json
 
 
 CATEGORY_RATING_DIMENSIONS = {
-    "커피": [
+    "coffee": [
         "coffee_quality",
         "acidity_balance",
         "body",
@@ -10,7 +10,7 @@ CATEGORY_RATING_DIMENSIONS = {
         "temperature",
         "value",
     ],
-    "라떼": [
+    "latte": [
         "coffee_quality",
         "milk_balance",
         "texture",
@@ -18,7 +18,7 @@ CATEGORY_RATING_DIMENSIONS = {
         "temperature",
         "value",
     ],
-    "콜드브루": [
+    "cold_brew": [
         "coffee_quality",
         "clean_finish",
         "body",
@@ -26,7 +26,7 @@ CATEGORY_RATING_DIMENSIONS = {
         "ice_balance",
         "value",
     ],
-    "핸드드립": [
+    "hand_drip": [
         "coffee_quality",
         "aroma",
         "acidity_balance",
@@ -34,7 +34,7 @@ CATEGORY_RATING_DIMENSIONS = {
         "aftertaste",
         "value",
     ],
-    "차": [
+    "tea": [
         "flavor_balance",
         "sweetness",
         "texture",
@@ -42,15 +42,7 @@ CATEGORY_RATING_DIMENSIONS = {
         "portion",
         "value",
     ],
-    "시그니처": [
-        "signature_balance",
-        "coffee_quality",
-        "sweetness",
-        "texture",
-        "visuals",
-        "value",
-    ],
-    "디저트음료": [
+    "dessert": [
         "flavor_balance",
         "sweetness",
         "texture",
@@ -60,7 +52,29 @@ CATEGORY_RATING_DIMENSIONS = {
     ],
 }
 
-FALLBACK_CATEGORY = "커피"
+CATEGORY_ALIASES = {
+    "coffee": "coffee",
+    "커피": "coffee",
+    "latte": "latte",
+    "라떼": "latte",
+    "cold_brew": "cold_brew",
+    "coldbrew": "cold_brew",
+    "콜드브루": "cold_brew",
+    "hand_drip": "hand_drip",
+    "handdrip": "hand_drip",
+    "핸드드립": "hand_drip",
+    "tea": "tea",
+    "차": "tea",
+    "signature": "coffee",
+    "시그니처": "coffee",
+    "dessert": "dessert",
+    "디저트": "dessert",
+    "디저트음료": "dessert",
+}
+
+LEGACY_HIGHLIGHT_DIMENSIONS = {"signature_balance"}
+
+FALLBACK_CATEGORY = "coffee"
 
 STORE_EXPERIENCE_DIMENSIONS = [
     "atmosphere",
@@ -107,6 +121,9 @@ def normalize_category(category: str | None) -> str:
     value = (category or "").strip()
     if value in CATEGORY_RATING_DIMENSIONS:
         return value
+    alias = CATEGORY_ALIASES.get(value)
+    if alias in CATEGORY_RATING_DIMENSIONS:
+        return alias
     return FALLBACK_CATEGORY
 
 
@@ -118,6 +135,29 @@ def normalize_scores(category: str | None, scores: dict[str, float]) -> dict[str
         value = float(raw)
         normalized[key] = max(0.0, min(5.0, value))
     return normalized
+
+
+def visible_scores_for_category(
+    category: str | None,
+    scores: dict[str, float] | None,
+) -> dict[str, float]:
+    source = scores or {}
+    allowed = CATEGORY_RATING_DIMENSIONS[normalize_category(category)]
+    filtered = {
+        key: float(source[key])
+        for key in allowed
+        if key in source
+    }
+    if filtered:
+        return filtered
+    without_legacy = {
+        key: float(value)
+        for key, value in source.items()
+        if key not in LEGACY_HIGHLIGHT_DIMENSIONS
+    }
+    if without_legacy:
+        return without_legacy
+    return {key: float(value) for key, value in source.items()}
 
 
 def normalize_store_scores(scores: dict[str, float] | None) -> dict[str, float]:
@@ -140,7 +180,13 @@ def compute_overall(scores: dict[str, float], fallback: float = 0.0) -> float:
 def top_highlights(scores: dict[str, float]) -> list[tuple[str, float]]:
     if not scores:
         return [("평가 없음", 0.0), ("평가 없음", 0.0)]
-    ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    visible_scores = [
+        item
+        for item in scores.items()
+        if item[0] not in LEGACY_HIGHLIGHT_DIMENSIONS
+    ]
+    source = visible_scores or list(scores.items())
+    ordered = sorted(source, key=lambda item: item[1], reverse=True)
     padded = (ordered + [("평가 없음", 0.0), ("평가 없음", 0.0)])[:2]
     return [(RATING_DIMENSION_LABELS.get(key, key), value) for key, value in padded]
 

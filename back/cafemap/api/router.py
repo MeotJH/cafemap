@@ -14,7 +14,12 @@ from cafemap.db.session import get_db
 
 from cafemap.models.entities import Menu
 
-from cafemap.core.rating_dimensions import compute_overall, scores_json_loads, top_highlights
+from cafemap.core.rating_dimensions import (
+    compute_overall,
+    scores_json_loads,
+    top_highlights,
+    visible_scores_for_category,
+)
 
 from cafemap.services.auth_service import (
 
@@ -163,6 +168,43 @@ def _scores_from_snapshot(
     return scores_json_loads(scores_json)
 
 
+def _menu_highlights(category: str | None, raw_scores: str | None) -> list[tuple[str, float]]:
+
+    scores = _scores_from_snapshot(raw_scores)
+    visible_scores = visible_scores_for_category(category, scores)
+    return top_highlights(visible_scores)
+
+
+def _ranking_out(
+    *,
+    request: Request,
+    aggregate,
+    brand_name: str,
+    brand_logo_url: str,
+    menu_name: str,
+    menu_category: str,
+    menu_image_url: str,
+) -> BrandMenuRankingOut:
+
+    highlights = _menu_highlights(menu_category, aggregate.scores_json)
+    return BrandMenuRankingOut(
+        id=aggregate.id,
+        brandId=aggregate.brand_id,
+        menuId=aggregate.menu_id,
+        brandName=brand_name,
+        menuName=menu_name,
+        category=menu_category,
+        rating=aggregate.rating,
+        reviewCount=aggregate.review_count,
+        highlightScoreA=highlights[0][1],
+        highlightLabelA=highlights[0][0],
+        highlightScoreB=highlights[1][1],
+        highlightLabelB=highlights[1][0],
+        imageUrl=menu_image_url,
+        brandLogoUrl=_resolve_asset_url(request, brand_logo_url),
+    )
+
+
 
 
 
@@ -259,37 +301,14 @@ def list_rankings(request: Request, db: Session = Depends(get_db)):
     rows = brand_menu_service.get_rankings(db)
 
     return [
-
-        BrandMenuRankingOut(
-
-            id=aggregate.id,
-
-            brandId=aggregate.brand_id,
-
-            menuId=aggregate.menu_id,
-
-            brandName=brand_name,
-
-            menuName=menu_name,
-
-            category=menu_category,
-
-            rating=aggregate.rating,
-
-            reviewCount=aggregate.review_count,
-
-            highlightScoreA=aggregate.highlight_score_a,
-
-            highlightLabelA=aggregate.highlight_label_a,
-
-            highlightScoreB=aggregate.highlight_score_b,
-
-            highlightLabelB=aggregate.highlight_label_b,
-
-            imageUrl=menu_image_url,
-
-            brandLogoUrl=_resolve_asset_url(request, brand_logo_url),
-
+        _ranking_out(
+            request=request,
+            aggregate=aggregate,
+            brand_name=brand_name,
+            brand_logo_url=brand_logo_url,
+            menu_name=menu_name,
+            menu_category=menu_category,
+            menu_image_url=menu_image_url,
         )
 
         for aggregate, brand_name, brand_logo_url, menu_name, menu_category, menu_image_url in rows
@@ -312,7 +331,11 @@ def get_ranking_breakdown(ranking_id: str, db: Session = Depends(get_db)):
 
         raise HTTPException(status_code=404, detail="Ranking not found")
 
-    scores = _scores_from_snapshot(aggregate.scores_json)
+    menu = db.get(Menu, aggregate.menu_id)
+    scores = visible_scores_for_category(
+        menu.category if menu is not None else None,
+        _scores_from_snapshot(aggregate.scores_json),
+    )
 
 
 

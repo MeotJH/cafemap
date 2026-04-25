@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:front/core/constants/app_colors.dart';
+import 'package:front/core/constants/rating_dimensions.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/brand_menu_ranking.dart';
@@ -305,7 +306,8 @@ class _ContentPanel extends StatelessWidget {
   }
 
   String _summaryText() {
-    return '${ranking.category} 카테고리에서 ${ranking.highlightLabelA} '
+    final categoryLabel = ratingCategoryLabel(ranking.category);
+    return '$categoryLabel 카테고리에서 ${ranking.highlightLabelA} '
         '${RatingFormatter.score(ranking.highlightScoreA)}, '
         '${ranking.highlightLabelB} ${RatingFormatter.score(ranking.highlightScoreB)}로 '
         '균형 잡힌 만족감을 보여주는 메뉴예요.';

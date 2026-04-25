@@ -1,5 +1,5 @@
 const Map<String, List<String>> categoryRatingDimensions = {
-  '커피': [
+  'coffee': [
     'coffee_quality',
     'acidity_balance',
     'body',
@@ -7,7 +7,7 @@ const Map<String, List<String>> categoryRatingDimensions = {
     'temperature',
     'value',
   ],
-  '라떼': [
+  'latte': [
     'coffee_quality',
     'milk_balance',
     'texture',
@@ -15,7 +15,7 @@ const Map<String, List<String>> categoryRatingDimensions = {
     'temperature',
     'value',
   ],
-  '콜드브루': [
+  'cold_brew': [
     'coffee_quality',
     'clean_finish',
     'body',
@@ -23,7 +23,7 @@ const Map<String, List<String>> categoryRatingDimensions = {
     'ice_balance',
     'value',
   ],
-  '핸드드립': [
+  'hand_drip': [
     'coffee_quality',
     'aroma',
     'acidity_balance',
@@ -31,7 +31,7 @@ const Map<String, List<String>> categoryRatingDimensions = {
     'aftertaste',
     'value',
   ],
-  '차': [
+  'tea': [
     'flavor_balance',
     'sweetness',
     'texture',
@@ -39,15 +39,7 @@ const Map<String, List<String>> categoryRatingDimensions = {
     'portion',
     'value',
   ],
-  '시그니처': [
-    'signature_balance',
-    'coffee_quality',
-    'sweetness',
-    'texture',
-    'visuals',
-    'value',
-  ],
-  '디저트음료': [
+  'dessert': [
     'flavor_balance',
     'sweetness',
     'texture',
@@ -57,13 +49,42 @@ const Map<String, List<String>> categoryRatingDimensions = {
   ],
 };
 
-const String fallbackRatingCategory = '커피';
+const Map<String, String> ratingCategoryAliases = {
+  'coffee': 'coffee',
+  '커피': 'coffee',
+  'latte': 'latte',
+  '라떼': 'latte',
+  'cold_brew': 'cold_brew',
+  'coldbrew': 'cold_brew',
+  '콜드브루': 'cold_brew',
+  'hand_drip': 'hand_drip',
+  'handdrip': 'hand_drip',
+  '핸드드립': 'hand_drip',
+  'tea': 'tea',
+  '차': 'tea',
+  'signature': 'coffee',
+  '시그니처': 'coffee',
+  'dessert': 'dessert',
+  '디저트': 'dessert',
+  '디저트음료': 'dessert',
+};
+
+const Map<String, String> ratingCategoryLabels = {
+  'coffee': '커피',
+  'latte': '라떼',
+  'cold_brew': '콜드브루',
+  'hand_drip': '핸드드립',
+  'tea': '차',
+  'dessert': '디저트',
+};
+
+const String fallbackRatingCategory = 'coffee';
 
 const Set<String> temperatureSelectableCategories = {
-  '커피',
-  '라떼',
-  '차',
-  '핸드드립',
+  'coffee',
+  'latte',
+  'tea',
+  'hand_drip',
 };
 
 const List<String> storeExperienceDimensions = [
@@ -109,11 +130,20 @@ const Map<String, String> ratingDimensionLabels = {
 String normalizeRatingCategory(String? category) {
   final value = (category ?? '').trim();
   if (categoryRatingDimensions.containsKey(value)) return value;
+  final alias = ratingCategoryAliases[value];
+  if (alias != null && categoryRatingDimensions.containsKey(alias)) {
+    return alias;
+  }
   return fallbackRatingCategory;
 }
 
 List<String> dimensionsForCategory(String? category) {
   return categoryRatingDimensions[normalizeRatingCategory(category)]!;
+}
+
+String ratingCategoryLabel(String? category) {
+  final normalized = normalizeRatingCategory(category);
+  return ratingCategoryLabels[normalized] ?? normalized;
 }
 
 String ratingLabel(String key) {

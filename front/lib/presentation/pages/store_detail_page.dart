@@ -365,7 +365,9 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                             final isSelected =
                                                 selected == category;
                                             return ChoiceChip(
-                                              label: Text(category),
+                                              label: Text(
+                                                ratingCategoryLabel(category),
+                                              ),
                                               selected: isSelected,
                                               onSelected: (_) {
                                                 setState(() {
