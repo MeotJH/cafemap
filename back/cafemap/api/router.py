@@ -344,6 +344,8 @@ def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
 
             storeName=store_name,
 
+            link=store_link,
+
             brandName=brand_name,
 
             menuName=menu_name,
@@ -364,7 +366,7 @@ def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
 
         )
 
-        for review, store_name, brand_name, menu_name, menu_category, user_email in rows
+        for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
 
     ]
 
@@ -609,6 +611,8 @@ def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
 
             storeName=store_name,
 
+            link=store_link,
+
             brandName=brand_name,
 
             menuName=menu_name,
@@ -629,7 +633,7 @@ def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
 
         )
 
-        for review, store_name, brand_name, menu_name, menu_category, user_email in rows
+        for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
 
     ]
 
@@ -659,6 +663,8 @@ def get_my_reviews(
 
             storeName=store_name,
 
+            link=store_link,
+
             brandName=brand_name,
 
             menuName=menu_name,
@@ -679,7 +685,7 @@ def get_my_reviews(
 
         )
 
-        for review, store_name, brand_name, menu_name, menu_category, user_email in rows
+        for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
 
     ]
 
@@ -699,13 +705,15 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
 
         raise HTTPException(status_code=404, detail="Review not found")
 
-    review, store_name, brand_name, menu_name, menu_category, user_email = row
+    review, store_name, store_link, brand_name, menu_name, menu_category, user_email = row
 
     return ReviewOut(
 
         id=review.id,
 
         storeName=store_name,
+
+        link=store_link,
 
         brandName=brand_name,
 
@@ -752,7 +760,7 @@ def create_review(
 
     try:
 
-        review, store_name, brand_name, menu_name = review_service.create_review(
+        review, store_name, store_link, brand_name, menu_name = review_service.create_review(
 
             db,
 
@@ -777,6 +785,8 @@ def create_review(
         id=review.id,
 
         storeName=store_name,
+
+        link=store_link,
 
         brandName=brand_name,
 

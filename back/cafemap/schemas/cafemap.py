@@ -84,6 +84,7 @@ class ReviewOut(BaseModel):
     # 리뷰 응답 모델이다.
     id: str
     storeName: str
+    link: str = ""
     brandName: str
     menuName: str
     menuCategory: str

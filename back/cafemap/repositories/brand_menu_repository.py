@@ -80,7 +80,15 @@ def fetch_ranking_reviews(db: Session, ranking_id: str):
 
     stmt = (
 
-        select(Review, Store.name, Brand.name, Menu.name, Menu.category, User.email)
+        select(
+            Review,
+            Store.name,
+            Store.link,
+            Brand.name,
+            Menu.name,
+            Menu.category,
+            User.email,
+        )
 
         .join(Store, Store.id == Review.store_id)
 
@@ -146,4 +154,3 @@ def _menu_search_keys(value: str) -> set[str]:
     if "americano" in normalized:
         keys.add(re.sub(r"^(ice|iced|hot)", "", normalized))
     return {key for key in keys if key}
-

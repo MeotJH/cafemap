@@ -225,7 +225,7 @@ def create_review(db: Session, payload, user_id: str):
 
     db.refresh(review)
 
-    return review, store.name, brand.name, menu.name
+    return review, store.name, store.link, brand.name, menu.name
 
 
 

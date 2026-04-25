@@ -86,7 +86,15 @@ def fetch_store_reviews(db: Session, store_id: str):
 
     stmt = (
 
-        select(Review, Store.name, Brand.name, Menu.name, Menu.category, User.email)
+        select(
+            Review,
+            Store.name,
+            Store.link,
+            Brand.name,
+            Menu.name,
+            Menu.category,
+            User.email,
+        )
 
         .join(Store, Store.id == Review.store_id)
 
@@ -103,4 +111,3 @@ def fetch_store_reviews(db: Session, store_id: str):
     )
 
     return db.execute(stmt).all()
-

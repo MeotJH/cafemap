@@ -22,7 +22,15 @@ def fetch_my_reviews(db: Session, user_id: str):
 
     stmt = (
 
-        select(Review, Store.name, Brand.name, Menu.name, Menu.category, User.email)
+        select(
+            Review,
+            Store.name,
+            Store.link,
+            Brand.name,
+            Menu.name,
+            Menu.category,
+            User.email,
+        )
 
         .join(Store, Store.id == Review.store_id)
 
@@ -50,7 +58,15 @@ def fetch_review(db: Session, review_id: str):
 
     stmt = (
 
-        select(Review, Store.name, Brand.name, Menu.name, Menu.category, User.email)
+        select(
+            Review,
+            Store.name,
+            Store.link,
+            Brand.name,
+            Menu.name,
+            Menu.category,
+            User.email,
+        )
 
         .join(Store, Store.id == Review.store_id)
 
@@ -65,4 +81,3 @@ def fetch_review(db: Session, review_id: str):
     )
 
     return db.execute(stmt).first()
-

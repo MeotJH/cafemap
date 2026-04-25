@@ -173,6 +173,7 @@ class MockDataSource {
     Review(
       id: 'review-1',
       storeName: '홍대 로컬 카페',
+      link: '',
       brandName: '개인 카페',
       menuName: '아메리카노',
       menuCategory: '커피',
