@@ -920,8 +920,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                           ),
                         ],
                         if (_showsTemperatureSelector(_selectedMenu)) ...[
-                          const SizedBox(height: 12),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           SizedBox(
                             height: 36,
                             child: Row(
