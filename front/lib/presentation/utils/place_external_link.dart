@@ -15,12 +15,10 @@ String? buildPlaceExternalLink({
     return directUri.toString();
   }
 
-  final query = [name.trim(), address.trim()]
-      .where((item) => item.isNotEmpty)
-      .join(' ');
+  final query = name.trim();
   if (query.isEmpty) return null;
 
-  return 'https://map.kakao.com/link/search/${Uri.encodeComponent(query)}';
+  return 'https://map.kakao.com/?q=${Uri.encodeQueryComponent(query)}';
 }
 
 bool hasPlaceExternalLink({
