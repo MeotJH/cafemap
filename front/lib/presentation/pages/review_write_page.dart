@@ -66,6 +66,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   Brand? _selectedBrand;
   List<Menu> _menus = [];
   Menu? _selectedMenu;
+  String _selectedTemperatureOption = '';
   final _menuSearchController = TextEditingController();
   bool _loadingMenus = false;
   String? _menuError;
@@ -249,6 +250,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       setState(() {
         _menus = menus;
         _selectedMenu = selectedMenu;
+        _selectedTemperatureOption = '';
         _menuSearchController.text =
             selectedMenu?.name ?? incomingMenuName ?? '';
         _syncActiveDimensions(selectedMenu?.category);
@@ -282,6 +284,11 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       await _showTopToast('표준 메뉴 목록에서 메뉴를 선택해주세요.');
       return;
     }
+    if (_showsTemperatureSelector(selectedMenu) &&
+        _selectedTemperatureOption.isEmpty) {
+      await _showTopToast('핫 또는 아이스를 선택해주세요.');
+      return;
+    }
     final menuName = selectedMenu.name;
     final storeName = widget.storeName ?? '';
     if (storeName.isEmpty) {
@@ -300,6 +307,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
           address: widget.address ?? '',
           placeId: widget.placeId ?? '',
           link: widget.link ?? '',
+          temperatureOption: _selectedTemperatureOption,
           lat: widget.lat,
           lng: widget.lng,
           brandId: _selectedBrand!.id,
@@ -390,6 +398,10 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     if (selected != null && selected.name == typed) {
       return selected;
     }
+    return _findMenuByText(typed);
+  }
+
+  Menu? _findMenuByText(String typed) {
     final typedKeys = _menuMatchKeys(typed);
     for (final menu in _menus) {
       if (menu.name == typed ||
@@ -398,6 +410,49 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       }
     }
     return null;
+  }
+
+  bool _showsTemperatureSelector(Menu? menu) {
+    if (menu == null) return false;
+    final category = normalizeRatingCategory(menu.category);
+    return temperatureSelectableCategories.contains(category);
+  }
+
+  void _selectMenu(Menu? menu) {
+    setState(() {
+      _selectedMenu = menu;
+      _selectedTemperatureOption = '';
+      _syncActiveDimensions(menu?.category);
+    });
+    if (menu != null) {
+      _menuSearchController.text = menu.name;
+    }
+  }
+
+  ChoiceChip _buildTemperatureChip({
+    required String label,
+    required String value,
+  }) {
+    final isSelected = _selectedTemperatureOption == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        setState(() {
+          _selectedTemperatureOption = value;
+        });
+      },
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : AppColors.textSecondary,
+        fontWeight: FontWeight.w600,
+      ),
+      backgroundColor: Colors.white,
+      selectedColor: AppColors.primary,
+      side: BorderSide(
+        color: isSelected ? AppColors.primary : AppColors.cardBorder,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    );
   }
 
   Future<List<String>> _uploadSelectedImages(AuthContext auth) async {
@@ -693,6 +748,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                                       _selectedBrand = brand;
                                       _lastConfirmedBrand = brand;
                                       _selectedMenu = null;
+                                      _selectedTemperatureOption = '';
                                       _menuSearchController.clear();
                                       _syncActiveDimensions(null);
                                     });
@@ -744,11 +800,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                           },
                           displayStringForOption: (menu) => menu.name,
                           onSelected: (menu) {
-                            setState(() {
-                              _selectedMenu = menu;
-                              _syncActiveDimensions(menu.category);
-                            });
-                            _menuSearchController.text = menu.name;
+                            _selectMenu(menu);
                           },
                           fieldViewBuilder:
                               (context, controller, focusNode, onSubmitted) {
@@ -795,13 +847,11 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                                   onChanged: (value) {
                                     _menuSearchController.value =
                                         controller.value;
-                                    final selected = _selectedMenu;
-                                    if (selected != null &&
-                                        selected.name != value) {
-                                      setState(() {
-                                        _selectedMenu = null;
-                                        _syncActiveDimensions(null);
-                                      });
+                                    final nextMenu = _findMenuByText(
+                                      value.trim(),
+                                    );
+                                    if (_selectedMenu?.id != nextMenu?.id) {
+                                      _selectMenu(nextMenu);
                                     }
                                   },
                                   onSubmitted: (_) => onSubmitted(),
@@ -866,6 +916,23 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                             style: const TextStyle(
                               color: Colors.red,
                               fontSize: 12,
+                            ),
+                          ),
+                        ],
+                        if (_showsTemperatureSelector(_selectedMenu)) ...[
+                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 36,
+                            child: Row(
+                              children: [
+                                _buildTemperatureChip(label: '핫', value: 'hot'),
+                                const SizedBox(width: 8),
+                                _buildTemperatureChip(
+                                  label: '아이스',
+                                  value: 'ice',
+                                ),
+                              ],
                             ),
                           ),
                         ],

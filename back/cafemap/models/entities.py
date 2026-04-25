@@ -208,10 +208,11 @@ class Review(Base):
 
     image_urls_json: Mapped[str] = mapped_column(String, default="[]")
 
+    temperature_option: Mapped[str] = mapped_column(String(20), default="")
+
     overall: Mapped[float] = mapped_column(Float)
 
     comment: Mapped[str] = mapped_column(String(500))
 
     created_at: Mapped[datetime] = mapped_column(DateTime)
-
 

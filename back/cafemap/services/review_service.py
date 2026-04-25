@@ -160,6 +160,9 @@ def create_review(db: Session, payload, user_id: str):
     menu_scores = normalize_scores(menu_category, input_scores)
     store_scores = normalize_store_scores(getattr(payload, "storeScores", {}) or {})
     aggregate_scores = {**menu_scores, **store_scores}
+    temperature_option = _normalize_temperature_option(
+        getattr(payload, "temperatureOption", "")
+    )
 
     resolved_overall = float(payload.overall) if payload.overall > 0 else compute_overall(menu_scores, fallback=0.0)
 
@@ -180,6 +183,8 @@ def create_review(db: Session, payload, user_id: str):
         scores_json=scores_json_dumps(aggregate_scores),
 
         image_urls_json=json.dumps(image_urls, ensure_ascii=False),
+
+        temperature_option=temperature_option,
 
         overall=resolved_overall,
 
@@ -226,6 +231,13 @@ def create_review(db: Session, payload, user_id: str):
     db.refresh(review)
 
     return review, store.name, store.link, brand.name, menu.name
+
+
+def _normalize_temperature_option(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized in {"hot", "ice"}:
+        return normalized
+    return ""
 
 
 
@@ -681,27 +693,6 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
         return best_menu
 
     return None
-
-
-
-
-
-def _classify_menu_category(normalized_name: str) -> str:
-
-    if "라떼" in normalized_name or "latte" in normalized_name:
-        return "라떼"
-    if "콜드브루" in normalized_name or "coldbrew" in normalized_name:
-        return "콜드브루"
-    if "핸드드립" in normalized_name or "드립" in normalized_name:
-        return "핸드드립"
-    if "시그니처" in normalized_name or "signature" in normalized_name:
-        return "시그니처"
-    if "스무디" in normalized_name or "프라페" in normalized_name or "에이드" in normalized_name:
-        return "디저트음료"
-    return "커피"
-
-
-
 
 
 def _sanitize_image_urls(image_urls: list[str]) -> list[str]:

@@ -34,6 +34,14 @@ CATEGORY_RATING_DIMENSIONS = {
         "aftertaste",
         "value",
     ],
+    "차": [
+        "flavor_balance",
+        "sweetness",
+        "texture",
+        "visuals",
+        "portion",
+        "value",
+    ],
     "시그니처": [
         "signature_balance",
         "coffee_quality",

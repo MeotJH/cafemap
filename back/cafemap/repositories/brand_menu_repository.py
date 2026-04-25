@@ -1,11 +1,9 @@
 import re
 
 from sqlalchemy import select
-
 from sqlalchemy.orm import Session
 
-
-
+from cafemap.core.menu_catalog import menu_sort_key
 from cafemap.models.entities import BrandMenuAggregate, Brand, Menu, Review, Store, User
 
 
@@ -117,9 +115,6 @@ def fetch_menus_by_brand(db: Session, brand_id: str, query: str | None = None):
     # ???? ?? ??? ????.
 
     stmt = select(Menu).where(Menu.brand_id == brand_id)
-
-    stmt = stmt.order_by(Menu.name.asc())
-
     menus = db.execute(stmt).scalars().all()
     if query:
         query_keys = _menu_search_keys(query)
@@ -136,6 +131,9 @@ def fetch_menus_by_brand(db: Session, brand_id: str, query: str | None = None):
             continue
         seen_names.add(menu.name)
         unique_menus.append(menu)
+    unique_menus.sort(
+        key=lambda menu: menu_sort_key(name=menu.name, category=menu.category)
+    )
     return unique_menus
 
 

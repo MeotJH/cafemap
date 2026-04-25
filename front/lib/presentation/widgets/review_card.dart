@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/presentation/widgets/review_temperature_badge.dart';
 
 class ReviewCard extends StatelessWidget {
   final Review review;
@@ -35,9 +36,20 @@ class ReviewCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      '${review.brandName} · ${review.menuName}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${review.brandName} · ${review.menuName}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (review.temperatureOption.isNotEmpty)
+                          ReviewTemperatureBadge(
+                            temperatureOption: review.temperatureOption,
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),

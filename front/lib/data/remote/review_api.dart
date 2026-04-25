@@ -92,6 +92,7 @@ class ReviewCreateRequest {
   final String address;
   final String placeId;
   final String link;
+  final String temperatureOption;
   final double? lat;
   final double? lng;
   final String brandId;
@@ -107,6 +108,7 @@ class ReviewCreateRequest {
     required this.address,
     required this.placeId,
     required this.link,
+    required this.temperatureOption,
     this.lat,
     this.lng,
     required this.brandId,
@@ -123,6 +125,7 @@ class ReviewCreateRequest {
         'address': address,
         'placeId': placeId,
         'link': link,
+        'temperatureOption': temperatureOption,
         'lat': lat,
         'lng': lng,
         'brandId': brandId,
@@ -166,6 +169,7 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     id: json['id'] as String? ?? '',
     storeName: json['storeName'] as String? ?? '',
     link: json['link'] as String? ?? '',
+    temperatureOption: json['temperatureOption'] as String? ?? '',
     brandName: json['brandName'] as String? ?? '',
     menuName: json['menuName'] as String? ?? '',
     menuCategory: json['menuCategory'] as String? ?? '',

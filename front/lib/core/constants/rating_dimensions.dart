@@ -31,6 +31,14 @@ const Map<String, List<String>> categoryRatingDimensions = {
     'aftertaste',
     'value',
   ],
+  '차': [
+    'flavor_balance',
+    'sweetness',
+    'texture',
+    'visuals',
+    'portion',
+    'value',
+  ],
   '시그니처': [
     'signature_balance',
     'coffee_quality',
@@ -50,6 +58,13 @@ const Map<String, List<String>> categoryRatingDimensions = {
 };
 
 const String fallbackRatingCategory = '커피';
+
+const Set<String> temperatureSelectableCategories = {
+  '커피',
+  '라떼',
+  '차',
+  '핸드드립',
+};
 
 const List<String> storeExperienceDimensions = [
   'atmosphere',

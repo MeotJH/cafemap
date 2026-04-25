@@ -346,6 +346,8 @@ def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
 
             link=store_link,
 
+            temperatureOption=review.temperature_option,
+
             brandName=brand_name,
 
             menuName=menu_name,
@@ -613,6 +615,8 @@ def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
 
             link=store_link,
 
+            temperatureOption=review.temperature_option,
+
             brandName=brand_name,
 
             menuName=menu_name,
@@ -665,6 +669,8 @@ def get_my_reviews(
 
             link=store_link,
 
+            temperatureOption=review.temperature_option,
+
             brandName=brand_name,
 
             menuName=menu_name,
@@ -714,6 +720,8 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
         storeName=store_name,
 
         link=store_link,
+
+        temperatureOption=review.temperature_option,
 
         brandName=brand_name,
 
@@ -787,6 +795,8 @@ def create_review(
         storeName=store_name,
 
         link=store_link,
+
+        temperatureOption=review.temperature_option,
 
         brandName=brand_name,
 

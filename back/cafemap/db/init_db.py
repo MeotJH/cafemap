@@ -7,6 +7,7 @@ from pathlib import Path
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from cafemap.core.menu_catalog import COMMON_CAFE_MENU_SEEDS, classify_menu_category
 from cafemap.core.rating_dimensions import (
     compute_overall,
     normalize_category,
@@ -66,70 +67,17 @@ def _build_brand_seeds() -> dict[str, dict[str, object]]:
 
 BRAND_SEEDS: dict[str, dict[str, object]] = _build_brand_seeds()
 
-COMMON_CAFE_MENU_SEEDS: tuple[tuple[str, str], ...] = (
-    ("아메리카노", "커피"),
-    ("디카페인 아메리카노", "커피"),
-    ("에스프레소", "커피"),
-    ("롱블랙", "커피"),
-    ("카페오레", "라떼"),
-    ("카페라떼", "라떼"),
-    ("바닐라 라떼", "라떼"),
-    ("헤이즐넛 라떼", "라떼"),
-    ("연유 라떼", "라떼"),
-    ("돌체 라떼", "라떼"),
-    ("흑당 라떼", "라떼"),
-    ("카푸치노", "라떼"),
-    ("카라멜 마끼아또", "라떼"),
-    ("모카 라떼", "라떼"),
-    ("카페모카", "라떼"),
-    ("화이트 모카", "라떼"),
-    ("아인슈페너", "시그니처"),
-    ("콜드브루", "콜드브루"),
-    ("콜드브루 라떼", "콜드브루"),
-    ("디카페인 콜드브루", "콜드브루"),
-    ("핸드드립", "핸드드립"),
-    ("드립커피", "핸드드립"),
-    ("시그니처 라떼", "시그니처"),
-    ("크림 라떼", "시그니처"),
-    ("슈페너 라떼", "시그니처"),
-    ("초코 라떼", "디저트음료"),
-    ("녹차 라떼", "디저트음료"),
-    ("말차 라떼", "디저트음료"),
-    ("고구마 라떼", "디저트음료"),
-    ("곡물 라떼", "디저트음료"),
-    ("밀크티", "디저트음료"),
-    ("얼그레이 밀크티", "디저트음료"),
-    ("차이 밀크티", "디저트음료"),
-    ("아이스티", "디저트음료"),
-    ("복숭아 아이스티", "디저트음료"),
-    ("레몬티", "디저트음료"),
-    ("자몽티", "디저트음료"),
-    ("유자차", "디저트음료"),
-    ("캐모마일 티", "디저트음료"),
-    ("페퍼민트 티", "디저트음료"),
-    ("얼그레이 티", "디저트음료"),
-    ("녹차", "디저트음료"),
-    ("레몬에이드", "디저트음료"),
-    ("자몽에이드", "디저트음료"),
-    ("청포도에이드", "디저트음료"),
-    ("블루레몬에이드", "디저트음료"),
-    ("딸기 스무디", "디저트음료"),
-    ("망고 스무디", "디저트음료"),
-    ("블루베리 스무디", "디저트음료"),
-    ("플레인 요거트 스무디", "디저트음료"),
-    ("프라페", "디저트음료"),
-    ("초코 프라페", "디저트음료"),
-    ("쿠키 프라페", "디저트음료"),
-)
-
 
 def init_db():
     # ??? ?? ? ??? ?? ??????? ??? ????.
     Base.metadata.create_all(bind=engine)
     with Session(engine) as db:
         _migrate_scores_json_columns(db)
+        _backfill_menu_categories(db)
         if SEED_CATALOG_ON_STARTUP:
             seed_if_empty(db)
+        else:
+            db.commit()
 
 
 def _migrate_scores_json_columns(db: Session):
@@ -138,7 +86,13 @@ def _migrate_scores_json_columns(db: Session):
         return
 
     targets = {
-        "review": ("scores_json", "overall", "user_id", "image_urls_json"),
+        "review": (
+            "scores_json",
+            "overall",
+            "user_id",
+            "image_urls_json",
+            "temperature_option",
+        ),
         "brand_menu_aggregate": ("scores_json",),
         "store_aggregate": ("scores_json", "counts_json"),
         "store": ("store_type", "place_id", "link"),
@@ -170,6 +124,13 @@ def _migrate_scores_json_columns(db: Session):
                     text(
                         f"ALTER TABLE {table_name} "
                         "ADD COLUMN image_urls_json VARCHAR NOT NULL DEFAULT '[]'"
+                    )
+                )
+            elif column_name == "temperature_option":
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        "ADD COLUMN temperature_option VARCHAR NOT NULL DEFAULT ''"
                     )
                 )
             elif column_name == "store_type":
@@ -208,6 +169,17 @@ def _load_menu_rows() -> list[dict[str, str]]:
         return list(csv.DictReader(fp))
 
 
+def _normalized_menu_category(menu_name: str, category: str | None) -> str:
+    normalized = normalize_category(category)
+    return classify_menu_category(menu_name, normalized)
+
+
+def _backfill_menu_categories(db: Session):
+    menus = db.scalars(select(Menu)).all()
+    for menu in menus:
+        menu.category = _normalized_menu_category(menu.name, menu.category)
+
+
 def _brand_seeds() -> list[Brand]:
     return [
         Brand(
@@ -223,7 +195,10 @@ def _menu_seeds() -> list[Menu]:
     rows = _load_menu_rows()
     menus: list[Menu] = []
     for row in rows:
-        category = normalize_category(row.get("category"))
+        category = _normalized_menu_category(
+            row.get("menu_name", ""),
+            row.get("category"),
+        )
         menus.append(
             Menu(
                 id=row["menu_id"],
@@ -246,7 +221,7 @@ def _menu_seeds() -> list[Menu]:
                     brand_id=brand_id,
                     name=menu_name,
                     image_url="",
-                    category=normalize_category(category),
+                    category=_normalized_menu_category(menu_name, category),
                 )
             )
     return menus
@@ -358,6 +333,14 @@ def _menu_only_seed(category: str) -> dict[str, float]:
 
 def _store_type_for_brand(brand_id: str) -> str:
     return STORE_TYPE_LOCAL if brand_id == LOCAL_BRAND_ID else STORE_TYPE_FRANCHISE
+
+
+def _default_temperature_option(category: str) -> str:
+    if category in {"커피", "라떼", "차", "핸드드립"}:
+        return "hot"
+    if category == "콜드브루":
+        return "ice"
+    return ""
 
 
 def _dedupe_menus(db: Session, seed_menus: list[Menu]):
@@ -565,6 +548,7 @@ def seed_if_empty(db: Session):
                     menu_id=menu.id,
                     scores_json=scores_json_dumps(scores),
                     image_urls_json="[]",
+                    temperature_option=_default_temperature_option(menu.category),
                     overall=overall,
                     comment=f"{seed['store_name']}의 대표 메뉴를 기준으로 만든 샘플 리뷰입니다.",
                     created_at=now,
@@ -579,6 +563,10 @@ def seed_if_empty(db: Session):
                 existing_review.menu_id = menu.id
                 existing_review.scores_json = scores_json_dumps(scores)
                 existing_review.image_urls_json = "[]"
+                existing_review.temperature_option = (
+                    existing_review.temperature_option
+                    or _default_temperature_option(menu.category)
+                )
                 existing_review.overall = overall
                 existing_review.comment = (
                     f"{seed['store_name']}의 대표 메뉴를 기준으로 만든 샘플 리뷰입니다."

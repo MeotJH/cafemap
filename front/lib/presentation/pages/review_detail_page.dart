@@ -8,6 +8,7 @@ import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
+import 'package:front/presentation/widgets/review_temperature_badge.dart';
 import 'package:go_router/go_router.dart';
 
 class ReviewDetailPage extends ConsumerWidget {
@@ -147,13 +148,24 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                widget.review.menuName,
-                style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF09142A),
-                ),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    widget.review.menuName,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF09142A),
+                    ),
+                  ),
+                  if (widget.review.temperatureOption.isNotEmpty)
+                    ReviewTemperatureBadge(
+                      temperatureOption: widget.review.temperatureOption,
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(

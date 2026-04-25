@@ -3,6 +3,7 @@ class Review {
   final String id;
   final String storeName;
   final String link;
+  final String temperatureOption;
   final String brandName;
   final String menuName;
   final String menuCategory;
@@ -17,6 +18,7 @@ class Review {
     required this.id,
     required this.storeName,
     required this.link,
+    required this.temperatureOption,
     required this.brandName,
     required this.menuName,
     required this.menuCategory,

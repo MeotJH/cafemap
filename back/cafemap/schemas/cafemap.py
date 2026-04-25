@@ -85,6 +85,7 @@ class ReviewOut(BaseModel):
     id: str
     storeName: str
     link: str = ""
+    temperatureOption: str = ""
     brandName: str
     menuName: str
     menuCategory: str
@@ -136,6 +137,7 @@ class ReviewCreateIn(BaseModel):
     address: str
     placeId: str = ""
     link: str = ""
+    temperatureOption: str = ""
     lat: float | None = None
     lng: float | None = None
     brandId: str
