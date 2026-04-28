@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:front/presentation/widgets/app_filter_chip.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'package:front/core/constants/app_colors.dart';
@@ -14,7 +15,7 @@ class MapHomeTopOverlay extends StatelessWidget {
   final String mapMode;
   final PlaceSearchResult? selectedPlace;
   final List<PlaceSearchResult> newPlaces;
-  final VoidCallback onEditPreferences;
+
   final VoidCallback onSearchClear;
   final ValueChanged<PlaceSearchResult> onSearchResultSelected;
   final VoidCallback onDiscoverPressed;
@@ -29,7 +30,6 @@ class MapHomeTopOverlay extends StatelessWidget {
     required this.mapMode,
     required this.selectedPlace,
     required this.newPlaces,
-    required this.onEditPreferences,
     required this.onSearchClear,
     required this.onSearchResultSelected,
     required this.onDiscoverPressed,
@@ -62,72 +62,6 @@ class MapHomeTopOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            PointerInterceptor(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.cardBorder),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 10,
-                      offset: Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.tune_rounded,
-                          color: AppColors.primary,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            preferenceSummary,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: onEditPreferences,
-                          child: const Text('취향 수정'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ChoiceChip(
-                          label: const Text('전체 보기'),
-                          selected: mapMode == 'all',
-                          onSelected: (_) => onMapModeChanged('all'),
-                        ),
-                        ChoiceChip(
-                          label: const Text('추천만 보기'),
-                          selected: mapMode == 'recommended_only',
-                          onSelected: (_) =>
-                              onMapModeChanged('recommended_only'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
             PointerInterceptor(
               child: Row(
                 children: [
@@ -191,6 +125,70 @@ class MapHomeTopOverlay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
+            PointerInterceptor(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.cardBorder),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.tune_rounded,
+                          color: AppColors.primary,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            preferenceSummary,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            AppFilterChip(
+                              label: '전체 보기',
+                              selected: mapMode == 'all',
+                              onSelected: (_) => onMapModeChanged('all'),
+                              margin: const EdgeInsets.only(right: 8),
+                              width: null,
+                            ),
+                            AppFilterChip(
+                              label: '추천만 보기',
+                              selected: mapMode == 'recommended_only',
+                              onSelected: (_) =>
+                                  onMapModeChanged('recommended_only'),
+                              margin: const EdgeInsets.only(right: 8),
+                              width: null,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -336,12 +334,26 @@ class ReviewedStoreBottomCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '${store.rating.toStringAsFixed(2)}점 · ${store.reviewCount} 리뷰',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
+                  Row(
+                    children: [
+                      RatingBadge(rating: store.rating),
+                      SizedBox(width: 6),
+                      Text(
+                        '${store.reviewCount}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        '리뷰',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                   if (store.personalizedReasons.isNotEmpty) ...[
                     const SizedBox(height: 6),
@@ -490,6 +502,63 @@ class MapHomeCardImage extends StatelessWidget {
                 errorBuilder: (_, _, _) =>
                     Icon(fallbackIcon, color: AppColors.primary, size: 28),
               ),
+      ),
+    );
+  }
+}
+
+class RatingTone {
+  final Color background;
+  final Color foreground;
+
+  const RatingTone({required this.background, required this.foreground});
+
+  static RatingTone fromScore(double score) {
+    if (score < 2.0) {
+      return const RatingTone(
+        background: Color(0xFFFFE8E8), // 옅은 빨강
+        foreground: Color(0xFFD32F2F), // 진한 빨강
+      );
+    }
+
+    if (score < 3.0) {
+      return const RatingTone(
+        background: Color(0xFFFFF4D6), // 옅은 노랑
+        foreground: Color(0xFFF59E0B), // 진한 노랑/주황
+      );
+    }
+
+    return const RatingTone(
+      background: Color(0xFFDCFCE7), // 옅은 초록
+      foreground: Color(0xFF166534), // 진한 초록
+    );
+  }
+}
+
+class RatingBadge extends StatelessWidget {
+  final double rating;
+  final int fractionDigits;
+
+  const RatingBadge({super.key, required this.rating, this.fractionDigits = 2});
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = RatingTone.fromScore(rating);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: tone.background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '${rating.toStringAsFixed(fractionDigits)}점',
+        style: TextStyle(
+          color: tone.foreground,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
       ),
     );
   }

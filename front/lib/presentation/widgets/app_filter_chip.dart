@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:front/core/constants/app_colors.dart';
 
-// 怨듯넻 ?꾪꽣 移?UI瑜??쒗쁽?쒕떎.
 class AppFilterChip extends StatelessWidget {
   final String label;
   final bool selected;

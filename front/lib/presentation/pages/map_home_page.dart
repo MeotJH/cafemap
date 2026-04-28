@@ -224,11 +224,11 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             : 0);
     final selectedLabels = presets
         .where((preset) => selectedPreferenceIds.contains(preset.id))
-        .map((preset) => preset.label)
+        .map((preset) => preset.label_short)
         .toList();
     final preferenceSummary = selectedLabels.isEmpty
-        ? '아직 선택한 취향이 없어요. 전체 카페 기준으로 보고 있어요.'
-        : '현재 취향: ${selectedLabels.join(' · ')}';
+        ? '아직 선택한 취향이 없어요.'
+        : '취향: ${selectedLabels.join(' · ')}';
 
     final hasNewPlaceMode =
         state.newPlaces.isNotEmpty || state.selectedPlace != null;
@@ -271,7 +271,6 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             mapMode: _mapMode,
             selectedPlace: state.selectedPlace,
             newPlaces: state.newPlaces,
-            onEditPreferences: () => context.go('/preference'),
             onSearchClear: () {
               _searchController.clear();
               notifier.clearSearch();
