@@ -1,14 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:front/core/constants/app_colors.dart';
-import 'package:front/core/constants/app_strings.dart';
-import 'package:front/presentation/providers/auth_providers.dart';
-import 'package:front/presentation/providers/app_providers.dart';
 import 'package:go_router/go_router.dart';
 
-// 로그인 시작 화면을 표시한다.
+import 'package:front/core/constants/app_colors.dart';
+import 'package:front/core/constants/app_strings.dart';
+import 'package:front/presentation/providers/app_providers.dart';
+import 'package:front/presentation/providers/auth_providers.dart';
+
 class AuthStartPage extends ConsumerWidget {
   const AuthStartPage({super.key});
 
@@ -18,7 +18,7 @@ class AuthStartPage extends ConsumerWidget {
       await authController.signInWithGoogle();
       await _syncSignedInUser(ref, authController);
       if (!context.mounted) return;
-      context.go('/ranking');
+      context.go('/preference');
     } on FirebaseAuthException catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
@@ -38,7 +38,7 @@ class AuthStartPage extends ConsumerWidget {
       await authController.signInWithKakao();
       await _syncSignedInUser(ref, authController);
       if (!context.mounted) return;
-      context.go('/ranking');
+      context.go('/preference');
     } on FirebaseAuthException catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
@@ -60,12 +60,10 @@ class AuthStartPage extends ConsumerWidget {
     if (auth == null) {
       throw StateError('인증 컨텍스트를 가져오지 못했습니다.');
     }
-    // 로그인 성공 후 사용자 정보를 동기화한다.
     await ref.read(authApiProvider).syncUser(auth);
   }
 
   @override
-  // 로그인 시작 화면 UI를 렌더링한다.
   Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
     final showKakaoLogin = ref.watch(kakaoLoginEnabledProvider);
@@ -92,7 +90,7 @@ class AuthStartPage extends ConsumerWidget {
                               context.pop();
                               return;
                             }
-                            context.go('/ranking');
+                            context.go('/preference');
                           },
                           icon: const Icon(Icons.arrow_back),
                           style: IconButton.styleFrom(
@@ -122,7 +120,7 @@ class AuthStartPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                '내 취향에 맞는 카페와 메뉴를\n가볍게 탐색해보세요.',
+                                '내 취향에 맞는 카페를 더 빠르게 찾고 리뷰를 남겨보세요.',
                                 textAlign: TextAlign.center,
                                 style: textTheme.titleMedium?.copyWith(
                                   color: AppColors.textSecondary,
@@ -137,14 +135,17 @@ class AuthStartPage extends ConsumerWidget {
                                 runSpacing: 8,
                                 children: [
                                   _FeaturePill(
-                                    label: '카페랭킹',
+                                    label: '취향 추천',
+                                    route: '/preference',
+                                  ),
+                                  _FeaturePill(
+                                    label: '전체 랭킹',
                                     route: '/ranking',
                                   ),
                                   _FeaturePill(
-                                    label: '메뉴랭킹',
-                                    route: '/menu-ranking',
+                                    label: '지도 탐색',
+                                    route: '/map',
                                   ),
-                                  _FeaturePill(label: '지도 탐색', route: '/map'),
                                 ],
                               ),
                             ],
@@ -185,7 +186,7 @@ class AuthStartPage extends ConsumerWidget {
                               ],
                               const SizedBox(height: 14),
                               TextButton(
-                                onPressed: () => context.go('/ranking'),
+                                onPressed: () => context.go('/preference'),
                                 style: TextButton.styleFrom(
                                   foregroundColor: AppColors.textSecondary,
                                   minimumSize: const Size.fromHeight(48),
@@ -272,7 +273,6 @@ class _FeaturePill extends StatelessWidget {
   }
 }
 
-// 커스텀 로그인 버튼을 그리는 위젯이다.
 class _AuthButton extends StatelessWidget {
   static const String googleLogoSvg =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
@@ -298,7 +298,6 @@ class _AuthButton extends StatelessWidget {
   });
 
   @override
-  // 커스텀 로그인 버튼 스타일을 적용한다.
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,

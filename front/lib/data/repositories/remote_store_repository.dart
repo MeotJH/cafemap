@@ -11,8 +11,14 @@ class RemoteStoreRepository implements StoreRepository {
   RemoteStoreRepository(this._api);
 
   @override
-  Future<List<StoreSummary>> fetchNearbyStores() {
-    return _api.fetchStores();
+  Future<List<StoreSummary>> fetchNearbyStores({
+    List<String> preferenceIds = const [],
+    String mapMode = 'all',
+  }) {
+    return _api.fetchStores(
+      preferenceIds: preferenceIds,
+      mapMode: mapMode,
+    );
   }
 
   @override

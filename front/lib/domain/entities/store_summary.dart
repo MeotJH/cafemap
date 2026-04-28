@@ -16,7 +16,14 @@ class StoreSummary {
   final double coffeeQualityScore;
   final double workFriendlyScore;
   final double quietnessScore;
+  final double seatComfortScore;
+  final double serviceScore;
+  final double atmosphereScore;
+  final double valueScore;
   final double dessertScore;
+  final double personalizedScore;
+  final List<String> personalizedReasons;
+  final bool isPersonalizedMatch;
   final String topLabelA;
   final double topScoreA;
   final String topLabelB;
@@ -39,7 +46,14 @@ class StoreSummary {
     required this.coffeeQualityScore,
     required this.workFriendlyScore,
     required this.quietnessScore,
+    required this.seatComfortScore,
+    required this.serviceScore,
+    required this.atmosphereScore,
+    required this.valueScore,
     required this.dessertScore,
+    required this.personalizedScore,
+    required this.personalizedReasons,
+    required this.isPersonalizedMatch,
     required this.topLabelA,
     required this.topScoreA,
     required this.topLabelB,

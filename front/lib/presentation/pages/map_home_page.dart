@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:front/core/constants/app_colors.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,6 +18,7 @@ import 'package:front/presentation/pages/map_home/map_home_widgets.dart';
 import 'package:front/presentation/providers/app_providers.dart';
 import 'package:front/presentation/providers/map_home_provider.dart';
 import 'package:front/presentation/providers/store_providers.dart';
+import 'package:front/presentation/providers/user_preference_providers.dart';
 import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:front/presentation/utils/external_link.dart';
 import 'package:front/presentation/widgets/naver_map_view.dart';
@@ -38,6 +40,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
   NaverMapController? _mapController;
   bool _cameraIdleUpdateQueued = false;
   ProviderSubscription<AppLocationState>? _locationSubscription;
+  String _mapMode = 'all';
 
   @override
   void initState() {
@@ -46,10 +49,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
       currentLocationProvider,
       (previous, next) async {
         Future<void>(() async {
-          final changed =
-              ref.read(mapHomeControllerProvider.notifier).applyCurrentLocation(
-                    next,
-                  );
+          final changed = ref
+              .read(mapHomeControllerProvider.notifier)
+              .applyCurrentLocation(next);
           if (changed && next.fromDevice) {
             await _focusMapTo(next.latitude, next.longitude, zoom: 15);
           }
@@ -59,9 +61,9 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
     Future<void>(() async {
       final location = ref.read(currentLocationProvider);
-      ref.read(mapHomeControllerProvider.notifier).applyCurrentLocation(
-            location,
-          );
+      ref
+          .read(mapHomeControllerProvider.notifier)
+          .applyCurrentLocation(location);
     });
   }
 
@@ -202,8 +204,10 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
     final currentLocation = ref.watch(currentLocationProvider);
     final state = ref.watch(mapHomeControllerProvider);
     final notifier = ref.read(mapHomeControllerProvider.notifier);
+    final presets = ref.watch(userPreferencePresetsProvider);
+    final selectedPreferenceIds = ref.watch(selectedPreferenceIdsProvider);
 
-    final stores = ref.watch(nearbyStoresProvider);
+    final stores = ref.watch(nearbyStoresProvider(_mapMode));
     final reviewedStores = stores.asData?.value ?? const <StoreSummary>[];
     final markerBundle = MapHomeMarkerBundle.fromData(
       reviewedStores: reviewedStores,
@@ -218,6 +222,16 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
         ((state.selectedStore != null || state.selectedPlace != null)
             ? 104
             : 0);
+    final selectedLabels = presets
+        .where((preset) => selectedPreferenceIds.contains(preset.id))
+        .map((preset) => preset.label)
+        .toList();
+    final preferenceSummary = selectedLabels.isEmpty
+        ? '아직 선택한 취향이 없어요. 전체 카페 기준으로 보고 있어요.'
+        : '현재 취향: ${selectedLabels.join(' · ')}';
+
+    final hasNewPlaceMode =
+        state.newPlaces.isNotEmpty || state.selectedPlace != null;
 
     return Scaffold(
       body: Stack(
@@ -253,18 +267,101 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
           MapHomeTopOverlay(
             searchController: _searchController,
             isSearching: state.isSearching,
+            preferenceSummary: preferenceSummary,
+            mapMode: _mapMode,
             selectedPlace: state.selectedPlace,
             newPlaces: state.newPlaces,
+            onEditPreferences: () => context.go('/preference'),
             onSearchClear: () {
               _searchController.clear();
               notifier.clearSearch();
             },
             onSearchResultSelected: _selectSearchResult,
-            onDiscoverPressed: () => notifier.searchNearbyNewPlaces(reviewedStores),
+            onDiscoverPressed: () =>
+                notifier.searchNearbyNewPlaces(reviewedStores),
             onClearNewPlaces: () {
               _searchController.clear();
               notifier.clearNewPlaces();
             },
+            onMapModeChanged: (value) {
+              if (_mapMode == value) return;
+              setState(() {
+                _mapMode = value;
+              });
+            },
+          ),
+          Positioned(
+            left: 16,
+            bottom: statusBottomPadding + 25,
+            child: PointerInterceptor(
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    final slideAnimation = Tween<Offset>(
+                      begin: const Offset(0.15, 0),
+                      end: Offset.zero,
+                    ).animate(animation);
+
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: slideAnimation,
+                        child: ScaleTransition(scale: animation, child: child),
+                      ),
+                    );
+                  },
+                  child: hasNewPlaceMode
+                      ? IconButton.filledTonal(
+                          key: const ValueKey('clear_new_places_button'),
+                          onPressed: () {
+                            _searchController.clear();
+                            notifier.clearNewPlaces();
+                          },
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppColors.primary,
+                            minimumSize: const Size(48, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          icon: const Icon(Icons.close),
+                        )
+                      : FilledButton(
+                          key: const ValueKey('search_nearby_button'),
+                          onPressed: state.isSearching
+                              ? null
+                              : () => notifier.searchNearbyNewPlaces(
+                                  reviewedStores,
+                                ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(48, 48),
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: state.isSearching
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.explore_outlined, size: 20),
+                        ),
+                ),
+              ),
+            ),
           ),
           if (state.isSearching || state.searchError != null)
             Positioned(
@@ -281,6 +378,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
                 ),
               ),
             ),
+
           if (state.selectedStore != null)
             Positioned(
               left: 16,
@@ -289,7 +387,8 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
               child: PointerInterceptor(
                 child: ReviewedStoreBottomCard(
                   store: state.selectedStore!,
-                  onTap: () => context.go('/map/store/${state.selectedStore!.id}'),
+                  onTap: () =>
+                      context.go('/map/store/${state.selectedStore!.id}'),
                 ),
               ),
             ),

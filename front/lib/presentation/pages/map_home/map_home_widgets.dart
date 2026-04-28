@@ -10,23 +10,31 @@ import 'package:front/presentation/pages/map_home/map_search_page.dart';
 class MapHomeTopOverlay extends StatelessWidget {
   final TextEditingController searchController;
   final bool isSearching;
+  final String preferenceSummary;
+  final String mapMode;
   final PlaceSearchResult? selectedPlace;
   final List<PlaceSearchResult> newPlaces;
+  final VoidCallback onEditPreferences;
   final VoidCallback onSearchClear;
   final ValueChanged<PlaceSearchResult> onSearchResultSelected;
   final VoidCallback onDiscoverPressed;
   final VoidCallback onClearNewPlaces;
+  final ValueChanged<String> onMapModeChanged;
 
   const MapHomeTopOverlay({
     super.key,
     required this.searchController,
     required this.isSearching,
+    required this.preferenceSummary,
+    required this.mapMode,
     required this.selectedPlace,
     required this.newPlaces,
+    required this.onEditPreferences,
     required this.onSearchClear,
     required this.onSearchResultSelected,
     required this.onDiscoverPressed,
     required this.onClearNewPlaces,
+    required this.onMapModeChanged,
   });
 
   Future<void> _openSearch(BuildContext context) async {
@@ -54,6 +62,72 @@ class MapHomeTopOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            PointerInterceptor(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.cardBorder),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.tune_rounded,
+                          color: AppColors.primary,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            preferenceSummary,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: onEditPreferences,
+                          child: const Text('취향 수정'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('전체 보기'),
+                          selected: mapMode == 'all',
+                          onSelected: (_) => onMapModeChanged('all'),
+                        ),
+                        ChoiceChip(
+                          label: const Text('추천만 보기'),
+                          selected: mapMode == 'recommended_only',
+                          onSelected: (_) =>
+                              onMapModeChanged('recommended_only'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             PointerInterceptor(
               child: Row(
                 children: [
@@ -117,58 +191,6 @@ class MapHomeTopOverlay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            PointerInterceptor(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: actionWidth,
-                    child: FilledButton(
-                      onPressed: isSearching ? null : onDiscoverPressed,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(48),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 10,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.explore_outlined, size: 18),
-                          const SizedBox(height: 4),
-                          Text(
-                            newPlaces.isEmpty ? '새 카페 찾기' : '새 지역 다시',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (newPlaces.isNotEmpty || selectedPlace != null) ...[
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      onPressed: onClearNewPlaces,
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.primary,
-                        minimumSize: const Size(48, 48),
-                      ),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -200,11 +222,12 @@ class MapStatusBanner extends StatelessWidget {
     } else if (errorMessage != null) {
       message = errorMessage!;
     } else if (newCafeCount > 0) {
-      message = '리뷰된 카페 $reviewedStoreCount곳과 새 카페 $newCafeCount곳을 지도에 표시했어요.';
+      message =
+          '리뷰된 카페 $reviewedStoreCount곳과 새 카페 $newCafeCount곳을 지도에 표시하고 있어요.';
     } else if (!hasResolvedLocation) {
-      message = '위치 권한이 없어도 현재 보고 있는 지도 기준으로 새 카페를 찾을 수 있어요.';
+      message = '위치 권한이 없어도 현재 보고 있는 지도를 기준으로 새 카페를 찾을 수 있어요.';
     } else {
-      message = '리뷰가 쌓인 카페만 지도에 보여줘요. 새 카페 버튼으로 바로 탐색할 수 있어요.';
+      message = '리뷰가 있는 카페를 지도에 보여주고 있어요. 새 카페 찾기로 미평가 장소도 탐색할 수 있어요.';
     }
 
     final isError = !isSearching && errorMessage != null;
@@ -295,9 +318,9 @@ class ReviewedStoreBottomCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '리뷰된 카페',
-                    style: TextStyle(
+                  Text(
+                    store.isPersonalizedMatch ? '취향 추천 카페' : '리뷰된 카페',
+                    style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
@@ -320,6 +343,19 @@ class ReviewedStoreBottomCard extends StatelessWidget {
                       fontSize: 12,
                     ),
                   ),
+                  if (store.personalizedReasons.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      store.personalizedReasons.join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

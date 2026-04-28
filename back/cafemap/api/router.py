@@ -58,6 +58,7 @@ from cafemap.schemas.cafemap import (
 from cafemap.services import (
 
     brand_menu_service,
+    personalization_service,
 
     store_service,
 
@@ -127,6 +128,28 @@ def _is_local_store(store) -> bool:
 
 def _store_signal(scores: dict[str, float], key: str) -> float:
     return float(scores.get(key, 0.0))
+
+
+def _personalized_payload(
+    scores: dict[str, float],
+    preference_ids: list[str],
+    *,
+    fallback_score: float,
+) -> tuple[float, list[str], bool]:
+    personalized_score = personalization_service.compute_personalized_score(
+        scores,
+        preference_ids,
+        fallback_score=fallback_score,
+    )
+    reasons = personalization_service.build_personalized_reasons(
+        scores,
+        preference_ids,
+    )
+    return (
+        personalized_score,
+        reasons,
+        personalization_service.is_personalized_match(personalized_score),
+    )
 
 
 def _dessert_signal(scores: dict[str, float]) -> float:
@@ -373,123 +396,132 @@ def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/stores", response_model=list[StoreSummaryOut])
-
-def list_stores(request: Request, db: Session = Depends(get_db)):
+def list_stores(
+    request: Request,
+    preferenceIds: str | None = None,
+    mapMode: str | None = None,
+    db: Session = Depends(get_db),
+):
 
     # ?? ?? ???? ????.
 
     rows = store_service.get_nearby_stores(db)
+    preference_ids = personalization_service.parse_preference_ids(preferenceIds)
+    normalized_map_mode = (
+        mapMode.strip().lower() if mapMode and mapMode.strip() else "all"
+    )
+    if normalized_map_mode not in {"all", "recommended_only"}:
+        normalized_map_mode = "all"
 
-    return [
-
-        StoreSummaryOut(
-
-            id=store.id,
-
-            name=store.name,
-
-            brandName=brand_name,
-
-            storeType=_store_type_for_response(store),
-
-            isLocal=_is_local_store(store),
-
-            address=store.address,
-
-            rating=aggregate.rating,
-
-            displayScore=_display_score_for_store(aggregate),
-
-            reviewCount=aggregate.review_count,
-
-            distanceKm=store.distance_km,
-
-            imageUrl=_resolve_store_image_url(request, brand_logo_url),
-
-            lat=store.lat,
-
-            lng=store.lng,
-
-            coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
-
-            workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
-
-            quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
-
-            dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
-
-            topLabelA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][0],
-
-            topScoreA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][1],
-
-            topLabelB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][0],
-
-            topScoreB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][1],
-
+    items: list[StoreSummaryOut] = []
+    for store, aggregate, brand_name, brand_logo_url in rows:
+        scores = _scores_from_snapshot(aggregate.scores_json)
+        display_score = _display_score_for_store(aggregate)
+        personalized_score, personalized_reasons, is_personalized_match = (
+            _personalized_payload(
+                scores,
+                preference_ids,
+                fallback_score=display_score,
+            )
         )
-
-        for store, aggregate, brand_name, brand_logo_url in rows
-
-    ]
+        item = StoreSummaryOut(
+            id=store.id,
+            name=store.name,
+            brandName=brand_name,
+            storeType=_store_type_for_response(store),
+            isLocal=_is_local_store(store),
+            address=store.address,
+            rating=aggregate.rating,
+            displayScore=display_score,
+            reviewCount=aggregate.review_count,
+            distanceKm=store.distance_km,
+            imageUrl=_resolve_store_image_url(request, brand_logo_url),
+            lat=store.lat,
+            lng=store.lng,
+            coffeeQualityScore=_store_signal(scores, "coffee_quality"),
+            workFriendlyScore=_store_signal(scores, "work_friendly"),
+            quietnessScore=_store_signal(scores, "quietness"),
+            seatComfortScore=_store_signal(scores, "seat_comfort"),
+            serviceScore=_store_signal(scores, "service"),
+            atmosphereScore=_store_signal(scores, "atmosphere"),
+            valueScore=_store_signal(scores, "value"),
+            dessertScore=_dessert_signal(scores),
+            personalizedScore=personalized_score,
+            personalizedReasons=personalized_reasons,
+            isPersonalizedMatch=is_personalized_match,
+            topLabelA=top_highlights(scores)[0][0],
+            topScoreA=top_highlights(scores)[0][1],
+            topLabelB=top_highlights(scores)[1][0],
+            topScoreB=top_highlights(scores)[1][1],
+        )
+        if normalized_map_mode == "recommended_only" and not item.isPersonalizedMatch:
+            continue
+        items.append(item)
+    return items
 
 
 @router.get("/store-rankings", response_model=list[StoreRankingOut])
-
-def list_store_rankings(request: Request, db: Session = Depends(get_db)):
-
+def list_store_rankings(
+    request: Request,
+    preferenceIds: str | None = None,
+    db: Session = Depends(get_db),
+):
     rows = store_service.get_store_rankings(db)
+    preference_ids = personalization_service.parse_preference_ids(preferenceIds)
 
-    return [
-
-        StoreRankingOut(
-
-            id=store.id,
-
-            storeId=store.id,
-
-            storeName=store.name,
-
-            brandName=brand_name,
-
-            storeType=_store_type_for_response(store),
-
-            isLocal=_is_local_store(store),
-
-            rating=aggregate.rating,
-
-            displayScore=display_score,
-
-            reviewCount=aggregate.review_count,
-
-            distanceKm=store.distance_km,
-
-            imageUrl=_resolve_store_image_url(request, brand_logo_url),
-
-            lat=store.lat,
-
-            lng=store.lng,
-
-            topLabelA=highlights[0][0],
-
-            topScoreA=highlights[0][1],
-
-            topLabelB=highlights[1][0],
-
-            topScoreB=highlights[1][1],
-
-            coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
-
-            workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
-
-            quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
-
-            dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
-
+    items: list[StoreRankingOut] = []
+    for display_score, _, store, aggregate, brand_name, brand_logo_url, highlights in rows:
+        scores = _scores_from_snapshot(aggregate.scores_json)
+        personalized_score, personalized_reasons, is_personalized_match = (
+            _personalized_payload(
+                scores,
+                preference_ids,
+                fallback_score=display_score,
+            )
+        )
+        items.append(
+            StoreRankingOut(
+                id=store.id,
+                storeId=store.id,
+                storeName=store.name,
+                brandName=brand_name,
+                storeType=_store_type_for_response(store),
+                isLocal=_is_local_store(store),
+                rating=aggregate.rating,
+                displayScore=display_score,
+                reviewCount=aggregate.review_count,
+                distanceKm=store.distance_km,
+                imageUrl=_resolve_store_image_url(request, brand_logo_url),
+                lat=store.lat,
+                lng=store.lng,
+                topLabelA=highlights[0][0],
+                topScoreA=highlights[0][1],
+                topLabelB=highlights[1][0],
+                topScoreB=highlights[1][1],
+                coffeeQualityScore=_store_signal(scores, "coffee_quality"),
+                workFriendlyScore=_store_signal(scores, "work_friendly"),
+                quietnessScore=_store_signal(scores, "quietness"),
+                seatComfortScore=_store_signal(scores, "seat_comfort"),
+                serviceScore=_store_signal(scores, "service"),
+                atmosphereScore=_store_signal(scores, "atmosphere"),
+                valueScore=_store_signal(scores, "value"),
+                dessertScore=_dessert_signal(scores),
+                personalizedScore=personalized_score,
+                personalizedReasons=personalized_reasons,
+                isPersonalizedMatch=is_personalized_match,
+            )
         )
 
-        for display_score, _, store, aggregate, brand_name, brand_logo_url, highlights in rows
-
-    ]
+    if preference_ids:
+        items.sort(
+            key=lambda item: (
+                item.personalizedScore,
+                item.displayScore,
+                item.reviewCount,
+            ),
+            reverse=True,
+        )
+    return items
 
 
 
@@ -542,6 +574,14 @@ def get_store_detail(store_id: str, request: Request, db: Session = Depends(get_
         workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
 
         quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
+
+        seatComfortScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "seat_comfort"),
+
+        serviceScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "service"),
+
+        atmosphereScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "atmosphere"),
+
+        valueScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "value"),
 
         dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
 

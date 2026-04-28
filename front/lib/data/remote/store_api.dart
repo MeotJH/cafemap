@@ -12,8 +12,17 @@ class StoreApi {
 
   String get _baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
 
-  Future<List<StoreSummary>> fetchStores() async {
-    final response = await _dio.get('$_baseUrl/api/cafemap/stores');
+  Future<List<StoreSummary>> fetchStores({
+    List<String> preferenceIds = const [],
+    String mapMode = 'all',
+  }) async {
+    final response = await _dio.get(
+      '$_baseUrl/api/cafemap/stores',
+      queryParameters: {
+        if (preferenceIds.isNotEmpty) 'preferenceIds': preferenceIds.join(','),
+        'mapMode': mapMode,
+      },
+    );
     final data = response.data as List<dynamic>;
     return data
         .map((item) => _storeFromJson(item as Map<String, dynamic>))
@@ -62,12 +71,24 @@ StoreSummary _storeFromJson(Map<String, dynamic> json) {
     coffeeQualityScore: (json['coffeeQualityScore'] as num?)?.toDouble() ?? 0,
     workFriendlyScore: (json['workFriendlyScore'] as num?)?.toDouble() ?? 0,
     quietnessScore: (json['quietnessScore'] as num?)?.toDouble() ?? 0,
+    seatComfortScore: (json['seatComfortScore'] as num?)?.toDouble() ?? 0,
+    serviceScore: (json['serviceScore'] as num?)?.toDouble() ?? 0,
+    atmosphereScore: (json['atmosphereScore'] as num?)?.toDouble() ?? 0,
+    valueScore: (json['valueScore'] as num?)?.toDouble() ?? 0,
     dessertScore: (json['dessertScore'] as num?)?.toDouble() ?? 0,
+    personalizedScore: (json['personalizedScore'] as num?)?.toDouble() ?? 0,
+    personalizedReasons: _stringListFromJson(json['personalizedReasons']),
+    isPersonalizedMatch: json['isPersonalizedMatch'] as bool? ?? false,
     topLabelA: json['topLabelA'] as String? ?? '',
     topScoreA: (json['topScoreA'] as num?)?.toDouble() ?? 0,
     topLabelB: json['topLabelB'] as String? ?? '',
     topScoreB: (json['topScoreB'] as num?)?.toDouble() ?? 0,
   );
+}
+
+List<String> _stringListFromJson(dynamic raw) {
+  if (raw is! List<dynamic>) return const [];
+  return raw.whereType<String>().toList();
 }
 
 RatingBreakdown _breakdownFromJson(Map<String, dynamic> json) {

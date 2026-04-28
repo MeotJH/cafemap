@@ -41,7 +41,14 @@ class StoreSummaryOut(BaseModel):
     coffeeQualityScore: float = 0.0
     workFriendlyScore: float = 0.0
     quietnessScore: float = 0.0
+    seatComfortScore: float = 0.0
+    serviceScore: float = 0.0
+    atmosphereScore: float = 0.0
+    valueScore: float = 0.0
     dessertScore: float = 0.0
+    personalizedScore: float = 0.0
+    personalizedReasons: list[str] = Field(default_factory=list)
+    isPersonalizedMatch: bool = False
     topLabelA: str = ""
     topScoreA: float = 0.0
     topLabelB: str = ""
@@ -69,7 +76,14 @@ class StoreRankingOut(BaseModel):
     topScoreB: float
     workFriendlyScore: float = 0.0
     quietnessScore: float = 0.0
+    seatComfortScore: float = 0.0
+    serviceScore: float = 0.0
+    atmosphereScore: float = 0.0
+    valueScore: float = 0.0
     dessertScore: float = 0.0
+    personalizedScore: float = 0.0
+    personalizedReasons: list[str] = Field(default_factory=list)
+    isPersonalizedMatch: bool = False
 
 
 class RatingBreakdownOut(BaseModel):

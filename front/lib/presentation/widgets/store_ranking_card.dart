@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/utils/formatters.dart';
@@ -108,10 +109,22 @@ class StoreRankingCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  if (ranking.personalizedReasons.isNotEmpty) ...[
+                    Text(
+                      ranking.personalizedReasons.join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Text(
                     '${ranking.topLabelA} ${RatingFormatter.score(ranking.topScoreA)}, '
-                    '${ranking.topLabelB} ${RatingFormatter.score(ranking.topScoreB)}로 '
-                    '좋은 평가를 받은 카페예요.',
+                    '${ranking.topLabelB} ${RatingFormatter.score(ranking.topScoreB)}가 강점인 카페예요.',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

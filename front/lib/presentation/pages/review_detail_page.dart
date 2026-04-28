@@ -1,6 +1,8 @@
 import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
@@ -8,7 +10,6 @@ import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
-import 'package:go_router/go_router.dart';
 
 class ReviewDetailPage extends ConsumerWidget {
   final String reviewId;
@@ -39,10 +40,10 @@ class ReviewDetailPage extends ConsumerWidget {
   ) async {
     switch (index) {
       case 0:
-        context.go('/ranking');
+        context.go('/preference');
         break;
       case 1:
-        context.go('/menu-ranking');
+        context.go('/ranking');
         break;
       case 2:
         context.go('/map');
@@ -52,11 +53,11 @@ class ReviewDetailPage extends ConsumerWidget {
             ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
-          await _showTopToast(context, '활동은 로그인 후에 확인할 수 있어요.');
+          await _showTopToast(context, '내 리뷰는 로그인 후에 확인할 수 있어요.');
           if (context.mounted) context.go('/auth');
           return;
         }
-        context.go('/activity');
+        context.go('/my-reviews');
         break;
     }
   }
@@ -78,19 +79,19 @@ class ReviewDetailPage extends ConsumerWidget {
             : _ReviewDetailBody(review: initialReview!),
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
+        selectedIndex: 3,
         onDestinationSelected: (index) =>
             _onDestinationSelected(context, ref, index),
         destinations: const [
           NavigationDestination(
+            icon: Icon(Icons.tune_outlined),
+            selectedIcon: Icon(Icons.tune),
+            label: AppStrings.preferenceTab,
+          ),
+          NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: AppStrings.cafeRankingTab,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu_outlined),
-            selectedIcon: Icon(Icons.restaurant_menu),
-            label: AppStrings.menuRankingTab,
           ),
           NavigationDestination(
             icon: Icon(Icons.map_outlined),
@@ -157,7 +158,7 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${widget.review.createdAt.year}년 ${widget.review.createdAt.month}월 ${widget.review.createdAt.day}일 작성',
+                '${widget.review.createdAt.year}.${widget.review.createdAt.month}.${widget.review.createdAt.day} 작성',
                 style: const TextStyle(
                   color: Color(0xFF64748B),
                   fontSize: 17,
@@ -213,7 +214,7 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                   Icon(Icons.analytics_rounded, color: AppColors.primary),
                   SizedBox(width: 8),
                   Text(
-                    '상세 항목 평가',
+                    '세부 항목 평점',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                   ),
                 ],
@@ -250,7 +251,7 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
-                      label: const Text('가게'),
+                      label: const Text('공간'),
                       selected: _selectedSection == _storeSection,
                       onSelected: (_) {
                         setState(() {
@@ -280,7 +281,7 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
               const SizedBox(height: 18),
               if (entries.isEmpty)
                 const Text(
-                  '표시할 평가 항목이 없어요.',
+                  '표시할 세부 평점 항목이 없어요.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 15,

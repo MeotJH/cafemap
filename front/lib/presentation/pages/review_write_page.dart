@@ -14,6 +14,7 @@ import 'package:front/presentation/providers/app_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
 import 'package:front/presentation/providers/ranking_providers.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
+import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/domain/entities/auth_context.dart';
 import 'package:front/presentation/utils/web_image_picker.dart';
 import 'package:go_router/go_router.dart';
@@ -312,6 +313,8 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       ref.invalidate(myReviewsProvider);
       ref.invalidate(rankingListProvider);
       ref.invalidate(storeRankingListProvider);
+      ref.invalidate(personalizedStoreRankingListProvider);
+      ref.invalidate(nearbyStoresProvider);
       if (!mounted) return;
       context.push('/review/${review.id}', extra: review);
     } on DioException catch (e, stackTrace) {

@@ -18,8 +18,10 @@ class RemoteRankingRepository implements RankingRepository {
   }
 
   @override
-  Future<List<StoreRanking>> fetchStoreRankings() async {
-    return _api.fetchStoreRankings();
+  Future<List<StoreRanking>> fetchStoreRankings({
+    List<String> preferenceIds = const [],
+  }) async {
+    return _api.fetchStoreRankings(preferenceIds: preferenceIds);
   }
 
   @override

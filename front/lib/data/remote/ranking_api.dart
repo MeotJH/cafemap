@@ -21,8 +21,15 @@ class RankingApi {
         .toList();
   }
 
-  Future<List<StoreRanking>> fetchStoreRankings() async {
-    final response = await _dio.get('$_baseUrl/api/cafemap/store-rankings');
+  Future<List<StoreRanking>> fetchStoreRankings({
+    List<String> preferenceIds = const [],
+  }) async {
+    final response = await _dio.get(
+      '$_baseUrl/api/cafemap/store-rankings',
+      queryParameters: {
+        if (preferenceIds.isNotEmpty) 'preferenceIds': preferenceIds.join(','),
+      },
+    );
     final data = response.data as List<dynamic>;
     return data
         .map((item) => _storeRankingFromJson(item as Map<String, dynamic>))
@@ -70,7 +77,14 @@ StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
     topScoreB: (json['topScoreB'] as num?)?.toDouble() ?? 0,
     workFriendlyScore: (json['workFriendlyScore'] as num?)?.toDouble() ?? 0,
     quietnessScore: (json['quietnessScore'] as num?)?.toDouble() ?? 0,
+    seatComfortScore: (json['seatComfortScore'] as num?)?.toDouble() ?? 0,
+    serviceScore: (json['serviceScore'] as num?)?.toDouble() ?? 0,
+    atmosphereScore: (json['atmosphereScore'] as num?)?.toDouble() ?? 0,
+    valueScore: (json['valueScore'] as num?)?.toDouble() ?? 0,
     dessertScore: (json['dessertScore'] as num?)?.toDouble() ?? 0,
+    personalizedScore: (json['personalizedScore'] as num?)?.toDouble() ?? 0,
+    personalizedReasons: _stringListFromJson(json['personalizedReasons']),
+    isPersonalizedMatch: json['isPersonalizedMatch'] as bool? ?? false,
   );
 }
 
@@ -135,4 +149,9 @@ List<String> _imageUrlsFromJson(dynamic raw) {
       .map((url) => url.trim())
       .where((url) => url.isNotEmpty)
       .toList();
+}
+
+List<String> _stringListFromJson(dynamic raw) {
+  if (raw is! List<dynamic>) return const [];
+  return raw.whereType<String>().toList();
 }

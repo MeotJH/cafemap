@@ -3,20 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:front/presentation/pages/auth_start_page.dart';
 import 'package:front/presentation/pages/main_shell.dart';
 import 'package:front/presentation/pages/map_home_page.dart';
-import 'package:front/presentation/pages/my_activity_page.dart';
-import 'package:front/presentation/pages/ranking_detail_page.dart';
+import 'package:front/presentation/pages/my_reviews_page.dart';
+import 'package:front/presentation/pages/preference_home_page.dart';
 import 'package:front/presentation/pages/ranking_home_page.dart';
 import 'package:front/presentation/pages/review_detail_page.dart';
 import 'package:front/presentation/pages/review_write_page.dart';
 import 'package:front/presentation/pages/store_select_page.dart';
 import 'package:front/presentation/pages/store_detail_page.dart';
 import 'package:front/domain/entities/review.dart';
-import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:go_router/go_router.dart';
 
 // 앱 내 라우팅 규칙을 정의한다.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/ranking',
+  initialLocation: '/preference',
   routes: <RouteBase>[
     GoRoute(
       path: '/auth',
@@ -30,6 +29,12 @@ final GoRouter appRouter = GoRouter(
       },
       routes: <RouteBase>[
         GoRoute(
+          path: '/preference',
+          builder: (BuildContext context, GoRouterState state) {
+            return const PreferenceHomePage();
+          },
+        ),
+        GoRoute(
           path: '/ranking',
           builder: (BuildContext context, GoRouterState state) {
             return const RankingHomePage();
@@ -40,36 +45,6 @@ final GoRouter appRouter = GoRouter(
               builder: (BuildContext context, GoRouterState state) {
                 final id = state.pathParameters['id'] ?? '';
                 return StoreDetailPage(storeId: id);
-              },
-            ),
-            GoRoute(
-              path: ':id',
-              builder: (BuildContext context, GoRouterState state) {
-                final id = state.pathParameters['id'] ?? '';
-                final extra = state.extra;
-                return RankingDetailPage(
-                  rankingId: id,
-                  ranking: extra is BrandMenuRanking ? extra : null,
-                );
-              },
-            ),
-          ],
-        ),
-        GoRoute(
-          path: '/menu-ranking',
-          builder: (BuildContext context, GoRouterState state) {
-            return const RankingHomePage.menu();
-          },
-          routes: <RouteBase>[
-            GoRoute(
-              path: ':id',
-              builder: (BuildContext context, GoRouterState state) {
-                final id = state.pathParameters['id'] ?? '';
-                final extra = state.extra;
-                return RankingDetailPage(
-                  rankingId: id,
-                  ranking: extra is BrandMenuRanking ? extra : null,
-                );
               },
             ),
           ],
@@ -90,9 +65,9 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         GoRoute(
-          path: '/activity',
+          path: '/my-reviews',
           builder: (BuildContext context, GoRouterState state) {
-            return const MyActivityPage();
+            return const MyReviewsPage();
           },
         ),
       ],

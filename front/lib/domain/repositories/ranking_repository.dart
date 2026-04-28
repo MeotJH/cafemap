@@ -8,7 +8,9 @@ abstract class RankingRepository {
   // 랭킹 목록을 조회한다.
   Future<List<BrandMenuRanking>> fetchRankings();
 
-  Future<List<StoreRanking>> fetchStoreRankings();
+  Future<List<StoreRanking>> fetchStoreRankings({
+    List<String> preferenceIds = const [],
+  });
 
   // 랭킹 상세의 항목별 점수를 조회한다.
   Future<RatingBreakdown> fetchRankingBreakdown(String rankingId);

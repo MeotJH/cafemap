@@ -3,11 +3,19 @@ import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/presentation/providers/app_providers.dart';
+import 'package:front/presentation/providers/user_preference_providers.dart';
 
 // 주변 지점 리스트를 제공하는 FutureProvider다.
-final nearbyStoresProvider = FutureProvider<List<StoreSummary>>((ref) async {
+final nearbyStoresProvider = FutureProvider.family<List<StoreSummary>, String>((
+  ref,
+  mapMode,
+) async {
   final repository = ref.watch(storeRepositoryProvider);
-  return repository.fetchNearbyStores();
+  final preferenceIds = ref.watch(selectedPreferenceIdsProvider);
+  return repository.fetchNearbyStores(
+    preferenceIds: preferenceIds,
+    mapMode: mapMode,
+  );
 });
 
 // 지점 상세 정보를 제공한다.

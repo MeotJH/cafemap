@@ -1,19 +1,18 @@
-﻿import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
 import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
 import 'package:front/presentation/widgets/review_card.dart';
-import 'package:go_router/go_router.dart';
-import 'package:dio/dio.dart';
 
-// 내 활동(리뷰)을 보여주는 페이지입니다.
-class MyActivityPage extends ConsumerWidget {
-  const MyActivityPage({super.key});
+class MyReviewsPage extends ConsumerWidget {
+  const MyReviewsPage({super.key});
 
   @override
-  // 내 활동 리뷰 목록을 표시합니다.
   Widget build(BuildContext context, WidgetRef ref) {
     final user =
         ref.watch(authStateProvider).asData?.value ??
@@ -21,7 +20,7 @@ class MyActivityPage extends ConsumerWidget {
     final reviews = ref.watch(myReviewsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('내 활동')),
+      appBar: AppBar(title: const Text('내 리뷰')),
       body: Padding(
         padding: const EdgeInsets.all(AppSizes.screenPadding),
         child: user == null
@@ -29,7 +28,7 @@ class MyActivityPage extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('내 활동을 보려면 로그인해주세요'),
+                    const Text('내 리뷰를 보려면 로그인해주세요.'),
                     const SizedBox(height: 12),
                     WriteCafeReviewButton(
                       onPressed: () => context.push('/auth'),
@@ -61,7 +60,7 @@ class MyActivityPage extends ConsumerWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('로그인이 필요합니다. 다시 로그인해주세요'),
+                          const Text('로그인이 필요합니다. 다시 로그인해주세요.'),
                           const SizedBox(height: 12),
                           WriteCafeReviewButton(
                             onPressed: () => context.push('/auth'),
@@ -71,7 +70,7 @@ class MyActivityPage extends ConsumerWidget {
                       ),
                     );
                   }
-                  return const Center(child: Text('리뷰를 불러오는데 실패했습니다.'));
+                  return const Center(child: Text('리뷰를 불러오지 못했어요.'));
                 },
               ),
       ),

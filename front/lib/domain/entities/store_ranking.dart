@@ -19,7 +19,14 @@ class StoreRanking {
   final double topScoreB;
   final double workFriendlyScore;
   final double quietnessScore;
+  final double seatComfortScore;
+  final double serviceScore;
+  final double atmosphereScore;
+  final double valueScore;
   final double dessertScore;
+  final double personalizedScore;
+  final List<String> personalizedReasons;
+  final bool isPersonalizedMatch;
 
   const StoreRanking({
     required this.id,
@@ -42,6 +49,13 @@ class StoreRanking {
     required this.topScoreB,
     required this.workFriendlyScore,
     required this.quietnessScore,
+    required this.seatComfortScore,
+    required this.serviceScore,
+    required this.atmosphereScore,
+    required this.valueScore,
     required this.dessertScore,
+    required this.personalizedScore,
+    required this.personalizedReasons,
+    required this.isPersonalizedMatch,
   });
 }

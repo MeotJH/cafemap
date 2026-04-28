@@ -12,7 +12,10 @@ class MockStoreRepository implements StoreRepository {
 
   @override
   // 주변 지점을 목업 데이터로 반환한다.
-  Future<List<StoreSummary>> fetchNearbyStores() async {
+  Future<List<StoreSummary>> fetchNearbyStores({
+    List<String> preferenceIds = const [],
+    String mapMode = 'all',
+  }) async {
     return _dataSource.stores();
   }
 

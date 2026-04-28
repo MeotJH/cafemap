@@ -18,7 +18,9 @@ class MockRankingRepository implements RankingRepository {
   }
 
   @override
-  Future<List<StoreRanking>> fetchStoreRankings() async {
+  Future<List<StoreRanking>> fetchStoreRankings({
+    List<String> preferenceIds = const [],
+  }) async {
     return _dataSource.storeRankings();
   }
 

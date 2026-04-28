@@ -31,7 +31,7 @@ class MapHomeMarkerBundle {
             caption: store.name,
             description: store.address,
             iconUrl: reviewedCafeMarkerIconUrl,
-            badgeText: '☕',
+            badgeText: store.isPersonalizedMatch ? '추천' : '리뷰',
           ),
         )
         .toList();
