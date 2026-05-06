@@ -111,3 +111,23 @@ def fetch_store_reviews(db: Session, store_id: str):
     )
 
     return db.execute(stmt).all()
+
+
+def fetch_all_store_review_rows(db: Session):
+    stmt = (
+        select(
+            Review,
+            Store,
+            Brand.name,
+            Brand.logo_url,
+            Menu.name,
+            Menu.category,
+            User.email,
+        )
+        .join(Store, Store.id == Review.store_id)
+        .join(Brand, Brand.id == Review.brand_id)
+        .join(Menu, Menu.id == Review.menu_id)
+        .join(User, User.id == Review.user_id)
+        .order_by(Review.created_at.desc())
+    )
+    return db.execute(stmt).all()

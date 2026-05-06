@@ -29,6 +29,14 @@ class MockDataSource {
       workFriendlyScore: 4.4,
       quietnessScore: 4.2,
       dessertScore: 4.1,
+      coupleScore: 4.6,
+      wifeScore: 4.8,
+      husbandScore: 4.4,
+      userScore: 4.3,
+      revisitScore: 4.5,
+      summary: '원두와 분위기 평가가 좋았던 카페예요.',
+      tags: ['분위기 좋음', '커피 맛'],
+      latestVisitedAt: null,
     ),
     StoreRanking(
       id: 'store-starbucks-1',
@@ -53,6 +61,14 @@ class MockDataSource {
       workFriendlyScore: 3.8,
       quietnessScore: 3.4,
       dessertScore: 4.0,
+      coupleScore: 4.2,
+      wifeScore: 4.1,
+      husbandScore: 4.3,
+      userScore: 4.4,
+      revisitScore: 4.0,
+      summary: '접근성과 커피 만족도가 안정적인 카페예요.',
+      tags: ['접근성 좋음', '커피 맛'],
+      latestVisitedAt: null,
     ),
   ];
 
@@ -179,6 +195,7 @@ class MockDataSource {
       menuName: '아메리카노',
       menuCategory: 'coffee',
       userEmail: 'seed@cafemap.local',
+      reviewerType: 'USER',
       scores: const {
         'coffee_quality': 4.8,
         'atmosphere': 4.6,

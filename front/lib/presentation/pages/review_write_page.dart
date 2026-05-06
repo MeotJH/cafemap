@@ -648,7 +648,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
               context.pop();
               return;
             }
-            context.go('/ranking');
+            context.go('/rankings');
           },
         ),
       ),

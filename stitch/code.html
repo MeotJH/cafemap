@@ -1,148 +1,206 @@
 <!DOCTYPE html>
 
-<html class="light" lang="ko"><head>
+<html lang="ko"><head><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>치킨 맵 - 로그인</title>
+<title>Cafe Bubu - Warm Brown Edition</title>
+<!-- Tailwind CSS v3 CDN -->
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        "tertiary": "#000000",
-                        "outline-variant": "#c6c6cd",
-                        "on-primary-fixed-variant": "#793100",
-                        "surface-tint": "#9e4300",
-                        "on-tertiary-fixed-variant": "#38485d",
-                        "inverse-primary": "#ffb691",
-                        "on-secondary": "#ffffff",
-                        "surface-variant": "#e0e3e5",
-                        "on-tertiary-fixed": "#0b1c30",
-                        "on-error": "#ffffff",
-                        "secondary-fixed": "#dbe2f9",
-                        "primary": "#000000",
-                        "primary-fixed": "#ffdbcb",
-                        "tertiary-fixed-dim": "#b7c8e1",
-                        "secondary-fixed-dim": "#bfc6dc",
-                        "on-error-container": "#93000a",
-                        "primary-container": "#341100",
-                        "outline": "#76777d",
-                        "primary-fixed-dim": "#ffb691",
-                        "surface-container": "#eceef0",
-                        "surface-container-highest": "#e0e3e5",
-                        "on-primary-container": "#da5e00",
-                        "tertiary-container": "#0b1c30",
-                        "on-secondary-fixed": "#141b2c",
-                        "inverse-on-surface": "#eff1f3",
-                        "error-container": "#ffdad6",
-                        "on-primary": "#ffffff",
-                        "surface-dim": "#d8dadc",
-                        "on-tertiary": "#ffffff",
-                        "surface": "#f7f9fb",
-                        "on-secondary-container": "#5c6477",
-                        "on-surface-variant": "#45474c",
-                        "error": "#ba1a1a",
-                        "surface-container-lowest": "#ffffff",
-                        "tertiary-fixed": "#d3e4fe",
-                        "on-background": "#191c1e",
-                        "on-tertiary-container": "#75859d",
-                        "secondary": "#565e71",
-                        "on-secondary-fixed-variant": "#3f4759",
-                        "inverse-surface": "#2d3133",
-                        "surface-container-low": "#f2f4f6",
-                        "on-surface": "#191c1e",
-                        "surface-bright": "#f7f9fb",
-                        "secondary-container": "#dbe2f9",
-                        "on-primary-fixed": "#341100",
-                        "surface-container-high": "#e6e8ea",
-                        "background": "#f7f9fb",
-                        "brand-orange": "#da5e00"
-                    },
-                    fontFamily: {
-                        "headline": ["Manrope"],
-                        "body": ["Manrope"],
-                        "label": ["Manrope"]
-                    },
-                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
-                },
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            // Brown Palette from reference image
+            cafeBrown: {
+              50: '#FDF8F6',
+              100: '#F7EDE8',
+              200: '#EED9CE',
+              300: '#D9B4A0',
+              400: '#C28D73',
+              500: '#A03200', // Primary Accent
+              600: '#832700',
+              700: '#661F00',
+              800: '#4D1700',
+              900: '#390C00',
             },
+            tossGrey: {
+              50: '#F9FAFB',
+              100: '#F2F4F6',
+              200: '#E5E8EB',
+              300: '#D1D6DB',
+              400: '#B0B8C1',
+              500: '#8B95A1',
+              600: '#6B7684',
+              700: '#4E5968',
+              800: '#333D4B',
+              900: '#191F28',
+            }
+          }
         }
-    </script>
-<style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-        body {
-            font-family: 'Manrope', sans-serif;
-            background-color: #f7f9fb;
-        }
-        body {
-            min-height: max(600px, 100dvh);
-        }
-    </style>
+      }
+    }
+  </script>
+<!-- Google Fonts for a clean Korean look -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<style data-purpose="typography">
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background-color: #F7EDE8; /* cafeBrown-100 for the entire screen */
+      color: #191F28;
+    }
+  </style>
+<style data-purpose="layout">
+    /* Ensure the mobile view looks correct on larger screens */
+    .mobile-container {
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background-color: #F7EDE8; /* Warm brown background */
+      position: relative;
+      padding-bottom: 80px; /* Space for bottom nav */
+    }
+    
+    /* Smooth active state for buttons */
+    .tap-highlight:active {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+  </style>
 </head>
-<body class="bg-surface text-on-surface min-h-screen flex flex-col">
-<!-- TopAppBar -->
-<header class="fixed top-0 left-0 right-0 z-50 bg-surface dark:bg-zinc-950 flex justify-between items-center w-full px-6 py-4 max-w-lg mx-auto">
-<button class="text-zinc-500 hover:opacity-80 transition-opacity active:scale-95 duration-200">
-<span class="material-symbols-outlined" data-icon="close">close</span>
-</button>
-<div class="font-manrope font-bold tracking-tight text-xl font-black text-zinc-900 dark:text-zinc-50 tracking-tighter">
-            Chicken <span class="text-brand-orange">Map</span>
+<body>
+<!-- BEGIN: MainContent -->
+<main class="mobile-container overflow-x-hidden">
+<!-- BEGIN: HeaderSection -->
+<header class="pt-12 pb-8 px-4" data-purpose="app-header">
+<div class="bg-white/40 p-6 rounded-3xl border border-cafeBrown-200 shadow-sm">
+<h1 class="text-4xl font-extrabold tracking-tight mb-4 text-cafeBrown-900">카페부부</h1>
+<div class="space-y-2">
+<p class="text-lg font-bold text-cafeBrown-800 leading-tight">둘이 직접 다녀온 카페만 기록합니다.</p>
+<p class="text-base font-medium text-cafeBrown-700 leading-relaxed">
+        취향별 랭킹과 지도에서 다시 가고 싶은 카페를 찾아보세요.
+      </p>
 </div>
-<div class="w-6"></div> <!-- Spacer for center alignment -->
+<div class="mt-4 flex items-center gap-2 text-cafeBrown-400">
+<span class="material-symbols-outlined text-sm">auto_awesome</span>
+<span class="text-xs font-semibold uppercase tracking-widest">Our Coffee Journey</span>
+</div>
+</div>
 </header>
-<main class="flex-grow flex flex-col items-center justify-center px-8 pt-24 pb-12 max-w-md mx-auto w-full">
-<!-- Hero Section -->
-<div class="text-center mb-10">
-<h1 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface mb-2 break-keep">
-                세상의 모든 치킨을 지도로 만나보세요
-            </h1>
-<p class="text-on-surface-variant text-sm font-medium">
-                내 주변 최고의 치킨 맛집 찾기
-            </p>
+<!-- END: HeaderSection -->
+<!-- BEGIN: WifePickSection -->
+<section class="px-5 mb-10" data-purpose="wife-picks">
+<div class="flex flex-col mb-4">
+<h2 class="text-xl font-bold text-cafeBrown-900 flex items-center gap-1">
+          아내픽 TOP 3
+          <span class="text-cafeBrown-600 text-sm font-semibold">Wife's Pick</span>
+</h2>
+<p class="text-cafeBrown-700 text-sm mt-1">감성과 디저트 만족도가 높았던 카페</p>
 </div>
-<!-- Social Login Stack - Google Only -->
-<div class="w-full space-y-3 mb-8">
-<button class="w-full h-14 rounded-full bg-white border border-outline-variant/30 text-on-surface font-bold flex items-center justify-center gap-3 hover:bg-surface-container-lowest transition-colors active:scale-[0.98] duration-200">
-<img alt="Google Logo" class="w-5 h-5" data-alt="clean minimal google g logo icon on a white background with vivid primary colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFX5AKIKDNDV9aWA56ou1dUU-tQC3mV1QLyjI5-o4frD7YnCdtqJIR6EgX--r9GfhySgUxEk_1HFa1PrgsKRs3AwRNA-LGJfHu5IsF1vCiNNj8SWHmVADWUKMvSS1mAq9nbo7Jl7AMXuRvszqLcYd3tkNQuV5jBVuiKwl3jLC-7xJu1s_XTpeKMFwMvYTpl32LpxYBannOYAIKFc9pEKDMWwJmhjNcyYeBXaZq2AhwZKyHOixbRqdI6TrPjTuoQKtdbILhA-7s7Naq"/>
-<span>Google 로그인</span>
-</button>
+<!-- Ranking List -->
+<div class="space-y-3">
+<!-- Item 1 -->
+<div class="bg-white p-5 rounded-2xl flex justify-between items-center shadow-sm tap-highlight cursor-pointer transition-colors" data-purpose="cafe-card">
+<div class="flex-1 pr-4">
+<h3 class="text-lg font-bold text-cafeBrown-900">도조커피 광화문</h3>
+<p class="text-sm text-cafeBrown-700 mt-1 line-clamp-1">도조커피 광화문은 원두 품질과 응대 평가가 좋았던 카페예요.</p>
 </div>
-<!-- OR Divider -->
-<div class="w-full flex items-center gap-4 mb-8">
-<div class="h-[1px] flex-grow bg-outline-variant/30"></div>
-<span class="text-xs font-bold tracking-widest text-outline uppercase">또는</span>
-<div class="h-[1px] flex-grow bg-outline-variant/30"></div>
+<div class="text-center min-w-[56px]">
+<p class="text-[10px] font-bold text-cafeBrown-400 uppercase tracking-wider mb-1">Score</p>
+<p class="text-xl font-bold text-cafeBrown-500">3.9</p>
 </div>
-<!-- Traditional Login Form -->
-<form class="w-full space-y-4 mb-8">
-<div class="space-y-2">
-<input class="w-full h-14 px-6 rounded-xl bg-surface-container-highest border-none focus:ring-2 focus:ring-brand-orange/20 focus:bg-surface-container-lowest transition-all placeholder:text-outline/60 text-on-surface font-medium" placeholder="아이디" type="text"/>
 </div>
-<div class="space-y-2">
-<input class="w-full h-14 px-6 rounded-xl bg-surface-container-highest border-none focus:ring-2 focus:ring-brand-orange/20 focus:bg-surface-container-lowest transition-all placeholder:text-outline/60 text-on-surface font-medium" placeholder="비밀번호" type="password"/>
+<!-- Item 2 -->
+<div class="bg-white p-5 rounded-2xl flex justify-between items-center shadow-sm tap-highlight cursor-pointer transition-colors" data-purpose="cafe-card">
+<div class="flex-1 pr-4">
+<h3 class="text-lg font-bold text-cafeBrown-900">이디야커피 신내동점</h3>
+<p class="text-sm text-cafeBrown-700 mt-1 line-clamp-1">이디야커피 신내동점은 원두 품질과 산미 밸런스 평가가 좋았던 카...</p>
 </div>
-<button class="w-full h-14 rounded-full bg-brand-orange text-white font-bold text-lg shadow-lg shadow-brand-orange/10 hover:opacity-90 transition-opacity active:scale-[0.98] duration-200 mt-2" type="submit">
-                로그인
-            </button>
-</form>
+<div class="text-center min-w-[56px]">
+<p class="text-[10px] font-bold text-cafeBrown-400 uppercase tracking-wider mb-1">Score</p>
+<p class="text-xl font-bold text-cafeBrown-500">3.7</p>
+</div>
+</div>
+</div>
+</section>
+<!-- END: WifePickSection -->
+<!-- BEGIN: HusbandPickSection -->
+<section class="px-5 mb-10" data-purpose="husband-picks">
+<div class="flex flex-col mb-4">
+<h2 class="text-xl font-bold text-cafeBrown-900 flex items-center gap-1">
+          남편픽 TOP 3
+          <span class="text-cafeBrown-600 text-sm font-semibold">Husband's Pick</span>
+</h2>
+<p class="text-cafeBrown-700 text-sm mt-1">커피, 작업성, 실용성이 좋았던 카페</p>
+</div>
+<!-- Ranking List -->
+<div class="space-y-3">
+<!-- Item 1 -->
+<div class="bg-white p-5 rounded-2xl flex justify-between items-center shadow-sm tap-highlight cursor-pointer transition-colors" data-purpose="cafe-card">
+<div class="flex-1 pr-4">
+<h3 class="text-lg font-bold text-cafeBrown-900">드립쏘</h3>
+<p class="text-sm text-cafeBrown-700 mt-1 line-clamp-1">드립쏘는 조용함과 응대 평가가 좋았던 카페예요.</p>
+</div>
+<div class="text-center min-w-[56px]">
+<p class="text-[10px] font-bold text-cafeBrown-400 uppercase tracking-wider mb-1">Score</p>
+<p class="text-xl font-bold text-cafeBrown-500">3.8</p>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="bg-white p-5 rounded-2xl flex justify-between items-center shadow-sm tap-highlight cursor-pointer transition-colors" data-purpose="cafe-card">
+<div class="flex-1 pr-4">
+<h3 class="text-lg font-bold text-cafeBrown-900">스타벅스 더북한산점</h3>
+<p class="text-sm text-cafeBrown-700 mt-1 line-clamp-1">스타벅스 더북한산점은 원두 품질과 산미 밸런스 평가가 좋았던 카...</p>
+</div>
+<div class="text-center min-w-[56px]">
+<p class="text-[10px] font-bold text-cafeBrown-400 uppercase tracking-wider mb-1">Score</p>
+<p class="text-xl font-bold text-cafeBrown-500">3.8</p>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="bg-white p-5 rounded-2xl flex justify-between items-center shadow-sm tap-highlight cursor-pointer transition-colors" data-purpose="cafe-card">
+<div class="flex-1 pr-4">
+<h3 class="text-lg font-bold text-cafeBrown-900">마리나파크카페</h3>
+<p class="text-sm text-cafeBrown-700 mt-1 line-clamp-1">마리나파크카페는 조용함과 원두 품질 평가가 좋았던 카페예요.</p>
+</div>
+<div class="text-center min-w-[56px]">
+<p class="text-[10px] font-bold text-cafeBrown-400 uppercase tracking-wider mb-1">Score</p>
+<p class="text-xl font-bold text-cafeBrown-500">3.7</p>
+</div>
+</div>
+</div>
+</section>
+<!-- END: HusbandPickSection -->
 </main>
-<!-- Footer -->
-<footer class="pb-10 bg-transparent flex flex-col items-center space-y-4 w-full px-8">
-<div class="flex items-center space-x-6">
-<a class="font-manrope text-xs font-medium tracking-widest text-zinc-400 dark:text-zinc-600 hover:text-brand-orange dark:hover:text-brand-orange transition-colors underline-offset-4 hover:underline" href="#">회원가입</a>
-<div class="w-1 h-1 rounded-full bg-outline-variant/50"></div>
-<a class="font-manrope text-xs font-medium tracking-widest text-zinc-400 dark:text-zinc-600 hover:text-brand-orange dark:hover:text-brand-orange transition-colors underline-offset-4 hover:underline" href="#">아이디 찾기</a>
-<div class="w-1 h-1 rounded-full bg-outline-variant/50"></div>
-<a class="font-manrope text-xs font-medium tracking-widest text-zinc-400 dark:text-zinc-600 hover:text-brand-orange dark:hover:text-brand-orange transition-colors underline-offset-4 hover:underline" href="#">비밀번호 찾기</a>
-</div>
-<p class="font-manrope text-[10px] text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
-            © 2024 Chicken Map. All rights reserved.
-        </p>
-</footer>
+<!-- END: MainContent -->
+<!-- BEGIN: BottomNavigation -->
+<nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] h-20 bg-white/90 backdrop-blur-md border-t border-cafeBrown-100 px-4 flex justify-around items-center z-50" data-purpose="bottom-nav">
+<button class="flex flex-col items-center gap-1 group w-1/4" data-purpose="nav-home">
+<svg class="w-6 h-6 text-cafeBrown-500" fill="currentColor" viewbox="0 0 24 24">
+<path d="M12 3L4 9v11a1 1 0 001 1h5v-6h4v6h5a1 1 0 001-1V9l-8-6z"></path>
+</svg>
+<span class="text-[11px] font-bold text-cafeBrown-500">홈</span>
+</button>
+<button class="flex flex-col items-center gap-1 group w-1/4" data-purpose="nav-ranking">
+<svg class="w-6 h-6 text-cafeBrown-300 group-active:text-cafeBrown-600" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+</svg>
+<span class="text-[11px] font-medium text-cafeBrown-400 group-active:text-cafeBrown-600">랭킹</span>
+</button>
+<button class="flex flex-col items-center gap-1 group w-1/4" data-purpose="nav-map">
+<svg class="w-6 h-6 text-cafeBrown-300 group-active:text-cafeBrown-600" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+</svg>
+<span class="text-[11px] font-medium text-cafeBrown-400 group-active:text-cafeBrown-600">지도</span>
+</button>
+<button class="flex flex-col items-center gap-1 group w-1/4" data-purpose="nav-profile">
+<svg class="w-6 h-6 text-cafeBrown-300 group-active:text-cafeBrown-600" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+</svg>
+<span class="text-[11px] font-medium text-cafeBrown-400 group-active:text-cafeBrown-600">내기록</span>
+</button>
+</nav>
+<!-- END: BottomNavigation -->
 </body></html>

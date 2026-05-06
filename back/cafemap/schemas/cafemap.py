@@ -1,12 +1,9 @@
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
-# API 응답 스키마를 정의하는 모듈이다.
-
-
 class BrandMenuRankingOut(BaseModel):
-    # 랭킹 리스트 응답 모델이다.
     id: str
     brandId: str
     menuId: str
@@ -24,7 +21,6 @@ class BrandMenuRankingOut(BaseModel):
 
 
 class StoreSummaryOut(BaseModel):
-    # 지점 요약 응답 모델이다.
     id: str
     name: str
     brandName: str
@@ -72,16 +68,36 @@ class StoreRankingOut(BaseModel):
     workFriendlyScore: float = 0.0
     quietnessScore: float = 0.0
     dessertScore: float = 0.0
+    coupleScore: float = 0.0
+    wifeScore: float = 0.0
+    husbandScore: float = 0.0
+    userScore: float = 0.0
+    revisitScore: float = 0.0
+    summary: str = ""
+    tags: list[str] = Field(default_factory=list)
+    latestVisitedAt: datetime | None = None
+
+
+class HomeRecommendedMenuOut(BaseModel):
+    menuName: str
+    storeName: str
+    score: float
+
+
+class HomeSummaryOut(BaseModel):
+    featuredCafe: StoreRankingOut | None = None
+    wifeTop: list[StoreRankingOut] = Field(default_factory=list)
+    husbandTop: list[StoreRankingOut] = Field(default_factory=list)
+    recentCafes: list[StoreRankingOut] = Field(default_factory=list)
+    recommendedMenus: list[HomeRecommendedMenuOut] = Field(default_factory=list)
 
 
 class RatingBreakdownOut(BaseModel):
-    # 점수 분해 응답 모델이다.
     scores: dict[str, float] = Field(default_factory=dict)
     overall: float
 
 
 class ReviewOut(BaseModel):
-    # 리뷰 응답 모델이다.
     id: str
     storeName: str
     link: str = ""
@@ -89,6 +105,7 @@ class ReviewOut(BaseModel):
     brandName: str
     menuName: str
     menuCategory: str
+    reviewerType: str = "USER"
     scores: dict[str, float] = Field(default_factory=dict)
     overall: float
     comment: str
@@ -98,7 +115,6 @@ class ReviewOut(BaseModel):
 
 
 class PlaceSearchOut(BaseModel):
-    # 네이버 지역 검색 결과 응답 모델이다.
     name: str
     address: str
     roadAddress: str
@@ -116,14 +132,12 @@ class PlaceSearchOut(BaseModel):
 
 
 class BrandOut(BaseModel):
-    # 브랜드 응답 모델이다.
     id: str
     name: str
     logoUrl: str
 
 
 class MenuOut(BaseModel):
-    # 메뉴 응답 모델이다.
     id: str
     brandId: str
     name: str
@@ -132,7 +146,6 @@ class MenuOut(BaseModel):
 
 
 class ReviewCreateIn(BaseModel):
-    # 리뷰 생성 요청 모델이다.
     storeName: str
     address: str
     placeId: str = ""
@@ -150,19 +163,16 @@ class ReviewCreateIn(BaseModel):
 
 
 class ReviewImagePresignIn(BaseModel):
-    # 리뷰 이미지 업로드용 presigned URL 요청 모델이다.
     fileName: str
     contentType: str = "image/jpeg"
 
 
 class ReviewImagePresignOut(BaseModel):
-    # 리뷰 이미지 업로드용 presigned URL 응답 모델이다.
     uploadUrl: str
     fileUrl: str
 
 
 class AuthOut(BaseModel):
-    # 인증 사용자 응답 모델이다.
     uid: str
     email: str
     name: str

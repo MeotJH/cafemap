@@ -6,6 +6,7 @@ import 'naver_map_view_stub.dart'
 
 // ???? ??? ?? ??? ???? ?????.
 Widget buildNaverMapView({
+  Key? key,
   required BuildContext context,
   required double lat,
   required double lng,
@@ -16,16 +17,19 @@ Widget buildNaverMapView({
   ValueChanged<dynamic>? onMapReady,
   ValueChanged<MapViewportData>? onCameraIdle,
 }) {
-  return buildNaverMapViewImpl(
-    context: context,
-    lat: lat,
-    lng: lng,
-    zoom: zoom,
-    markers: markers,
-    selectedMarkerId: selectedMarkerId,
-    onMarkerTap: onMarkerTap,
-    onMapReady: onMapReady,
-    onCameraIdle: onCameraIdle,
+  return KeyedSubtree(
+    key: key,
+    child: buildNaverMapViewImpl(
+      context: context,
+      lat: lat,
+      lng: lng,
+      zoom: zoom,
+      markers: markers,
+      selectedMarkerId: selectedMarkerId,
+      onMarkerTap: onMarkerTap,
+      onMapReady: onMapReady,
+      onCameraIdle: onCameraIdle,
+    ),
   );
 }
 

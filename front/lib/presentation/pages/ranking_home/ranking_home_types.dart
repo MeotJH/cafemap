@@ -1,7 +1,7 @@
-enum StoreSegment { all, local, franchise }
+enum RankingAudience { couple, wife, husband, user }
 
-enum StoreRankingSort { recommended, rating, reviews }
+enum StoreRankingSort { rating, recent, revisit }
 
 enum RankingMode { stores, menus }
 
-enum ProfileMenuAction { activity, login, logout }
+enum ProfileMenuAction { myRecord, login, logout }

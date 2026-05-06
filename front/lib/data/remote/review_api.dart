@@ -6,14 +6,15 @@ import 'package:front/domain/entities/review.dart';
 // 리뷰 API 호출을 담당한다.
 class ReviewApi {
   ReviewApi({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 8),
-                receiveTimeout: const Duration(seconds: 8),
-                sendTimeout: const Duration(seconds: 8),
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 8),
+              receiveTimeout: const Duration(seconds: 8),
+              sendTimeout: const Duration(seconds: 8),
+            ),
+          );
 
   final Dio _dio;
 
@@ -81,7 +82,7 @@ class ReviewApi {
   Map<String, String> _authHeaders(AuthContext? auth) {
     if (auth == null) return const {};
     return <String, String>{
-      'Authorization': 'Bearer ${auth.toAuthorizationToken()}'
+      'Authorization': 'Bearer ${auth.toAuthorizationToken()}',
     };
   }
 }
@@ -121,21 +122,21 @@ class ReviewCreateRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'storeName': storeName,
-        'address': address,
-        'placeId': placeId,
-        'link': link,
-        'temperatureOption': temperatureOption,
-        'lat': lat,
-        'lng': lng,
-        'brandId': brandId,
-        'menuName': menuName,
-        'scores': scores,
-        'storeScores': storeScores,
-        'overall': overall,
-        'comment': comment,
-        'imageUrls': imageUrls,
-      };
+    'storeName': storeName,
+    'address': address,
+    'placeId': placeId,
+    'link': link,
+    'temperatureOption': temperatureOption,
+    'lat': lat,
+    'lng': lng,
+    'brandId': brandId,
+    'menuName': menuName,
+    'scores': scores,
+    'storeScores': storeScores,
+    'overall': overall,
+    'comment': comment,
+    'imageUrls': imageUrls,
+  };
 }
 
 class ReviewImagePresignRequest {
@@ -148,9 +149,9 @@ class ReviewImagePresignRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'fileName': fileName,
-        'contentType': contentType,
-      };
+    'fileName': fileName,
+    'contentType': contentType,
+  };
 }
 
 class ReviewImagePresignResponse {
@@ -174,6 +175,7 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     menuName: json['menuName'] as String? ?? '',
     menuCategory: json['menuCategory'] as String? ?? '',
     userEmail: json['userEmail'] as String? ?? '',
+    reviewerType: json['reviewerType'] as String? ?? 'USER',
     scores: scores,
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',

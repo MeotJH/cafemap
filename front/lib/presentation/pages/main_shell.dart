@@ -5,6 +5,10 @@ import 'package:front/core/constants/app_strings.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:go_router/go_router.dart';
 
+void _logMainShell(String message) {
+  debugPrint('[MainShell] $message');
+}
+
 // 하단 탭을 공통으로 제공하는 셸 위젯이다.
 class MainShell extends ConsumerWidget {
   final Widget child;
@@ -13,9 +17,14 @@ class MainShell extends ConsumerWidget {
 
   // 현재 라우트 위치로 탭 인덱스를 계산한다.
   int _currentIndex(String location) {
-    if (location.startsWith('/menu-ranking')) return 1;
+    if (location == '/') return 0;
+    if (location.startsWith('/rankings') || location.startsWith('/ranking')) {
+      return 1;
+    }
     if (location.startsWith('/map')) return 2;
-    if (location.startsWith('/activity')) return 3;
+    if (location.startsWith('/my') || location.startsWith('/activity')) {
+      return 3;
+    }
     return 0;
   }
 
@@ -33,14 +42,18 @@ class MainShell extends ConsumerWidget {
   }
 
   Future<void> _onTap(BuildContext context, WidgetRef ref, int index) async {
+    final currentLocation = GoRouterState.of(context).matchedLocation;
+    _logMainShell('tap index=$index currentLocation=$currentLocation');
+
     switch (index) {
       case 0:
-        context.go('/ranking');
+        context.go('/');
         break;
       case 1:
-        context.go('/menu-ranking');
+        context.go('/rankings');
         break;
       case 2:
+        _logMainShell('navigate /map');
         context.go('/map');
         break;
       case 3:
@@ -48,11 +61,11 @@ class MainShell extends ConsumerWidget {
             ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
-          await _showTopToast(context, '내 활동은 로그인 후 확인할 수 있어요.');
+          await _showTopToast(context, '내기록은 로그인 후 확인할 수 있어요.');
           if (context.mounted) context.go('/auth');
           return;
         }
-        context.go('/activity');
+        context.go('/my');
         break;
     }
   }
@@ -62,6 +75,9 @@ class MainShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
     final currentIndex = _currentIndex(location);
+    if (location.startsWith('/map')) {
+      _logMainShell('build location=$location currentIndex=$currentIndex');
+    }
 
     return Scaffold(
       body: child,
@@ -70,14 +86,14 @@ class MainShell extends ConsumerWidget {
         onDestinationSelected: (index) => _onTap(context, ref, index),
         destinations: const [
           NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: AppStrings.homeTab,
+          ),
+          NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: AppStrings.cafeRankingTab,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu_outlined),
-            selectedIcon: Icon(Icons.restaurant_menu),
-            label: AppStrings.menuRankingTab,
           ),
           NavigationDestination(
             icon: Icon(Icons.map_outlined),

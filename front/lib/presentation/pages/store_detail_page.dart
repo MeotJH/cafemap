@@ -69,6 +69,41 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
     return filtered;
   }
 
+  double _averageOverall(List<Review> reviews, String reviewerType) {
+    final filtered = reviews
+        .where((review) => review.reviewerType.toUpperCase() == reviewerType)
+        .toList();
+    if (filtered.isEmpty) return 0;
+    final total = filtered.fold<double>(
+      0,
+      (sum, review) => sum + review.overall,
+    );
+    return total / filtered.length;
+  }
+
+  List<_RecommendedMenuStat> _recommendedMenus(List<Review> reviews) {
+    final map = <String, _RecommendedMenuStat>{};
+    for (final review in reviews) {
+      final key = review.menuName.trim();
+      final existing = map[key];
+      if (existing == null) {
+        map[key] = _RecommendedMenuStat(
+          menuName: review.menuName,
+          totalScore: review.overall,
+          count: 1,
+        );
+        continue;
+      }
+      map[key] = existing.copyWith(
+        totalScore: existing.totalScore + review.overall,
+        count: existing.count + 1,
+      );
+    }
+    final items = map.values.toList()
+      ..sort((a, b) => b.averageScore.compareTo(a.averageScore));
+    return items.take(3).toList();
+  }
+
   @override
   // 지점 상세 정보와 리뷰를 구성한다.
   Widget build(BuildContext context) {
@@ -184,6 +219,121 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                   error: (_, _) => const Text('지점 정보를 불러오지 못했어요.'),
                 ),
                 const SizedBox(height: 18),
+                reviews.when(
+                  data: (items) {
+                    final wifeScore = _averageOverall(items, 'WIFE');
+                    final husbandScore = _averageOverall(items, 'HUSBAND');
+                    final userScore = _averageOverall(items, 'USER');
+                    final coupleScore = wifeScore > 0 && husbandScore > 0
+                        ? (wifeScore + husbandScore) / 2
+                        : 0.0;
+                    final menus = _recommendedMenus(items);
+
+                    return Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          color: Colors.white,
+                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '취향별 점수',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _AudienceScoreCard(
+                                      label: '부부픽',
+                                      value: coupleScore,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _AudienceScoreCard(
+                                      label: '아내',
+                                      value: wifeScore,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _AudienceScoreCard(
+                                      label: '남편',
+                                      value: husbandScore,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _AudienceScoreCard(
+                                      label: '사용자',
+                                      value: userScore,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Container(
+                          width: double.infinity,
+                          color: Colors.white,
+                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '추천 메뉴',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              if (menus.isEmpty)
+                                const Text('아직 추천 메뉴 집계가 없습니다.')
+                              else
+                                ...menus.map(
+                                  (menu) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            menu.menuName,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          menu.averageScore.toStringAsFixed(1),
+                                          style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
                 breakdown.when(
                   data: (data) => Column(
                     children: [
@@ -644,6 +794,63 @@ class _InfoChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AudienceScoreCard extends StatelessWidget {
+  final String label;
+  final double value;
+
+  const _AudienceScoreCard({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F3EC),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value > 0 ? value.toStringAsFixed(1) : '-',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecommendedMenuStat {
+  final String menuName;
+  final double totalScore;
+  final int count;
+
+  const _RecommendedMenuStat({
+    required this.menuName,
+    required this.totalScore,
+    required this.count,
+  });
+
+  double get averageScore => count <= 0 ? 0 : totalScore / count;
+
+  _RecommendedMenuStat copyWith({double? totalScore, int? count}) {
+    return _RecommendedMenuStat(
+      menuName: menuName,
+      totalScore: totalScore ?? this.totalScore,
+      count: count ?? this.count,
     );
   }
 }

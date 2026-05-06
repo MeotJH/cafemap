@@ -1,11 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/domain/entities/store_ranking.dart';
+import 'package:front/presentation/pages/ranking_home/ranking_home_types.dart';
 
-// 랭킹 API 호출을 담당한다.
 class RankingApi {
   RankingApi({Dio? dio}) : _dio = dio ?? Dio();
 
@@ -21,12 +22,29 @@ class RankingApi {
         .toList();
   }
 
-  Future<List<StoreRanking>> fetchStoreRankings() async {
-    final response = await _dio.get('$_baseUrl/api/cafemap/store-rankings');
+  Future<List<StoreRanking>> fetchStoreRankings(
+    RankingAudience audience,
+  ) async {
+    final response = await _dio.get(
+      '$_baseUrl/api/cafemap/store-rankings',
+      queryParameters: {'type': audience.name},
+    );
     final data = response.data as List<dynamic>;
     return data
         .map((item) => _storeRankingFromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<HomeSummary> fetchHomeSummary() async {
+    final response = await _dio.get('$_baseUrl/api/cafemap/home');
+    final json = response.data as Map<String, dynamic>;
+    return HomeSummary(
+      featuredCafe: _nullableStoreRankingFromJson(json['featuredCafe']),
+      wifeTop: _storeRankingListFromJson(json['wifeTop']),
+      husbandTop: _storeRankingListFromJson(json['husbandTop']),
+      recentCafes: _storeRankingListFromJson(json['recentCafes']),
+      recommendedMenus: _recommendedMenusFromJson(json['recommendedMenus']),
+    );
   }
 
   Future<RatingBreakdown> fetchRankingBreakdown(String rankingId) async {
@@ -46,6 +64,31 @@ class RankingApi {
         .map((item) => _reviewFromJson(item as Map<String, dynamic>))
         .toList();
   }
+}
+
+List<StoreRanking> _storeRankingListFromJson(dynamic raw) {
+  if (raw is! List<dynamic>) return const [];
+  return raw
+      .map((item) => _storeRankingFromJson(item as Map<String, dynamic>))
+      .toList();
+}
+
+StoreRanking? _nullableStoreRankingFromJson(dynamic raw) {
+  if (raw is! Map<String, dynamic>) return null;
+  return _storeRankingFromJson(raw);
+}
+
+List<HomeRecommendedMenu> _recommendedMenusFromJson(dynamic raw) {
+  if (raw is! List<dynamic>) return const [];
+  return raw
+      .map(
+        (item) => HomeRecommendedMenu(
+          menuName: (item as Map<String, dynamic>)['menuName'] as String? ?? '',
+          storeName: item['storeName'] as String? ?? '',
+          score: (item['score'] as num?)?.toDouble() ?? 0,
+        ),
+      )
+      .toList();
 }
 
 StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
@@ -72,6 +115,16 @@ StoreRanking _storeRankingFromJson(Map<String, dynamic> json) {
     workFriendlyScore: (json['workFriendlyScore'] as num?)?.toDouble() ?? 0,
     quietnessScore: (json['quietnessScore'] as num?)?.toDouble() ?? 0,
     dessertScore: (json['dessertScore'] as num?)?.toDouble() ?? 0,
+    coupleScore: (json['coupleScore'] as num?)?.toDouble() ?? 0,
+    wifeScore: (json['wifeScore'] as num?)?.toDouble() ?? 0,
+    husbandScore: (json['husbandScore'] as num?)?.toDouble() ?? 0,
+    userScore: (json['userScore'] as num?)?.toDouble() ?? 0,
+    revisitScore: (json['revisitScore'] as num?)?.toDouble() ?? 0,
+    summary: json['summary'] as String? ?? '',
+    tags: (json['tags'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .toList(),
+    latestVisitedAt: _parseDateTime(json['latestVisitedAt']),
   );
 }
 
@@ -113,6 +166,7 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     menuName: json['menuName'] as String? ?? '',
     menuCategory: json['menuCategory'] as String? ?? '',
     userEmail: json['userEmail'] as String? ?? '',
+    reviewerType: json['reviewerType'] as String? ?? 'USER',
     scores: scores,
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',
@@ -121,6 +175,11 @@ Review _reviewFromJson(Map<String, dynamic> json) {
       json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
     ),
   );
+}
+
+DateTime? _parseDateTime(dynamic raw) {
+  if (raw is! String || raw.isEmpty) return null;
+  return DateTime.tryParse(raw);
 }
 
 Map<String, double> _scoresFromJson(dynamic raw) {

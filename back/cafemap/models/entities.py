@@ -210,6 +210,8 @@ class Review(Base):
 
     temperature_option: Mapped[str] = mapped_column(String(20), default="")
 
+    reviewer_type: Mapped[str] = mapped_column(String(20), default="USER")
+
     overall: Mapped[float] = mapped_column(Float)
 
     comment: Mapped[str] = mapped_column(String(500))

@@ -5,3 +5,4 @@
 목록
 - [3-map-search-history.md](/Users/eldorado/WorkSpace/cafemap/backlog/3-map-search-history.md)
 - [4-my-activity-region-grouping.md](/Users/eldorado/WorkSpace/cafemap/backlog/4-my-activity-region-grouping.md)
+- [6-ios-safari-map-render-instability.md](/Users/eldorado/WorkSpace/cafemap/backlog/6-ios-safari-map-render-instability.md)

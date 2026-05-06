@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from cafemap.core.menu_catalog import COMMON_CAFE_MENU_SEEDS, classify_menu_category
@@ -18,7 +19,12 @@ from cafemap.core.rating_dimensions import (
     top_highlights,
     visible_scores_for_category,
 )
-from cafemap.core.config import SEED_CATALOG_ON_STARTUP, SEED_SAMPLE_DATA_ON_STARTUP
+from cafemap.core.config import (
+    OFFICIAL_HUSBAND_EMAILS,
+    OFFICIAL_WIFE_EMAILS,
+    SEED_CATALOG_ON_STARTUP,
+    SEED_SAMPLE_DATA_ON_STARTUP,
+)
 from cafemap.db.brand_catalog import BRAND_CATALOG
 from cafemap.db.session import Base, engine
 from cafemap.models.entities import (
@@ -95,6 +101,7 @@ def _migrate_scores_json_columns(db: Session):
             "user_id",
             "image_urls_json",
             "temperature_option",
+            "reviewer_type",
         ),
         "brand_menu_aggregate": ("scores_json",),
         "store_aggregate": ("scores_json", "counts_json"),
@@ -109,62 +116,116 @@ def _migrate_scores_json_columns(db: Session):
             if column_name in column_names:
                 continue
             if column_name == "overall":
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        "ADD COLUMN overall FLOAT NOT NULL DEFAULT 0"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN overall FLOAT NOT NULL DEFAULT 0",
                 )
             elif column_name == "user_id":
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        "ADD COLUMN user_id VARCHAR NOT NULL DEFAULT 'user-seed'"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN user_id VARCHAR NOT NULL DEFAULT 'user-seed'",
                 )
             elif column_name == "image_urls_json":
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        "ADD COLUMN image_urls_json VARCHAR NOT NULL DEFAULT '[]'"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN image_urls_json VARCHAR NOT NULL DEFAULT '[]'",
                 )
             elif column_name == "temperature_option":
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        "ADD COLUMN temperature_option VARCHAR NOT NULL DEFAULT ''"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN temperature_option VARCHAR NOT NULL DEFAULT ''",
+                )
+            elif column_name == "reviewer_type":
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN reviewer_type VARCHAR NOT NULL DEFAULT 'USER'",
                 )
             elif column_name == "store_type":
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        "ADD COLUMN store_type VARCHAR NOT NULL DEFAULT 'unknown'"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN store_type VARCHAR NOT NULL DEFAULT 'unknown'",
                 )
             elif column_name == "place_id":
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        "ADD COLUMN place_id VARCHAR NOT NULL DEFAULT ''"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN place_id VARCHAR NOT NULL DEFAULT ''",
                 )
             elif column_name == "link":
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        "ADD COLUMN link VARCHAR NOT NULL DEFAULT ''"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN link VARCHAR NOT NULL DEFAULT ''",
                 )
             else:
-                db.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        f"ADD COLUMN {column_name} VARCHAR NOT NULL DEFAULT '{{}}'"
-                    )
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    f"ADD COLUMN {column_name} VARCHAR NOT NULL DEFAULT '{{}}'",
                 )
+    wife_emails = {email.lower() for email in OFFICIAL_WIFE_EMAILS}
+    husband_emails = {email.lower() for email in OFFICIAL_HUSBAND_EMAILS}
+    if wife_emails:
+        db.execute(
+            text(
+                "UPDATE review "
+                "SET reviewer_type = 'WIFE' "
+                "WHERE LOWER(COALESCE((SELECT email FROM user WHERE user.id = review.user_id), '')) "
+                f"IN ({','.join(f':wife_{index}' for index, _ in enumerate(wife_emails))})"
+            ),
+            {f"wife_{index}": email for index, email in enumerate(wife_emails)},
+        )
+    if husband_emails:
+        db.execute(
+            text(
+                "UPDATE review "
+                "SET reviewer_type = 'HUSBAND' "
+                "WHERE LOWER(COALESCE((SELECT email FROM user WHERE user.id = review.user_id), '')) "
+                f"IN ({','.join(f':husband_{index}' for index, _ in enumerate(husband_emails))})"
+            ),
+            {
+                f"husband_{index}": email
+                for index, email in enumerate(husband_emails)
+            },
+        )
+    db.execute(
+        text(
+            "UPDATE review SET reviewer_type = 'USER' "
+            "WHERE reviewer_type NOT IN ('WIFE', 'HUSBAND', 'USER') OR reviewer_type = ''"
+        )
+    )
     db.commit()
+
+
+def _safe_add_sqlite_column(db: Session, table_name: str, statement: str) -> None:
+    try:
+        db.execute(text(statement))
+    except OperationalError as exc:
+        message = str(exc).lower()
+        if "duplicate column name" not in message:
+            raise
+        current_columns = {
+            row[1]
+            for row in db.execute(text(f"PRAGMA table_info('{table_name}')")).fetchall()
+        }
+        target_name = statement.split("ADD COLUMN", 1)[1].strip().split(" ", 1)[0]
+        if target_name not in current_columns:
+            raise
 
 
 def _load_menu_rows() -> list[dict[str, str]]:

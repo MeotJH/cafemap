@@ -12,9 +12,14 @@ class ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCafeMaster = _isCafeMaster(review.userEmail);
-    final reviewerName = isCafeMaster
-        ? '카페 마스터'
+    final isWife = _isWife(review.userEmail);
+    final isHusband = _isHusband(review.userEmail);
+    String badgeName = '';
+    if (isWife) badgeName = '아내픽';
+    if (isHusband) badgeName = '남편픽';
+
+    final reviewerName = isWife || isHusband
+        ? badgeName
         : _reviewerDisplayName(review.userEmail);
 
     return Material(
@@ -56,7 +61,7 @@ class ReviewCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      if (isCafeMaster)
+                      if (isHusband || isWife)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -75,7 +80,7 @@ class ReviewCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                      if (isCafeMaster) const SizedBox(height: 6),
+                      if (isWife || isHusband) const SizedBox(height: 6),
                       Text(
                         reviewerName,
                         style: const TextStyle(
@@ -125,11 +130,16 @@ class ReviewCard extends StatelessWidget {
     );
   }
 
-  bool _isCafeMaster(String email) {
+  bool _isWife(String email) {
+    final normalized = email.trim().toLowerCase();
+    return normalized == 'sumdubu1234@gmail.com' ||
+        normalized == 'sumin940104@gmail.com';
+  }
+
+  bool _isHusband(String email) {
     final normalized = email.trim().toLowerCase();
     return normalized == 'marionette934@gmail.com' ||
-        normalized == 'businesskim93@gmail.com' ||
-        normalized == 'sumdubu1234@gmail.com';
+        normalized == 'businesskim93@gmail.com';
   }
 
   String _reviewerDisplayName(String email) {

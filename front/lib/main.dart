@@ -38,6 +38,12 @@ FirebaseOptions _firebaseOptionsFromEnv() {
   );
 }
 
+String _describeEnvValue(String? value) {
+  final normalized = value?.trim() ?? '';
+  if (normalized.isEmpty) return 'missing';
+  return 'set(length=${normalized.length})';
+}
+
 Future<void> _loadEnv() async {
   // Deploy copies the selected environment into `.env`; load one source of truth
   // so local `.env` values cannot be overridden by stale production values.
@@ -48,7 +54,7 @@ Future<void> _loadEnv() async {
   }
   debugPrint(
     'Env loaded: API_BASE_URL=${dotenv.env['API_BASE_URL']}, '
-    'NAVER_MAP_CLIENT_ID=${dotenv.env['NAVER_MAP_CLIENT_ID']?.isNotEmpty == true ? 'set' : 'missing'}',
+    'NAVER_MAP_CLIENT_ID=${_describeEnvValue(dotenv.env['NAVER_MAP_CLIENT_ID'])}',
   );
 }
 

@@ -21,6 +21,14 @@ class StoreRanking {
   final double workFriendlyScore;
   final double quietnessScore;
   final double dessertScore;
+  final double coupleScore;
+  final double wifeScore;
+  final double husbandScore;
+  final double userScore;
+  final double revisitScore;
+  final String summary;
+  final List<String> tags;
+  final DateTime? latestVisitedAt;
 
   const StoreRanking({
     required this.id,
@@ -45,5 +53,41 @@ class StoreRanking {
     required this.workFriendlyScore,
     required this.quietnessScore,
     required this.dessertScore,
+    required this.coupleScore,
+    required this.wifeScore,
+    required this.husbandScore,
+    required this.userScore,
+    required this.revisitScore,
+    required this.summary,
+    required this.tags,
+    required this.latestVisitedAt,
+  });
+}
+
+class HomeRecommendedMenu {
+  final String menuName;
+  final String storeName;
+  final double score;
+
+  const HomeRecommendedMenu({
+    required this.menuName,
+    required this.storeName,
+    required this.score,
+  });
+}
+
+class HomeSummary {
+  final StoreRanking? featuredCafe;
+  final List<StoreRanking> wifeTop;
+  final List<StoreRanking> husbandTop;
+  final List<StoreRanking> recentCafes;
+  final List<HomeRecommendedMenu> recommendedMenus;
+
+  const HomeSummary({
+    required this.featuredCafe,
+    required this.wifeTop,
+    required this.husbandTop,
+    required this.recentCafes,
+    required this.recommendedMenus,
   });
 }

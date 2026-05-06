@@ -8,20 +8,18 @@ import 'package:front/presentation/widgets/app_filter_chip.dart';
 import 'package:front/presentation/widgets/section_title.dart';
 
 class RankingHomeHeader extends StatelessWidget {
-  final RankingMode selectedMode;
-  final StoreSegment selectedSegment;
+  final RankingAudience selectedAudience;
   final StoreRankingSort selectedSort;
-  final ValueChanged<StoreSegment> onSegmentSelected;
+  final ValueChanged<RankingAudience> onAudienceSelected;
   final ValueChanged<StoreRankingSort> onSortSelected;
   final bool isLoggedIn;
   final ValueChanged<ProfileMenuAction> onProfileMenuSelect;
 
   const RankingHomeHeader({
     super.key,
-    required this.selectedMode,
-    required this.selectedSegment,
+    required this.selectedAudience,
     required this.selectedSort,
-    required this.onSegmentSelected,
+    required this.onAudienceSelected,
     required this.onSortSelected,
     required this.isLoggedIn,
     required this.onProfileMenuSelect,
@@ -30,7 +28,7 @@ class RankingHomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -64,8 +62,8 @@ class RankingHomeHeader extends StatelessWidget {
                 onSelected: onProfileMenuSelect,
                 itemBuilder: (context) => [
                   const PopupMenuItem<ProfileMenuAction>(
-                    value: ProfileMenuAction.activity,
-                    child: Text('내 활동'),
+                    value: ProfileMenuAction.myRecord,
+                    child: Text('내기록'),
                   ),
                   PopupMenuItem<ProfileMenuAction>(
                     value: isLoggedIn
@@ -78,83 +76,103 @@ class RankingHomeHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          if (selectedMode == RankingMode.stores)
-            const Padding(
-              padding: EdgeInsets.only(top: 2, bottom: 12),
-              child: Text(
-                '랭킹은 리뷰가 쌓인 카페만 보여줘요. 실제 카페 검색은 지도에서 확인할 수 있어요.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
+          const SizedBox(height: 4),
+          const Padding(
+            padding: EdgeInsets.only(top: 2, bottom: 8),
+            child: Text(
+              '부부픽과 취향별 랭킹을 나눠서 보고, 실제 방문 기준으로 카페를 고를 수 있어요.',
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
+          ),
           _RankingFilterScroller(
             children: [
-              if (selectedMode == RankingMode.stores) ...[
-                AppFilterChip(
-                  label: '전체',
-                  selected: selectedSegment == StoreSegment.all,
-                  onSelected: (_) => onSegmentSelected(StoreSegment.all),
-                  margin: const EdgeInsets.only(right: 8),
-                  width: null,
-                ),
-                AppFilterChip(
-                  label: '로컬',
-                  selected: selectedSegment == StoreSegment.local,
-                  onSelected: (_) => onSegmentSelected(StoreSegment.local),
-                  margin: const EdgeInsets.only(right: 8),
-                  width: null,
-                ),
-                AppFilterChip(
-                  label: '프랜차이즈',
-                  selected: selectedSegment == StoreSegment.franchise,
-                  onSelected: (_) => onSegmentSelected(StoreSegment.franchise),
-                  margin: const EdgeInsets.only(right: 8),
-                  width: null,
-                ),
-              ],
               AppFilterChip(
-                label: '평점순',
+                label: '부부픽',
+                selected: selectedAudience == RankingAudience.couple,
+                onSelected: (_) => onAudienceSelected(RankingAudience.couple),
+                margin: const EdgeInsets.only(right: 8),
+                width: null,
+              ),
+              AppFilterChip(
+                label: '아내픽',
+                selected: selectedAudience == RankingAudience.wife,
+                onSelected: (_) => onAudienceSelected(RankingAudience.wife),
+                margin: const EdgeInsets.only(right: 8),
+                width: null,
+              ),
+              AppFilterChip(
+                label: '남편픽',
+                selected: selectedAudience == RankingAudience.husband,
+                onSelected: (_) => onAudienceSelected(RankingAudience.husband),
+                margin: const EdgeInsets.only(right: 8),
+                width: null,
+              ),
+              AppFilterChip(
+                label: '사용자픽',
+                selected: selectedAudience == RankingAudience.user,
+                onSelected: (_) => onAudienceSelected(RankingAudience.user),
+                margin: const EdgeInsets.only(right: 8),
+                width: null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _RankingFilterScroller(
+            children: [
+              AppFilterChip(
+                label: '평점 높은순',
                 selected: selectedSort == StoreRankingSort.rating,
                 onSelected: (_) => onSortSelected(StoreRankingSort.rating),
                 margin: const EdgeInsets.only(right: 8),
                 width: null,
               ),
               AppFilterChip(
-                label: '추천순',
-                selected: selectedSort == StoreRankingSort.recommended,
-                onSelected: (_) =>
-                    onSortSelected(StoreRankingSort.recommended),
+                label: '최근 방문순',
+                selected: selectedSort == StoreRankingSort.recent,
+                onSelected: (_) => onSortSelected(StoreRankingSort.recent),
                 margin: const EdgeInsets.only(right: 8),
                 width: null,
               ),
               AppFilterChip(
-                label: '리뷰 많은 순',
-                selected: selectedSort == StoreRankingSort.reviews,
-                onSelected: (_) => onSortSelected(StoreRankingSort.reviews),
+                label: '재방문 의사순',
+                selected: selectedSort == StoreRankingSort.revisit,
+                onSelected: (_) => onSortSelected(StoreRankingSort.revisit),
                 margin: EdgeInsets.zero,
                 width: null,
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           SectionTitle(
-            title: selectedMode == RankingMode.stores
-                ? 'Cafe Store Rankings'
-                : 'Cafe Menu Rankings',
-            trailing: selectedMode == RankingMode.stores
-                ? '신뢰도 보정'
-                : 'Franchise Menus',
+            title: _titleForAudience(selectedAudience),
+            trailing: '실제 방문 기준',
           ),
-          if (selectedMode == RankingMode.stores) ...[
-            const SizedBox(height: 6),
-            const Text(
-              '추천순은 표시 별점만이 아니라 리뷰 수 신뢰도도 함께 반영해요.',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-          ],
+          const SizedBox(height: 2),
+          Text(
+            _descriptionForAudience(selectedAudience),
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
+          ),
         ],
       ),
     );
+  }
+
+  String _titleForAudience(RankingAudience audience) {
+    return switch (audience) {
+      RankingAudience.couple => '부부픽 랭킹',
+      RankingAudience.wife => '아내픽 랭킹',
+      RankingAudience.husband => '남편픽 랭킹',
+      RankingAudience.user => '사용자픽 랭킹',
+    };
+  }
+
+  String _descriptionForAudience(RankingAudience audience) {
+    return switch (audience) {
+      RankingAudience.couple => '둘 다 좋게 평가한 카페부터 보여줍니다.',
+      RankingAudience.wife => '감성, 분위기, 디저트 만족도가 높은 카페 기준입니다.',
+      RankingAudience.husband => '커피, 작업성, 실용성이 좋은 카페 기준입니다.',
+      RankingAudience.user => '일반 사용자 평균 점수 기준 랭킹입니다.',
+    };
   }
 }
 
@@ -166,7 +184,7 @@ class _RankingFilterScroller extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 44,
+      height: 36,
       child: ScrollConfiguration(
         behavior: const _RankingFilterScrollBehavior(),
         child: ListView(

@@ -41,6 +41,9 @@ from cafemap.schemas.cafemap import (
 
   BrandOut,
 
+  HomeRecommendedMenuOut,
+  HomeSummaryOut,
+
   MenuOut,
 
   RatingBreakdownOut,
@@ -208,6 +211,69 @@ def _ranking_out(
 
 
 
+def _store_ranking_out(request: Request, item: dict) -> StoreRankingOut:
+    return StoreRankingOut(
+        id=item["id"],
+        storeId=item["storeId"],
+        storeName=item["storeName"],
+        brandName=item["brandName"],
+        storeType=item["storeType"],
+        isLocal=bool(item["isLocal"]),
+        link=item["link"],
+        rating=float(item["rating"]),
+        displayScore=float(item["displayScore"]),
+        reviewCount=int(item["reviewCount"]),
+        distanceKm=float(item["distanceKm"]),
+        imageUrl=_resolve_store_image_url(request, item["imageUrl"]),
+        lat=float(item["lat"]),
+        lng=float(item["lng"]),
+        coffeeQualityScore=float(item["coffeeQualityScore"]),
+        topLabelA=item["topLabelA"],
+        topScoreA=float(item["topScoreA"]),
+        topLabelB=item["topLabelB"],
+        topScoreB=float(item["topScoreB"]),
+        workFriendlyScore=float(item["workFriendlyScore"]),
+        quietnessScore=float(item["quietnessScore"]),
+        dessertScore=float(item["dessertScore"]),
+        coupleScore=float(item["coupleScore"]),
+        wifeScore=float(item["wifeScore"]),
+        husbandScore=float(item["husbandScore"]),
+        userScore=float(item["userScore"]),
+        revisitScore=float(item["revisitScore"]),
+        summary=item["summary"],
+        tags=list(item["tags"]),
+        latestVisitedAt=item["latestVisitedAt"],
+    )
+
+
+def _review_out(
+    *,
+    review,
+    store_name: str,
+    store_link: str,
+    brand_name: str,
+    menu_name: str,
+    menu_category: str,
+    user_email: str | None,
+) -> ReviewOut:
+    return ReviewOut(
+        id=review.id,
+        storeName=store_name,
+        link=store_link,
+        temperatureOption=review.temperature_option,
+        brandName=brand_name,
+        menuName=menu_name,
+        menuCategory=menu_category,
+        reviewerType=(getattr(review, "reviewer_type", None) or "USER"),
+        scores=_scores_from_snapshot(review.scores_json),
+        overall=review.overall,
+        comment=review.comment,
+        userEmail=user_email or "",
+        imageUrls=_image_urls_from_snapshot(review.image_urls_json),
+        createdAt=review.created_at,
+    )
+
+
 def _image_urls_from_snapshot(
 
     image_urls_json: str | None,
@@ -361,34 +427,14 @@ def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
 
     return [
 
-        ReviewOut(
-
-            id=review.id,
-
-            storeName=store_name,
-
-            link=store_link,
-
-            temperatureOption=review.temperature_option,
-
-            brandName=brand_name,
-
-            menuName=menu_name,
-
-            menuCategory=menu_category,
-
-            scores=_scores_from_snapshot(review.scores_json),
-
-            overall=review.overall,
-
-            comment=review.comment,
-
-            userEmail=user_email or "",
-
-            imageUrls=_image_urls_from_snapshot(review.image_urls_json),
-
-            createdAt=review.created_at,
-
+        _review_out(
+            review=review,
+            store_name=store_name,
+            store_link=store_link,
+            brand_name=brand_name,
+            menu_name=menu_name,
+            menu_category=menu_category,
+            user_email=user_email,
         )
 
         for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
@@ -462,63 +508,46 @@ def list_stores(request: Request, db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/home", response_model=HomeSummaryOut)
+def get_home_summary(request: Request, db: Session = Depends(get_db)):
+    payload = store_service.get_home_summary(db)
+    return HomeSummaryOut(
+        featuredCafe=_store_ranking_out(request, payload["featuredCafe"])
+        if payload["featuredCafe"] is not None
+        else None,
+        wifeTop=[_store_ranking_out(request, item) for item in payload["wifeTop"]],
+        husbandTop=[
+            _store_ranking_out(request, item) for item in payload["husbandTop"]
+        ],
+        recentCafes=[
+            _store_ranking_out(request, item) for item in payload["recentCafes"]
+        ],
+        recommendedMenus=[
+            HomeRecommendedMenuOut(
+                menuName=item.menu_name,
+                storeName=item.store_name,
+                score=item.average_score,
+            )
+            for item in payload["recommendedMenus"]
+        ],
+    )
+
+
 @router.get("/store-rankings", response_model=list[StoreRankingOut])
 
-def list_store_rankings(request: Request, db: Session = Depends(get_db)):
+def list_store_rankings(
+    request: Request,
+    type: str = "couple",
+    db: Session = Depends(get_db),
+):
 
-    rows = store_service.get_store_rankings(db)
+    rows = store_service.get_store_rankings(db, ranking_type=type)
 
     return [
 
-        StoreRankingOut(
+        _store_ranking_out(request, segmented_item)
 
-            id=store.id,
-
-            storeId=store.id,
-
-            storeName=store.name,
-
-            brandName=brand_name,
-
-            storeType=_store_type_for_response(store),
-
-            isLocal=_is_local_store(store),
-
-            link=store.link,
-
-            rating=aggregate.rating,
-
-            displayScore=display_score,
-
-            reviewCount=aggregate.review_count,
-
-            distanceKm=store.distance_km,
-
-            imageUrl=_resolve_store_image_url(request, brand_logo_url),
-
-            lat=store.lat,
-
-            lng=store.lng,
-
-            topLabelA=highlights[0][0],
-
-            topScoreA=highlights[0][1],
-
-            topLabelB=highlights[1][0],
-
-            topScoreB=highlights[1][1],
-
-            coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
-
-            workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
-
-            quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
-
-            dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
-
-        )
-
-        for display_score, _, store, aggregate, brand_name, brand_logo_url, highlights in rows
+        for _, _, _, _, _, _, _, _, _, _, segmented_item in rows
 
     ]
 
@@ -630,34 +659,14 @@ def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
 
     return [
 
-        ReviewOut(
-
-            id=review.id,
-
-            storeName=store_name,
-
-            link=store_link,
-
-            temperatureOption=review.temperature_option,
-
-            brandName=brand_name,
-
-            menuName=menu_name,
-
-            menuCategory=menu_category,
-
-            scores=_scores_from_snapshot(review.scores_json),
-
-            overall=review.overall,
-
-            comment=review.comment,
-
-            userEmail=user_email or "",
-
-            imageUrls=_image_urls_from_snapshot(review.image_urls_json),
-
-            createdAt=review.created_at,
-
+        _review_out(
+            review=review,
+            store_name=store_name,
+            store_link=store_link,
+            brand_name=brand_name,
+            menu_name=menu_name,
+            menu_category=menu_category,
+            user_email=user_email,
         )
 
         for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
@@ -684,34 +693,14 @@ def get_my_reviews(
 
     return [
 
-        ReviewOut(
-
-            id=review.id,
-
-            storeName=store_name,
-
-            link=store_link,
-
-            temperatureOption=review.temperature_option,
-
-            brandName=brand_name,
-
-            menuName=menu_name,
-
-            menuCategory=menu_category,
-
-            scores=_scores_from_snapshot(review.scores_json),
-
-            overall=review.overall,
-
-            comment=review.comment,
-
-            userEmail=user_email or "",
-
-            imageUrls=_image_urls_from_snapshot(review.image_urls_json),
-
-            createdAt=review.created_at,
-
+        _review_out(
+            review=review,
+            store_name=store_name,
+            store_link=store_link,
+            brand_name=brand_name,
+            menu_name=menu_name,
+            menu_category=menu_category,
+            user_email=user_email,
         )
 
         for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
@@ -736,34 +725,14 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
 
     review, store_name, store_link, brand_name, menu_name, menu_category, user_email = row
 
-    return ReviewOut(
-
-        id=review.id,
-
-        storeName=store_name,
-
-        link=store_link,
-
-        temperatureOption=review.temperature_option,
-
-        brandName=brand_name,
-
-        menuName=menu_name,
-
-        menuCategory=menu_category,
-
-        scores=_scores_from_snapshot(review.scores_json),
-
-        overall=review.overall,
-
-        comment=review.comment,
-
-        userEmail=user_email or "",
-
-        imageUrls=_image_urls_from_snapshot(review.image_urls_json),
-
-        createdAt=review.created_at,
-
+    return _review_out(
+        review=review,
+        store_name=store_name,
+        store_link=store_link,
+        brand_name=brand_name,
+        menu_name=menu_name,
+        menu_category=menu_category,
+        user_email=user_email,
     )
 
 
@@ -811,34 +780,14 @@ def create_review(
 
 
 
-    return ReviewOut(
-
-        id=review.id,
-
-        storeName=store_name,
-
-        link=store_link,
-
-        temperatureOption=review.temperature_option,
-
-        brandName=brand_name,
-
-        menuName=menu_name,
-
-        menuCategory=menu_category,
-
-        scores=_scores_from_snapshot(review.scores_json),
-
-        overall=review.overall,
-
-        comment=review.comment,
-
-        userEmail=user.email or "",
-
-        imageUrls=_image_urls_from_snapshot(review.image_urls_json),
-
-        createdAt=review.created_at,
-
+    return _review_out(
+        review=review,
+        store_name=store_name,
+        store_link=store_link,
+        brand_name=brand_name,
+        menu_name=menu_name,
+        menu_category=menu_category,
+        user_email=user.email or "",
     )
 
 

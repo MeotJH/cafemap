@@ -1,4 +1,4 @@
-﻿// 리뷰 한 건을 표현하는 엔티티다.
+// 리뷰 한 건을 표현하는 엔티티다.
 class Review {
   final String id;
   final String storeName;
@@ -8,6 +8,7 @@ class Review {
   final String menuName;
   final String menuCategory;
   final String userEmail;
+  final String reviewerType;
   final Map<String, double> scores;
   final double overall;
   final String comment;
@@ -23,6 +24,7 @@ class Review {
     required this.menuName,
     required this.menuCategory,
     required this.userEmail,
+    required this.reviewerType,
     required this.scores,
     required this.overall,
     required this.comment,

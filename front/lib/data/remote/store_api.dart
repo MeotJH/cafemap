@@ -90,6 +90,7 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     menuName: json['menuName'] as String? ?? '',
     menuCategory: json['menuCategory'] as String? ?? '',
     userEmail: json['userEmail'] as String? ?? '',
+    reviewerType: json['reviewerType'] as String? ?? 'USER',
     scores: scores,
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',

@@ -9,10 +9,11 @@ import re
 from difflib import SequenceMatcher
 
 from sqlalchemy.orm import Session
+from cafemap.core.config import OFFICIAL_HUSBAND_EMAILS, OFFICIAL_WIFE_EMAILS
 
 
 
-from cafemap.models.entities import Brand, Menu, Store, Review, BrandMenuAggregate, StoreAggregate
+from cafemap.models.entities import Brand, Menu, Store, Review, BrandMenuAggregate, StoreAggregate, User
 
 from cafemap.core.rating_dimensions import (
 
@@ -45,6 +46,9 @@ from cafemap.services import geocode_service
 LOCAL_BRAND_ID = "brand-local"
 STORE_TYPE_LOCAL = "local"
 STORE_TYPE_FRANCHISE = "franchise"
+REVIEWER_WIFE = "WIFE"
+REVIEWER_HUSBAND = "HUSBAND"
+REVIEWER_USER = "USER"
 
 
 
@@ -186,6 +190,8 @@ def create_review(db: Session, payload, user_id: str):
 
         temperature_option=temperature_option,
 
+        reviewer_type=_reviewer_type_for_user_id(db, user_id),
+
         overall=resolved_overall,
 
         comment=payload.comment,
@@ -238,6 +244,16 @@ def _normalize_temperature_option(value: str | None) -> str:
     if normalized in {"hot", "ice"}:
         return normalized
     return ""
+
+
+def _reviewer_type_for_user_id(db: Session, user_id: str) -> str:
+    user = db.get(User, user_id)
+    normalized = (user.email if user is not None else "").strip().lower()
+    if normalized in {email.lower() for email in OFFICIAL_WIFE_EMAILS}:
+        return REVIEWER_WIFE
+    if normalized in {email.lower() for email in OFFICIAL_HUSBAND_EMAILS}:
+        return REVIEWER_HUSBAND
+    return REVIEWER_USER
 
 
 

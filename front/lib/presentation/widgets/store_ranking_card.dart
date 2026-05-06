@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_sizes.dart';
 import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/store_ranking.dart';
+import 'package:front/presentation/pages/ranking_home/ranking_home_types.dart';
 
 class StoreRankingCard extends StatelessWidget {
   final StoreRanking ranking;
   final int rankIndex;
   final double distanceKm;
+  final RankingAudience audience;
   final VoidCallback onTap;
 
   const StoreRankingCard({
@@ -16,11 +19,19 @@ class StoreRankingCard extends StatelessWidget {
     required this.ranking,
     required this.rankIndex,
     required this.distanceKm,
+    required this.audience,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final headlineScore = switch (audience) {
+      RankingAudience.couple => ranking.coupleScore,
+      RankingAudience.wife => ranking.wifeScore,
+      RankingAudience.husband => ranking.husbandScore,
+      RankingAudience.user => ranking.userScore,
+    };
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -95,7 +106,11 @@ class StoreRankingCard extends StatelessWidget {
                     children: [
                       _MetricChip(
                         icon: Icons.star_rounded,
-                        label: RatingFormatter.score(ranking.rating),
+                        label: RatingFormatter.score(
+                          headlineScore > 0
+                              ? headlineScore
+                              : ranking.displayScore,
+                        ),
                       ),
                       _MetricChip(
                         icon: Icons.rate_review_rounded,
@@ -108,10 +123,30 @@ class StoreRankingCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SplitScore(
+                          label: '아내',
+                          value: ranking.wifeScore,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SplitScore(
+                          label: '남편',
+                          value: ranking.husbandScore,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   Text(
-                    '${ranking.topLabelA} ${RatingFormatter.score(ranking.topScoreA)}, '
-                    '${ranking.topLabelB} ${RatingFormatter.score(ranking.topScoreB)}로 '
-                    '좋은 평가를 받은 카페예요.',
+                    ranking.summary.isNotEmpty
+                        ? ranking.summary
+                        : '${ranking.topLabelA} ${RatingFormatter.score(ranking.topScoreA)}, '
+                              '${ranking.topLabelB} ${RatingFormatter.score(ranking.topScoreB)}로 '
+                              '좋은 평가를 받은 카페예요.',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -120,11 +155,76 @@ class StoreRankingCard extends StatelessWidget {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (ranking.tags.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ranking.tags
+                          .take(3)
+                          .map(
+                            (tag) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF6F7F9),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                tag,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SplitScore extends StatelessWidget {
+  final String label;
+  final double value;
+
+  const _SplitScore({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F4EE),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value > 0 ? value.toStringAsFixed(1) : '-',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ],
       ),
     );
   }

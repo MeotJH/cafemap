@@ -1,6 +1,9 @@
+import 'dart:async';
+
 // ignore_for_file: use_null_aware_elements
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +31,7 @@ class MapHomePage extends ConsumerStatefulWidget {
 
 class _MapHomePageState extends ConsumerState<MapHomePage> {
   static const double _markerFocusOffsetMeters = 140;
+  static const Duration _mapReadyTimeout = Duration(seconds: 8);
 
   final _searchController = TextEditingController();
   final _reviewedCafeMarkerIconUrl =
@@ -35,6 +39,10 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
 
   NaverMapController? _mapController;
   bool _cameraIdleUpdateQueued = false;
+  bool _isMapReady = false;
+  bool _showMapRecoveryHint = false;
+  int _mapReloadNonce = 0;
+  Timer? _mapReadyTimer;
   ProviderSubscription<AppLocationState>? _locationSubscription;
 
   @override
@@ -61,16 +69,46 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
             location,
           );
     });
+    _armMapReadyWatchdog();
   }
 
   @override
   void dispose() {
+    _mapReadyTimer?.cancel();
     _locationSubscription?.close();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _armMapReadyWatchdog() {
+    if (!kIsWeb) return;
+    _mapReadyTimer?.cancel();
+    _mapReadyTimer = Timer(_mapReadyTimeout, () {
+      if (!mounted || _isMapReady) return;
+      setState(() {
+        _showMapRecoveryHint = true;
+      });
+    });
+  }
+
+  void _retryMapMount() {
+    _mapReadyTimer?.cancel();
+    setState(() {
+      _isMapReady = false;
+      _showMapRecoveryHint = false;
+      _mapReloadNonce += 1;
+    });
+    _armMapReadyWatchdog();
+  }
+
   void _handleMapReady(dynamic controller) {
+    _mapReadyTimer?.cancel();
+    if (mounted && (!_isMapReady || _showMapRecoveryHint)) {
+      setState(() {
+        _isMapReady = true;
+        _showMapRecoveryHint = false;
+      });
+    }
     if (controller is! NaverMapController) return;
     _mapController = controller;
 
@@ -214,6 +252,7 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
           Positioned.fill(
             child: ClipRect(
               child: buildNaverMapView(
+                key: ValueKey('map-static-$_mapReloadNonce'),
                 context: context,
                 lat: state.mapLat,
                 lng: state.mapLng,
@@ -238,6 +277,61 @@ class _MapHomePageState extends ConsumerState<MapHomePage> {
               ),
             ),
           ),
+          if (_showMapRecoveryHint)
+            Positioned(
+              left: 20,
+              right: 20,
+              top: MediaQuery.paddingOf(context).top + 20,
+              child: PointerInterceptor(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.black12),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '지도를 다시 불러오는 중이에요',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          '아이폰 Safari에서 위치 권한 변경 직후 지도가 늦게 뜰 수 있어요. 다시 시도하면 대부분 복구됩니다.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.black54,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton(
+                            onPressed: _retryMapMount,
+                            child: const Text('다시 시도'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           MapHomeTopOverlay(
             searchController: _searchController,
             isSearching: state.isSearching,

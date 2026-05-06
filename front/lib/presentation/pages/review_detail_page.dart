@@ -40,10 +40,10 @@ class ReviewDetailPage extends ConsumerWidget {
   ) async {
     switch (index) {
       case 0:
-        context.go('/ranking');
+        context.go('/');
         break;
       case 1:
-        context.go('/menu-ranking');
+        context.go('/rankings');
         break;
       case 2:
         context.go('/map');
@@ -53,11 +53,11 @@ class ReviewDetailPage extends ConsumerWidget {
             ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
-          await _showTopToast(context, '활동은 로그인 후에 확인할 수 있어요.');
+          await _showTopToast(context, '내기록은 로그인 후에 확인할 수 있어요.');
           if (context.mounted) context.go('/auth');
           return;
         }
-        context.go('/activity');
+        context.go('/my');
         break;
     }
   }
@@ -84,14 +84,14 @@ class ReviewDetailPage extends ConsumerWidget {
             _onDestinationSelected(context, ref, index),
         destinations: const [
           NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: AppStrings.homeTab,
+          ),
+          NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: AppStrings.cafeRankingTab,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu_outlined),
-            selectedIcon: Icon(Icons.restaurant_menu),
-            label: AppStrings.menuRankingTab,
           ),
           NavigationDestination(
             icon: Icon(Icons.map_outlined),

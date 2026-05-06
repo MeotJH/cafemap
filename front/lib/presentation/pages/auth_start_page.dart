@@ -18,7 +18,7 @@ class AuthStartPage extends ConsumerWidget {
       await authController.signInWithGoogle();
       await _syncSignedInUser(ref, authController);
       if (!context.mounted) return;
-      context.go('/ranking');
+      context.go('/rankings');
     } on FirebaseAuthException catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
@@ -38,7 +38,7 @@ class AuthStartPage extends ConsumerWidget {
       await authController.signInWithKakao();
       await _syncSignedInUser(ref, authController);
       if (!context.mounted) return;
-      context.go('/ranking');
+      context.go('/rankings');
     } on FirebaseAuthException catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
@@ -92,7 +92,7 @@ class AuthStartPage extends ConsumerWidget {
                               context.pop();
                               return;
                             }
-                            context.go('/ranking');
+                            context.go('/rankings');
                           },
                           icon: const Icon(Icons.arrow_back),
                           style: IconButton.styleFrom(
@@ -136,14 +136,8 @@ class AuthStartPage extends ConsumerWidget {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
-                                  _FeaturePill(
-                                    label: '카페랭킹',
-                                    route: '/ranking',
-                                  ),
-                                  _FeaturePill(
-                                    label: '메뉴랭킹',
-                                    route: '/menu-ranking',
-                                  ),
+                                  _FeaturePill(label: '랭킹', route: '/rankings'),
+                                  _FeaturePill(label: '홈', route: '/'),
                                   _FeaturePill(label: '지도 탐색', route: '/map'),
                                 ],
                               ),
@@ -185,7 +179,7 @@ class AuthStartPage extends ConsumerWidget {
                               ],
                               const SizedBox(height: 14),
                               TextButton(
-                                onPressed: () => context.go('/ranking'),
+                                onPressed: () => context.go('/'),
                                 style: TextButton.styleFrom(
                                   foregroundColor: AppColors.textSecondary,
                                   minimumSize: const Size.fromHeight(48),
@@ -262,9 +256,9 @@ class _FeaturePill extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
@@ -324,9 +318,9 @@ class _AuthButton extends StatelessWidget {
             Text(
               label,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: foregroundColor,
-                  ),
+                fontWeight: FontWeight.w800,
+                color: foregroundColor,
+              ),
             ),
           ],
         ),
