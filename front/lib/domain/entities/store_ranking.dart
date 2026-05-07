@@ -3,6 +3,7 @@ class StoreRanking {
   final String storeId;
   final String storeName;
   final String brandName;
+  final String district;
   final String storeType;
   final bool isLocal;
   final String link;
@@ -11,6 +12,9 @@ class StoreRanking {
   final int reviewCount;
   final double distanceKm;
   final String imageUrl;
+  final String thumbnailImageUrl;
+  final List<String> imageUrls;
+  final List<String> thumbnailImageUrls;
   final double lat;
   final double lng;
   final double coffeeQualityScore;
@@ -35,6 +39,7 @@ class StoreRanking {
     required this.storeId,
     required this.storeName,
     required this.brandName,
+    required this.district,
     required this.storeType,
     required this.isLocal,
     required this.link,
@@ -43,6 +48,9 @@ class StoreRanking {
     required this.reviewCount,
     required this.distanceKm,
     required this.imageUrl,
+    required this.thumbnailImageUrl,
+    required this.imageUrls,
+    required this.thumbnailImageUrls,
     required this.lat,
     required this.lng,
     required this.coffeeQualityScore,

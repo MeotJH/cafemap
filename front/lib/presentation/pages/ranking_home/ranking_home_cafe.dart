@@ -21,8 +21,11 @@ class RankingHomeCafe extends ConsumerStatefulWidget {
 }
 
 class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
+  static const String _allDistrictLabel = '전국';
+
   RankingAudience _selectedAudience = RankingAudience.couple;
   StoreRankingSort _selectedSort = StoreRankingSort.rating;
+  String? _selectedDistrict;
 
   Future<void> _handleProfileMenuSelect(
     BuildContext context,
@@ -53,9 +56,116 @@ class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
     }
   }
 
+  List<String> _districtOptions(List<StoreRanking> items) {
+    final districts = items
+        .map((item) => item.district.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return <String>[_allDistrictLabel, ...districts];
+  }
+
+  Future<void> _showDistrictPicker(
+    BuildContext context,
+    List<String> options,
+  ) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '지역 선택',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  '보고 싶은 지역 랭킹만 골라서 볼 수 있어요.',
+                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final option = options[index];
+                      final isSelected = (_selectedDistrict == null &&
+                              option == _allDistrictLabel) ||
+                          _selectedDistrict == option;
+                      return Material(
+                        color: isSelected
+                            ? const Color(0xFFF5EEE7)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        child: ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF6F4E37)
+                                  : const Color(0xFFE1D4C7),
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 2,
+                          ),
+                          leading: Icon(
+                            option == _allDistrictLabel
+                                ? Icons.public
+                                : Icons.location_on_outlined,
+                            color: isSelected
+                                ? const Color(0xFF6F4E37)
+                                : Colors.black54,
+                          ),
+                          title: Text(
+                            option,
+                            style: TextStyle(
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: isSelected
+                                  ? const Color(0xFF6F4E37)
+                                  : Colors.black87,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  color: Color(0xFF6F4E37),
+                                )
+                              : null,
+                          onTap: () => Navigator.of(context).pop(option),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || selected == null) return;
+    setState(() {
+      _selectedDistrict = selected == _allDistrictLabel ? null : selected;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final rankings = ref.watch(storeRankingListProvider(_selectedAudience));
+    final districtOptions = _districtOptions(rankings.asData?.value ?? const []);
     final currentLocation = ref.watch(currentLocationProvider);
     final user =
         ref.watch(authStateProvider).asData?.value ??
@@ -69,9 +179,12 @@ class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
             RankingHomeHeader(
               selectedAudience: _selectedAudience,
               selectedSort: _selectedSort,
+              selectedDistrictLabel: _selectedDistrict ?? _allDistrictLabel,
               onAudienceSelected: (value) =>
                   setState(() => _selectedAudience = value),
               onSortSelected: (value) => setState(() => _selectedSort = value),
+              onDistrictPressed: () =>
+                  _showDistrictPicker(context, districtOptions),
               isLoggedIn: isLoggedIn,
               onProfileMenuSelect: (action) =>
                   _handleProfileMenuSelect(context, action),
@@ -86,6 +199,7 @@ class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
                   currentLocation: currentLocation,
                   selectedAudience: _selectedAudience,
                   selectedSort: _selectedSort,
+                  selectedDistrict: _selectedDistrict,
                   onSelectRanking: (ranking) =>
                       context.push('/cafes/${ranking.storeId}'),
                 ),
@@ -103,6 +217,7 @@ class _RankingHomeCafeList extends StatelessWidget {
   final AppLocationState currentLocation;
   final RankingAudience selectedAudience;
   final StoreRankingSort selectedSort;
+  final String? selectedDistrict;
   final ValueChanged<StoreRanking> onSelectRanking;
 
   const _RankingHomeCafeList({
@@ -110,8 +225,15 @@ class _RankingHomeCafeList extends StatelessWidget {
     required this.currentLocation,
     required this.selectedAudience,
     required this.selectedSort,
+    required this.selectedDistrict,
     required this.onSelectRanking,
   });
+
+  List<StoreRanking> _filterRankings(List<StoreRanking> items) {
+    final district = selectedDistrict;
+    if (district == null) return items;
+    return items.where((item) => item.district == district).toList();
+  }
 
   List<StoreRanking> _sortRankings(List<StoreRanking> items) {
     final sorted = [...items];
@@ -153,11 +275,12 @@ class _RankingHomeCafeList extends StatelessWidget {
   }
 
   String _emptyMessage() {
+    final regionPrefix = selectedDistrict == null ? '' : '$selectedDistrict에는 ';
     return switch (selectedAudience) {
-      RankingAudience.couple => '아직 부부픽 랭킹이 없어요.',
-      RankingAudience.wife => '아직 아내픽 랭킹이 없어요.',
-      RankingAudience.husband => '아직 남편픽 랭킹이 없어요.',
-      RankingAudience.user => '아직 사용자 평가가 부족합니다.',
+      RankingAudience.couple => '$regionPrefix아직 부부픽 랭킹이 없어요.',
+      RankingAudience.wife => '$regionPrefix아직 아내픽 랭킹이 없어요.',
+      RankingAudience.husband => '$regionPrefix아직 남편픽 랭킹이 없어요.',
+      RankingAudience.user => '$regionPrefix아직 사용자 평가가 부족해요.',
     };
   }
 
@@ -165,7 +288,7 @@ class _RankingHomeCafeList extends StatelessWidget {
   Widget build(BuildContext context) {
     return rankings.when(
       data: (items) {
-        final filtered = _sortRankings(items);
+        final filtered = _sortRankings(_filterRankings(items));
         if (filtered.isEmpty) {
           return Center(child: Text(_emptyMessage()));
         }
@@ -175,7 +298,7 @@ class _RankingHomeCafeList extends StatelessWidget {
             final ranking = filtered[index];
             return StoreRankingCard(
               key: ValueKey(
-                '${selectedAudience.name}_${selectedSort.name}_${ranking.storeId}',
+                '${selectedAudience.name}_${selectedSort.name}_${selectedDistrict ?? 'all'}_${ranking.storeId}',
               ),
               ranking: ranking,
               rankIndex: index,

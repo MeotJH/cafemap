@@ -1,5 +1,6 @@
 import re
 import uuid
+from urllib.parse import urlparse
 
 import boto3
 from botocore.config import Config
@@ -56,6 +57,34 @@ def _public_file_url(key: str) -> str:
     if S3_PUBLIC_BASE_URL:
         return f"{S3_PUBLIC_BASE_URL.rstrip('/')}/{key}"
     return f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{key}"
+
+
+def is_review_image_public_url(raw_url: str | None) -> bool:
+    value = (raw_url or "").strip()
+    if not value:
+        return False
+
+    prefix = S3_REVIEW_IMAGE_PREFIX.strip("/")
+    if not prefix:
+        return False
+
+    parsed = urlparse(value)
+    path = (parsed.path or "").strip("/")
+    if parsed.scheme in {"http", "https"} and f"/{prefix}/" in f"/{path}/":
+        return True
+
+    allowed_prefixes = []
+    if S3_PUBLIC_BASE_URL:
+        allowed_prefixes.append(f"{S3_PUBLIC_BASE_URL.rstrip('/')}/{prefix}/")
+    if S3_BUCKET:
+        allowed_prefixes.append(
+            f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{prefix}/"
+        )
+    endpoint_host = urlparse(S3_ENDPOINT_URL).netloc.strip()
+    if endpoint_host and S3_BUCKET:
+        allowed_prefixes.append(f"https://{S3_BUCKET}.{endpoint_host}/{prefix}/")
+
+    return any(value.startswith(item) for item in allowed_prefixes)
 
 
 def issue_review_image_upload_url(

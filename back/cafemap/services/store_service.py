@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -179,6 +181,7 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
                 "storeId": store.id,
                 "storeName": store.name,
                 "brandName": brand_name,
+                "district": _extract_district(getattr(store, "address", "")),
                 "storeType": getattr(store, "store_type", "unknown"),
                 "isLocal": getattr(store, "store_type", "unknown") == "local"
                 or getattr(store, "brand_id", "") == "brand-local",
@@ -188,6 +191,7 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
                 "reviewCount": 0,
                 "distanceKm": float(getattr(store, "distance_km", 0.0) or 0.0),
                 "imageUrl": brand_logo_url or "",
+                "imageUrls": [],
                 "lat": float(getattr(store, "lat", 0.0) or 0.0),
                 "lng": float(getattr(store, "lng", 0.0) or 0.0),
                 "coffeeQualityScore": 0.0,
@@ -241,6 +245,15 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
         if revisit is not None:
             payload["_revisitTotal"] = float(payload["_revisitTotal"]) + float(revisit)
             payload["_revisitCount"] = int(payload["_revisitCount"]) + 1
+
+        for image_url in _image_urls_from_snapshot(review.image_urls_json):
+            image_urls = payload["imageUrls"]
+            if (
+                isinstance(image_urls, list)
+                and len(image_urls) < 2
+                and image_url not in image_urls
+            ):
+                image_urls.append(image_url)
 
         totals = payload["_scoreTotals"]
         for key, value in scores.items():
@@ -302,6 +315,21 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
     return results
 
 
+def _extract_district(address: str | None) -> str:
+    normalized = (address or "").strip()
+    if not normalized:
+        return ""
+
+    tokens = [token.strip() for token in normalized.split() if token.strip()]
+    for token in tokens:
+        if token.endswith(("구", "군")):
+            return token
+    for token in tokens:
+        if token.endswith("시"):
+            return token
+    return ""
+
+
 def _dessert_signal(scores: dict[str, float]) -> float:
     values = [
         scores.get("flavor_balance"),
@@ -320,6 +348,22 @@ def _safe_average(total: object, count: object) -> float:
     if parsed_count <= 0:
         return 0.0
     return float(total) / parsed_count
+
+
+def _image_urls_from_snapshot(image_urls_json: str | None) -> list[str]:
+    if not image_urls_json:
+        return []
+    try:
+        parsed = json.loads(image_urls_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [
+        item.strip()
+        for item in parsed
+        if isinstance(item, str) and item.strip()
+    ]
 
 
 def _build_summary(payload: dict[str, object]) -> str:

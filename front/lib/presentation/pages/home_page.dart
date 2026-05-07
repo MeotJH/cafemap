@@ -1,51 +1,64 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
+import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/store_ranking.dart';
 import 'package:front/presentation/providers/ranking_providers.dart';
+import 'package:front/presentation/widgets/stacked_image_gallery.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  final Set<String> _precachedUrls = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
     final summary = ref.watch(homeSummaryProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       body: SafeArea(
         child: summary.when(
-          data: (data) => ListView(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
-            children: [
-              const _HeroCard(),
-              const SizedBox(height: 28),
-              _RankingSection(
-                title: '아내픽 TOP 3',
-                subtitle: "Wife's Pick",
-                description: '감성과 커피맛에 진심인 아내',
-                cafes: data.wifeTop,
-              ),
-              const SizedBox(height: 30),
-              _RankingSection(
-                title: '남편픽 TOP 3',
-                subtitle: "Husband's Pick",
-                description: '구수한 아메리카노에 진심인 남편',
-                cafes: data.husbandTop,
-              ),
-              if (data.featuredCafe != null) ...[
+          data: (data) {
+            _scheduleThumbnailPrecache(context, data);
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+              children: [
+                const _HeroCard(),
+                const SizedBox(height: 28),
+                _RankingSection(
+                  title: '아내픽 TOP 3',
+                  subtitle: "Wife's Pick",
+                  description: '감성과 커피맛에 진심인 아내',
+                  cafes: data.wifeTop,
+                ),
                 const SizedBox(height: 30),
-                _FeaturedSection(cafe: data.featuredCafe!),
+                _RankingSection(
+                  title: '남편픽 TOP 3',
+                  subtitle: "Husband's Pick",
+                  description: '구수한 아메리카노에 진심인 남편',
+                  cafes: data.husbandTop,
+                ),
+                if (data.featuredCafe != null) ...[
+                  const SizedBox(height: 30),
+                  _FeaturedSection(cafe: data.featuredCafe!),
+                ],
+                if (data.recentCafes.isNotEmpty) ...[
+                  const SizedBox(height: 30),
+                  _SimpleHistorySection(cafes: data.recentCafes),
+                ],
               ],
-              if (data.recentCafes.isNotEmpty) ...[
-                const SizedBox(height: 30),
-                _SimpleHistorySection(cafes: data.recentCafes),
-              ],
-            ],
-          ),
+            );
+          },
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => ListView(
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
@@ -61,6 +74,66 @@ class HomePage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _scheduleThumbnailPrecache(BuildContext context, HomeSummary data) {
+    final urls = _thumbnailUrlsForSummary(
+      data,
+    ).where((url) => _precachedUrls.add(url)).toList(growable: false);
+    if (urls.isEmpty) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final url in urls) {
+        precacheImage(CachedNetworkImageProvider(url), context);
+      }
+    });
+  }
+
+  List<String> _thumbnailUrlsForSummary(HomeSummary data) {
+    final urls = <String>[];
+
+    void collect(StoreRanking? cafe) {
+      if (cafe == null) return;
+      for (final url in _galleryUrls(cafe)) {
+        if (!urls.contains(url)) {
+          urls.add(url);
+        }
+        if (urls.length >= 8) {
+          return;
+        }
+      }
+    }
+
+    for (final cafe in data.wifeTop.take(3)) {
+      collect(cafe);
+      if (urls.length >= 8) return urls;
+    }
+    for (final cafe in data.husbandTop.take(3)) {
+      collect(cafe);
+      if (urls.length >= 8) return urls;
+    }
+    collect(data.featuredCafe);
+
+    return urls;
+  }
+
+  List<String> _galleryUrls(StoreRanking cafe) {
+    final urls = <String>[];
+    for (final url in cafe.thumbnailImageUrls) {
+      final trimmed = url.trim();
+      if (trimmed.isEmpty || trimmed.toLowerCase().endsWith('.svg')) {
+        continue;
+      }
+      if (!urls.contains(trimmed)) {
+        urls.add(trimmed);
+      }
+      if (urls.length >= 2) {
+        return urls;
+      }
+    }
+    return urls.take(2).toList(growable: false);
   }
 }
 
@@ -308,6 +381,7 @@ class _RankingSection extends StatelessWidget {
                   child: _CafeScoreCard(
                     cafe: cafe,
                     score: _scoreForSection(cafe),
+                    scoreLabel: _scoreLabel,
                   ),
                 ),
               ),
@@ -318,6 +392,11 @@ class _RankingSection extends StatelessWidget {
   double _scoreForSection(StoreRanking cafe) {
     if (subtitle.startsWith('Wife')) return cafe.wifeScore;
     return cafe.husbandScore;
+  }
+
+  String get _scoreLabel {
+    if (subtitle.startsWith('Wife')) return '아내픽';
+    return '남편픽';
   }
 }
 
@@ -352,6 +431,7 @@ class _FeaturedSection extends StatelessWidget {
         _CafeScoreCard(
           cafe: cafe,
           score: cafe.coupleScore > 0 ? cafe.coupleScore : cafe.displayScore,
+          scoreLabel: '부부픽',
         ),
       ],
     );
@@ -396,6 +476,7 @@ class _SimpleHistorySection extends StatelessWidget {
                   score: cafe.coupleScore > 0
                       ? cafe.coupleScore
                       : cafe.displayScore,
+                  scoreLabel: '평균',
                 ),
               ),
             ),
@@ -407,12 +488,19 @@ class _SimpleHistorySection extends StatelessWidget {
 class _CafeScoreCard extends StatelessWidget {
   final StoreRanking cafe;
   final double score;
+  final String scoreLabel;
 
-  const _CafeScoreCard({required this.cafe, required this.score});
+  const _CafeScoreCard({
+    required this.cafe,
+    required this.score,
+    required this.scoreLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
     final scoreStyle = _scoreTone(score);
+    final galleryImages = _galleryImages(cafe);
+    final metricPins = _metricPins(cafe);
 
     return Material(
       color: Colors.white,
@@ -434,76 +522,209 @@ class _CafeScoreCard extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cafe.storeName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.4,
-                        color: Color(0xFF390C00),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      cafe.summary,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF832700),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              SizedBox(
-                width: 64,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'SCORE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                        color: scoreStyle.labelColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scoreStyle.backgroundColor,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        score > 0 ? score.toStringAsFixed(1) : '-',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: scoreStyle.valueColor,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          cafe.storeName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.4,
+                            height: 1.16,
+                            color: Color(0xFF390C00),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              cafe.brandName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF8A6B5C),
+                              ),
+                            ),
+                            _ScorePin(
+                              icon: Icons.push_pin_rounded,
+                              label: scoreLabel,
+                              value: score,
+                              tone: scoreStyle,
+                              emphasized: true,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (galleryImages.isNotEmpty) ...[
+                    const SizedBox(width: 12),
+                    StackedImageGallery(
+                      images: galleryImages,
+                      placeholder: const _CafeThumbnailPlaceholder(),
                     ),
                   ],
-                ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...metricPins.map(
+                    (pin) => _ScorePin(
+                      icon: Icons.local_cafe_rounded,
+                      label: pin.label,
+                      value: pin.value,
+                      tone: _scoreTone(pin.value),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  List<GalleryImageItem> _galleryImages(StoreRanking cafe) {
+    final thumbnailUrls = _uniqueGalleryUrls(cafe.thumbnailImageUrls);
+    final viewerUrls = _uniqueGalleryUrls(cafe.imageUrls);
+    final imageCount = thumbnailUrls.isNotEmpty
+        ? thumbnailUrls.length
+        : viewerUrls.length;
+
+    return List.generate(imageCount.clamp(0, 2), (index) {
+      final thumbnailUrl = index < thumbnailUrls.length
+          ? thumbnailUrls[index]
+          : viewerUrls[index];
+      final viewerUrl = index < viewerUrls.length
+          ? viewerUrls[index]
+          : thumbnailUrl;
+      return GalleryImageItem.url(thumbnailUrl, viewerUrl: viewerUrl);
+    }, growable: false);
+  }
+
+  List<String> _uniqueGalleryUrls(List<String> rawUrls) {
+    final urls = <String>[];
+    for (final url in rawUrls) {
+      final trimmed = url.trim();
+      if (trimmed.isNotEmpty &&
+          !trimmed.toLowerCase().endsWith('.svg') &&
+          !urls.contains(trimmed)) {
+        urls.add(trimmed);
+      }
+      if (urls.length >= 2) {
+        return urls;
+      }
+    }
+    return urls.take(2).toList(growable: false);
+  }
+
+  List<_MetricPinData> _metricPins(StoreRanking cafe) {
+    return [
+      if (cafe.topLabelA.trim().isNotEmpty && cafe.topScoreA > 0)
+        _MetricPinData(cafe.topLabelA.trim(), cafe.topScoreA),
+      if (cafe.topLabelB.trim().isNotEmpty && cafe.topScoreB > 0)
+        _MetricPinData(cafe.topLabelB.trim(), cafe.topScoreB),
+    ];
+  }
+}
+
+class _MetricPinData {
+  final String label;
+  final double value;
+
+  const _MetricPinData(this.label, this.value);
+}
+
+class _ScorePin extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final double value;
+  final _ScoreTone tone;
+  final bool emphasized;
+
+  const _ScorePin({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.tone,
+    this.emphasized = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 34),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: emphasized ? tone.backgroundColor : const Color(0xFFFFF8F3),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: emphasized
+              ? tone.valueColor.withValues(alpha: 0.18)
+              : const Color(0xFFF0DDD2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: emphasized ? tone.valueColor : AppColors.primary,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: emphasized ? tone.valueColor : const Color(0xFF661F00),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            value > 0 ? RatingFormatter.score(value) : '-',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: emphasized ? tone.valueColor : const Color(0xFF390C00),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CafeThumbnailPlaceholder extends StatelessWidget {
+  const _CafeThumbnailPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFFF4EFEA),
+      child: Center(
+        child: Icon(
+          Icons.local_cafe_rounded,
+          size: 18,
+          color: Color(0xFFC28D73),
         ),
       ),
     );

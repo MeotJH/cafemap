@@ -1,10 +1,12 @@
 import json
+from urllib.parse import quote
 
 import logging
 
 
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse
 
 from sqlalchemy.orm import Session
 
@@ -76,6 +78,7 @@ from cafemap.services import (
     brand_service,
 
     upload_service,
+    thumbnail_service,
 
 )
 
@@ -95,16 +98,21 @@ logger = logging.getLogger(__name__)
 
 
 
-def _resolve_asset_url(request: Request, raw_url: str | None) -> str:
+def _public_base_url(request: Request) -> str:
 
-    value = (raw_url or "").strip()
     forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
     forwarded_host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
     request_base_url = str(request.base_url).rstrip("/")
     if forwarded_proto and forwarded_host:
-        base_url = f"{forwarded_proto}://{forwarded_host}"
-    else:
-        base_url = request_base_url
+        return f"{forwarded_proto}://{forwarded_host}"
+    return request_base_url
+
+
+def _resolve_asset_url(request: Request, raw_url: str | None) -> str:
+
+    value = (raw_url or "").strip()
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    base_url = _public_base_url(request)
     if not value:
         return ""
     if value.startswith(("http://", "https://")):
@@ -122,6 +130,29 @@ def _resolve_store_image_url(request: Request, brand_logo_url: str | None) -> st
     # ??? ??? ??? ??? ?? ???? ??? ? ???? ????.
 
     return _resolve_asset_url(request, brand_logo_url)
+
+
+def _resolve_thumbnail_url(
+    request: Request,
+    raw_url: str | None,
+    *,
+    width: int = 160,
+    height: int = 160,
+) -> str:
+    resolved = _resolve_asset_url(request, raw_url)
+    if not resolved:
+        return ""
+    lowered = resolved.lower()
+    if lowered.endswith(".svg"):
+        return resolved
+    if not upload_service.is_review_image_public_url(resolved):
+        return resolved
+
+    encoded_src = quote(resolved, safe="")
+    return (
+        f"{_public_base_url(request)}/api/cafemap/assets/thumbnail"
+        f"?src={encoded_src}&w={width}&h={height}"
+    )
 
 
 def _store_type_for_response(store) -> str:
@@ -212,11 +243,18 @@ def _ranking_out(
 
 
 def _store_ranking_out(request: Request, item: dict) -> StoreRankingOut:
+    image_url = _resolve_store_image_url(request, item["imageUrl"])
+    image_urls = [
+        _resolve_asset_url(request, url)
+        for url in item.get("imageUrls", [])
+        if isinstance(url, str) and url.strip()
+    ]
     return StoreRankingOut(
         id=item["id"],
         storeId=item["storeId"],
         storeName=item["storeName"],
         brandName=item["brandName"],
+        district=item.get("district", ""),
         storeType=item["storeType"],
         isLocal=bool(item["isLocal"]),
         link=item["link"],
@@ -224,7 +262,14 @@ def _store_ranking_out(request: Request, item: dict) -> StoreRankingOut:
         displayScore=float(item["displayScore"]),
         reviewCount=int(item["reviewCount"]),
         distanceKm=float(item["distanceKm"]),
-        imageUrl=_resolve_store_image_url(request, item["imageUrl"]),
+        imageUrl=image_url,
+        thumbnailImageUrl=_resolve_thumbnail_url(request, item["imageUrl"]),
+        imageUrls=image_urls,
+        thumbnailImageUrls=[
+            _resolve_thumbnail_url(request, url)
+            for url in item.get("imageUrls", [])
+            if isinstance(url, str) and url.strip()
+        ],
         lat=float(item["lat"]),
         lng=float(item["lng"]),
         coffeeQualityScore=float(item["coffeeQualityScore"]),
@@ -550,6 +595,31 @@ def list_store_rankings(
         for _, _, _, _, _, _, _, _, _, _, segmented_item in rows
 
     ]
+
+
+@router.get("/assets/thumbnail")
+def get_thumbnail_asset(
+    src: str = Query(..., min_length=1),
+    w: int = Query(160, ge=32, le=512),
+    h: int = Query(160, ge=32, le=512),
+):
+    if not upload_service.is_review_image_public_url(src):
+        raise HTTPException(status_code=400, detail="Unsupported thumbnail source")
+
+    try:
+        thumbnail_path = thumbnail_service.get_or_create_thumbnail(
+            source_url=src,
+            width=w,
+            height=h,
+        )
+    except thumbnail_service.ThumbnailError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return FileResponse(
+        thumbnail_path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 

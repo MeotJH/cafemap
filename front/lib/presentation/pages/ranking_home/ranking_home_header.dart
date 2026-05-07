@@ -10,8 +10,10 @@ import 'package:front/presentation/widgets/section_title.dart';
 class RankingHomeHeader extends StatelessWidget {
   final RankingAudience selectedAudience;
   final StoreRankingSort selectedSort;
+  final String selectedDistrictLabel;
   final ValueChanged<RankingAudience> onAudienceSelected;
   final ValueChanged<StoreRankingSort> onSortSelected;
+  final VoidCallback onDistrictPressed;
   final bool isLoggedIn;
   final ValueChanged<ProfileMenuAction> onProfileMenuSelect;
 
@@ -19,8 +21,10 @@ class RankingHomeHeader extends StatelessWidget {
     super.key,
     required this.selectedAudience,
     required this.selectedSort,
+    required this.selectedDistrictLabel,
     required this.onAudienceSelected,
     required this.onSortSelected,
+    required this.onDistrictPressed,
     required this.isLoggedIn,
     required this.onProfileMenuSelect,
   });
@@ -77,11 +81,11 @@ class RankingHomeHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          const Padding(
-            padding: EdgeInsets.only(top: 2, bottom: 8),
-            child: Text(
-              '부부픽과 취향별 랭킹을 나눠서 보고, 실제 방문 기준으로 카페를 고를 수 있어요.',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 8),
+            child: _DistrictSelectButton(
+              selectedDistrictLabel: selectedDistrictLabel,
+              onPressed: onDistrictPressed,
             ),
           ),
           _RankingFilterScroller(
@@ -144,7 +148,7 @@ class RankingHomeHeader extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           SectionTitle(
-            title: _titleForAudience(selectedAudience),
+            title: _titleForAudience(selectedAudience, selectedDistrictLabel),
             trailing: '실제 방문 기준',
           ),
           const SizedBox(height: 2),
@@ -157,13 +161,14 @@ class RankingHomeHeader extends StatelessWidget {
     );
   }
 
-  String _titleForAudience(RankingAudience audience) {
-    return switch (audience) {
+  String _titleForAudience(RankingAudience audience, String districtLabel) {
+    final audienceLabel = switch (audience) {
       RankingAudience.couple => '부부픽 랭킹',
       RankingAudience.wife => '아내픽 랭킹',
       RankingAudience.husband => '남편픽 랭킹',
       RankingAudience.user => '사용자픽 랭킹',
     };
+    return '$districtLabel $audienceLabel';
   }
 
   String _descriptionForAudience(RankingAudience audience) {
@@ -173,6 +178,76 @@ class RankingHomeHeader extends StatelessWidget {
       RankingAudience.husband => '커피, 작업성, 실용성이 좋은 카페 기준입니다.',
       RankingAudience.user => '일반 사용자 평균 점수 기준 랭킹입니다.',
     };
+  }
+}
+
+class _DistrictSelectButton extends StatelessWidget {
+  final String selectedDistrictLabel;
+  final VoidCallback onPressed;
+
+  const _DistrictSelectButton({
+    required this.selectedDistrictLabel,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          height: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.place_outlined,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                '지역 선택',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 18,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                color: AppColors.cardBorder,
+              ),
+              Expanded(
+                child: Text(
+                  selectedDistrictLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -9,6 +9,7 @@ import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
 import 'package:front/presentation/widgets/review_temperature_badge.dart';
+import 'package:front/presentation/widgets/stacked_image_gallery.dart';
 import 'package:go_router/go_router.dart';
 
 class ReviewDetailPage extends ConsumerWidget {
@@ -129,6 +130,10 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
     final entries = _selectedSection == _coffeeSection
         ? _orderedCoffeeEntries()
         : _orderedStoreEntries();
+    final reviewImages = widget.review.imageUrls
+        .where((url) => url.trim().isNotEmpty)
+        .map((url) => GalleryImageItem.url(url.trim()))
+        .toList(growable: false);
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -214,6 +219,31 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
           ),
         ),
         const Divider(height: 1, thickness: 1, color: Color(0xFFE8EDF3)),
+        if (reviewImages.isNotEmpty)
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '사진',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                GalleryImageStrip(
+                  images: reviewImages,
+                  placeholder: const _ReviewImagePlaceholder(),
+                ),
+              ],
+            ),
+          ),
+        if (reviewImages.isNotEmpty)
+          const Divider(height: 1, thickness: 1, color: Color(0xFFE8EDF3)),
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
@@ -352,60 +382,6 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
             ),
           ),
         ),
-        if (widget.review.imageUrls.isNotEmpty)
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                const Text(
-                  '사진',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 120,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: widget.review.imageUrls.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 10),
-                    itemBuilder: (context, index) {
-                      final imageUrl = widget.review.imageUrls[index];
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: GestureDetector(
-                          onTap: () => _openImageViewer(context, imageUrl),
-                          child: Image.network(
-                            imageUrl,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  width: 120,
-                                  height: 120,
-                                  color: const Color(0xFFF3F4F6),
-                                  alignment: Alignment.center,
-                                  child: const Icon(
-                                    Icons.broken_image_outlined,
-                                  ),
-                                ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
       ],
     );
   }
@@ -435,44 +411,6 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
     }
 
     return result;
-  }
-
-  void _openImageViewer(BuildContext context, String imageUrl) {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return Dialog.fullscreen(
-          backgroundColor: Colors.black,
-          child: Stack(
-            children: [
-              Center(
-                child: InteractiveViewer(
-                  minScale: 1,
-                  maxScale: 4,
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.broken_image_outlined,
-                      color: Colors.white,
-                      size: 44,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 16,
-                right: 16,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 }
 
@@ -520,6 +458,19 @@ class _ScoreRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ReviewImagePlaceholder extends StatelessWidget {
+  const _ReviewImagePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF3F4F6),
+      alignment: Alignment.center,
+      child: const Icon(Icons.broken_image_outlined),
     );
   }
 }

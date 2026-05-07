@@ -50,6 +50,7 @@ class StoreRankingOut(BaseModel):
     storeId: str
     storeName: str
     brandName: str
+    district: str = ""
     storeType: str
     isLocal: bool
     link: str = ""
@@ -58,6 +59,9 @@ class StoreRankingOut(BaseModel):
     reviewCount: int
     distanceKm: float
     imageUrl: str
+    thumbnailImageUrl: str = ""
+    imageUrls: list[str] = Field(default_factory=list)
+    thumbnailImageUrls: list[str] = Field(default_factory=list)
     lat: float
     lng: float
     coffeeQualityScore: float = 0.0
