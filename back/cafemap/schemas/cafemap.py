@@ -104,8 +104,13 @@ class RatingBreakdownOut(BaseModel):
 class ReviewOut(BaseModel):
     id: str
     storeName: str
+    address: str = ""
+    placeId: str = ""
     link: str = ""
+    lat: float | None = None
+    lng: float | None = None
     temperatureOption: str = ""
+    brandId: str = ""
     brandName: str
     menuName: str
     menuCategory: str

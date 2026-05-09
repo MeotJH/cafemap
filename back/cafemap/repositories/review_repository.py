@@ -60,8 +60,7 @@ def fetch_review(db: Session, review_id: str):
 
         select(
             Review,
-            Store.name,
-            Store.link,
+            Store,
             Brand.name,
             Menu.name,
             Menu.category,

@@ -132,6 +132,23 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     GoRoute(
+      path: '/review/:id/edit',
+      redirect: (BuildContext context, GoRouterState state) {
+        if (FirebaseAuth.instance.currentUser == null) {
+          return '/auth';
+        }
+        return null;
+      },
+      builder: (BuildContext context, GoRouterState state) {
+        final reviewId = state.pathParameters['id'] ?? '';
+        final extra = state.extra;
+        return ReviewWritePage(
+          reviewId: reviewId,
+          initialReview: extra is Review ? extra : null,
+        );
+      },
+    ),
+    GoRoute(
       path: '/review/select-store',
       redirect: (BuildContext context, GoRouterState state) {
         if (FirebaseAuth.instance.currentUser == null) {

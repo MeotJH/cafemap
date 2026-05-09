@@ -84,7 +84,12 @@ Review _reviewFromJson(Map<String, dynamic> json) {
   return Review(
     id: json['id'] as String? ?? '',
     storeName: json['storeName'] as String? ?? '',
+    address: json['address'] as String? ?? '',
+    placeId: json['placeId'] as String? ?? '',
     link: json['link'] as String? ?? '',
+    lat: (json['lat'] as num?)?.toDouble(),
+    lng: (json['lng'] as num?)?.toDouble(),
+    brandId: json['brandId'] as String? ?? '',
     temperatureOption: json['temperatureOption'] as String? ?? '',
     brandName: json['brandName'] as String? ?? '',
     menuName: json['menuName'] as String? ?? '',

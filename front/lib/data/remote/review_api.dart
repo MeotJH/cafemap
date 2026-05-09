@@ -6,15 +6,14 @@ import 'package:front/domain/entities/review.dart';
 // 리뷰 API 호출을 담당한다.
 class ReviewApi {
   ReviewApi({Dio? dio})
-    : _dio =
-          dio ??
-          Dio(
-            BaseOptions(
-              connectTimeout: const Duration(seconds: 8),
-              receiveTimeout: const Duration(seconds: 8),
-              sendTimeout: const Duration(seconds: 8),
-            ),
-          );
+      : _dio = dio ??
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 8),
+                sendTimeout: const Duration(seconds: 8),
+              ),
+            );
 
   final Dio _dio;
 
@@ -27,6 +26,20 @@ class ReviewApi {
     final headers = _authHeaders(auth);
     final response = await _dio.post(
       '$_baseUrl/api/cafemap/reviews',
+      data: payload.toJson(),
+      options: Options(headers: headers.isEmpty ? null : headers),
+    );
+    return _reviewFromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<Review> updateReview(
+    String reviewId,
+    ReviewCreateRequest payload, {
+    AuthContext? auth,
+  }) async {
+    final headers = _authHeaders(auth);
+    final response = await _dio.put(
+      '$_baseUrl/api/cafemap/reviews/$reviewId',
       data: payload.toJson(),
       options: Options(headers: headers.isEmpty ? null : headers),
     );
@@ -122,21 +135,21 @@ class ReviewCreateRequest {
   });
 
   Map<String, dynamic> toJson() => {
-    'storeName': storeName,
-    'address': address,
-    'placeId': placeId,
-    'link': link,
-    'temperatureOption': temperatureOption,
-    'lat': lat,
-    'lng': lng,
-    'brandId': brandId,
-    'menuName': menuName,
-    'scores': scores,
-    'storeScores': storeScores,
-    'overall': overall,
-    'comment': comment,
-    'imageUrls': imageUrls,
-  };
+        'storeName': storeName,
+        'address': address,
+        'placeId': placeId,
+        'link': link,
+        'temperatureOption': temperatureOption,
+        'lat': lat,
+        'lng': lng,
+        'brandId': brandId,
+        'menuName': menuName,
+        'scores': scores,
+        'storeScores': storeScores,
+        'overall': overall,
+        'comment': comment,
+        'imageUrls': imageUrls,
+      };
 }
 
 class ReviewImagePresignRequest {
@@ -149,9 +162,9 @@ class ReviewImagePresignRequest {
   });
 
   Map<String, dynamic> toJson() => {
-    'fileName': fileName,
-    'contentType': contentType,
-  };
+        'fileName': fileName,
+        'contentType': contentType,
+      };
 }
 
 class ReviewImagePresignResponse {
@@ -169,7 +182,12 @@ Review _reviewFromJson(Map<String, dynamic> json) {
   return Review(
     id: json['id'] as String? ?? '',
     storeName: json['storeName'] as String? ?? '',
+    address: json['address'] as String? ?? '',
+    placeId: json['placeId'] as String? ?? '',
     link: json['link'] as String? ?? '',
+    lat: (json['lat'] as num?)?.toDouble(),
+    lng: (json['lng'] as num?)?.toDouble(),
+    brandId: json['brandId'] as String? ?? '',
     temperatureOption: json['temperatureOption'] as String? ?? '',
     brandName: json['brandName'] as String? ?? '',
     menuName: json['menuName'] as String? ?? '',

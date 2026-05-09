@@ -50,8 +50,7 @@ class ReviewDetailPage extends ConsumerWidget {
         context.go('/map');
         break;
       case 3:
-        final user =
-            ref.read(authStateProvider).asData?.value ??
+        final user = ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
           await _showTopToast(context, '내기록은 로그인 후에 확인할 수 있어요.');
@@ -63,6 +62,15 @@ class ReviewDetailPage extends ConsumerWidget {
     }
   }
 
+  bool _canEditReview(WidgetRef ref, Review review) {
+    // 현재 로그인 사용자와 리뷰 작성자가 같을 때만 수정 버튼을 노출한다.
+    final user = ref.read(authStateProvider).asData?.value ??
+        ref.read(authControllerProvider).currentUser;
+    final currentEmail = user?.email?.trim().toLowerCase() ?? '';
+    final reviewEmail = review.userEmail.trim().toLowerCase();
+    return currentEmail.isNotEmpty && currentEmail == reviewEmail;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reviewAsync = ref.watch(reviewDetailProvider(reviewId));
@@ -71,13 +79,22 @@ class ReviewDetailPage extends ConsumerWidget {
       backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(title: const Text('리뷰 상세'), centerTitle: true),
       body: reviewAsync.when(
-        data: (review) => _ReviewDetailBody(review: review),
+        data: (review) => _ReviewDetailBody(
+          review: review,
+          canEdit: _canEditReview(ref, review),
+        ),
         loading: () => initialReview == null
             ? const Center(child: CircularProgressIndicator())
-            : _ReviewDetailBody(review: initialReview!),
+            : _ReviewDetailBody(
+                review: initialReview!,
+                canEdit: _canEditReview(ref, initialReview!),
+              ),
         error: (error, stackTrace) => initialReview == null
             ? const Center(child: Text('리뷰를 불러오지 못했어요.'))
-            : _ReviewDetailBody(review: initialReview!),
+            : _ReviewDetailBody(
+                review: initialReview!,
+                canEdit: _canEditReview(ref, initialReview!),
+              ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
@@ -112,8 +129,9 @@ class ReviewDetailPage extends ConsumerWidget {
 
 class _ReviewDetailBody extends StatefulWidget {
   final Review review;
+  final bool canEdit;
 
-  const _ReviewDetailBody({required this.review});
+  const _ReviewDetailBody({required this.review, required this.canEdit});
 
   @override
   State<_ReviewDetailBody> createState() => _ReviewDetailBodyState();
@@ -153,23 +171,54 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                 ),
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.review.menuName,
-                    style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF09142A),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          widget.review.menuName,
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF09142A),
+                          ),
+                        ),
+                        if (widget.review.temperatureOption.isNotEmpty)
+                          ReviewTemperatureBadge(
+                            temperatureOption: widget.review.temperatureOption,
+                          ),
+                      ],
                     ),
                   ),
-                  if (widget.review.temperatureOption.isNotEmpty)
-                    ReviewTemperatureBadge(
-                      temperatureOption: widget.review.temperatureOption,
+                  if (widget.canEdit) ...[
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => context.push(
+                        '/review/${widget.review.id}/edit',
+                        extra: widget.review,
+                      ),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('수정'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 8),

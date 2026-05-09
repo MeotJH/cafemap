@@ -20,7 +20,17 @@ class RemoteReviewRepository implements ReviewRepository {
   }
 
   @override
-  Future<Review> createReview(ReviewCreateRequest payload, {AuthContext? auth}) {
+  Future<Review> createReview(ReviewCreateRequest payload,
+      {AuthContext? auth}) {
     return _api.createReview(payload, auth: auth);
+  }
+
+  @override
+  Future<Review> updateReview(
+    String reviewId,
+    ReviewCreateRequest payload, {
+    AuthContext? auth,
+  }) {
+    return _api.updateReview(reviewId, payload, auth: auth);
   }
 }

@@ -77,100 +77,16 @@ def get_review(db: Session, review_id: str):
 def create_review(db: Session, payload, user_id: str):
 
     # ??? ???? ????.
-
-    brand = db.get(Brand, payload.brandId)
-
-    if brand is None:
-
-        raise ValueError("Brand not found")
-
-
-
-    menu = _find_best_matching_menu(db, brand.id, payload.menuName)
-
-    if menu is None:
-        raise ValueError("Menu must be selected from the standard menu list")
-
-    menu_category = normalize_category(menu.category)
-
-
-
-    place_id = (getattr(payload, "placeId", "") or "").strip()
-    place_link = (getattr(payload, "link", "") or "").strip()
-    payload_coords = _coords_from_payload(payload)
-    store = _find_existing_store(
-        db,
-        brand.id,
-        payload.storeName,
-        payload.address,
-        place_id,
-    )
-
-    if store is None:
-
-        coords = payload_coords or geocode_service.geocode(payload.address)
-
-        store = Store(
-
-            id=f"store-{uuid.uuid4().hex}",
-
-            brand_id=brand.id,
-
-            name=payload.storeName,
-
-            address=payload.address,
-
-            store_type=_store_type_for_brand(brand.id),
-
-            place_id=place_id,
-
-            link=place_link,
-
-            distance_km=0.0,
-
-            lat=coords[0] if coords else 0.0,
-
-            lng=coords[1] if coords else 0.0,
-
-        )
-
-        db.add(store)
-
-    elif store.lat == 0.0 and store.lng == 0.0:
-
-        coords = payload_coords or (
-            geocode_service.geocode(payload.address) if payload.address else None
-        )
-
-        if coords:
-
-            store.lat, store.lng = coords
-
-    if store is not None and place_id and not store.place_id:
-        store.place_id = place_id
-    if store is not None and place_link and not store.link:
-        store.link = place_link
-
-
-
-    input_scores = getattr(payload, "scores", {}) or {}
-
-    if not input_scores:
-
-        raise ValueError("scores is required")
-
-    image_urls = _sanitize_image_urls(getattr(payload, "imageUrls", []))
-
-    menu_scores = normalize_scores(menu_category, input_scores)
-    store_scores = normalize_store_scores(getattr(payload, "storeScores", {}) or {})
-    aggregate_scores = {**menu_scores, **store_scores}
-    temperature_option = _normalize_temperature_option(
-        getattr(payload, "temperatureOption", "")
-    )
-
-    resolved_overall = float(payload.overall) if payload.overall > 0 else compute_overall(menu_scores, fallback=0.0)
-
-
+    (
+        brand,
+        menu,
+        store,
+        aggregate_scores,
+        menu_scores,
+        resolved_overall,
+        temperature_option,
+        image_urls,
+    ) = _prepare_review_payload(db, payload)
 
     review = Review(
 
@@ -230,13 +146,153 @@ def create_review(db: Session, payload, user_id: str):
 
     )
 
-
-
     db.commit()
 
     db.refresh(review)
 
     return review, store.name, store.link, brand.name, menu.name
+
+
+def update_review(db: Session, review_id: str, payload, user_id: str):
+
+    review = db.get(Review, review_id)
+    if review is None:
+        return None
+    if review.user_id != user_id:
+        raise PermissionError("You can edit only your own review")
+
+    # 집계를 다시 계산해야 하므로 수정 전 연결 관계를 먼저 보관한다.
+    previous_brand_id = review.brand_id
+    previous_menu_id = review.menu_id
+    previous_store_id = review.store_id
+
+    (
+        brand,
+        menu,
+        store,
+        aggregate_scores,
+        _menu_scores,
+        resolved_overall,
+        temperature_option,
+        image_urls,
+    ) = _prepare_review_payload(db, payload)
+
+    review.store_id = store.id
+    review.brand_id = brand.id
+    review.menu_id = menu.id
+    review.scores_json = scores_json_dumps(aggregate_scores)
+    review.image_urls_json = json.dumps(image_urls, ensure_ascii=False)
+    review.temperature_option = temperature_option
+    review.reviewer_type = _reviewer_type_for_user_id(db, user_id)
+    review.overall = resolved_overall
+    review.comment = payload.comment
+
+    db.flush()
+
+    # 메뉴/매장이 바뀔 수 있으므로 이전 집계와 현재 집계를 모두 재계산 대상으로 잡는다.
+    for brand_id, menu_id in {
+        (previous_brand_id, previous_menu_id),
+        (review.brand_id, review.menu_id),
+    }:
+        if brand_id != LOCAL_BRAND_ID:
+            _rebuild_brand_menu_aggregate(db, brand_id=brand_id, menu_id=menu_id)
+
+    for store_id in {previous_store_id, review.store_id}:
+        _rebuild_store_aggregate(db, store_id=store_id)
+
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+def _prepare_review_payload(db: Session, payload):
+
+    brand = db.get(Brand, payload.brandId)
+
+    if brand is None:
+
+        raise ValueError("Brand not found")
+
+    menu = _find_best_matching_menu(db, brand.id, payload.menuName)
+
+    if menu is None:
+        raise ValueError("Menu must be selected from the standard menu list")
+
+    menu_category = normalize_category(menu.category)
+    # 생성과 수정을 같은 정규화 규칙으로 처리하려고 저장 직전 payload 해석을 한곳에 모은다.
+    store = _resolve_store_for_payload(db, brand_id=brand.id, payload=payload)
+
+    input_scores = getattr(payload, "scores", {}) or {}
+    if not input_scores:
+        raise ValueError("scores is required")
+
+    image_urls = _sanitize_image_urls(getattr(payload, "imageUrls", []))
+    menu_scores = normalize_scores(menu_category, input_scores)
+    store_scores = normalize_store_scores(getattr(payload, "storeScores", {}) or {})
+    aggregate_scores = {**menu_scores, **store_scores}
+    temperature_option = _normalize_temperature_option(
+        getattr(payload, "temperatureOption", "")
+    )
+    resolved_overall = (
+        float(payload.overall)
+        if payload.overall > 0
+        else compute_overall(menu_scores, fallback=0.0)
+    )
+
+    return (
+        brand,
+        menu,
+        store,
+        aggregate_scores,
+        menu_scores,
+        resolved_overall,
+        temperature_option,
+        image_urls,
+    )
+
+
+def _resolve_store_for_payload(db: Session, *, brand_id: str, payload) -> Store:
+    place_id = (getattr(payload, "placeId", "") or "").strip()
+    place_link = (getattr(payload, "link", "") or "").strip()
+    payload_coords = _coords_from_payload(payload)
+    store = _find_existing_store(
+        db,
+        brand_id,
+        payload.storeName,
+        payload.address,
+        place_id,
+    )
+
+    if store is None:
+        coords = payload_coords or geocode_service.geocode(payload.address)
+        store = Store(
+            id=f"store-{uuid.uuid4().hex}",
+            brand_id=brand_id,
+            name=payload.storeName,
+            address=payload.address,
+            store_type=_store_type_for_brand(brand_id),
+            place_id=place_id,
+            link=place_link,
+            distance_km=0.0,
+            lat=coords[0] if coords else 0.0,
+            lng=coords[1] if coords else 0.0,
+        )
+        db.add(store)
+    elif store.lat == 0.0 and store.lng == 0.0:
+        coords = payload_coords or (
+            geocode_service.geocode(payload.address) if payload.address else None
+        )
+        if coords:
+            store.lat, store.lng = coords
+
+    if place_id:
+        store.place_id = place_id
+    if place_link:
+        store.link = place_link
+    if payload.address:
+        store.address = payload.address
+
+    return store
 
 
 def _normalize_temperature_option(value: str | None) -> str:
@@ -350,6 +406,67 @@ def _update_brand_menu_aggregate(
     aggregate.highlight_score_b = highlights[1][1]
 
 
+def _rebuild_brand_menu_aggregate(db: Session, *, brand_id: str, menu_id: str):
+    # 수정은 기존 평균에서 단순 가감이 어렵기 때문에 해당 메뉴 리뷰를 전부 다시 모아 계산한다.
+
+    aggregate = (
+        db.query(BrandMenuAggregate)
+        .filter(BrandMenuAggregate.brand_id == brand_id)
+        .filter(BrandMenuAggregate.menu_id == menu_id)
+        .first()
+    )
+
+    menu = db.get(Menu, menu_id)
+    if menu is None:
+        if aggregate is not None:
+            db.delete(aggregate)
+        return
+
+    reviews = (
+        db.query(Review)
+        .filter(Review.brand_id == brand_id)
+        .filter(Review.menu_id == menu_id)
+        .all()
+    )
+
+    if not reviews:
+        if aggregate is not None:
+            db.delete(aggregate)
+        return
+
+    normalized_scores = [
+        normalize_scores(menu.category, scores_json_loads(review.scores_json))
+        for review in reviews
+    ]
+    averaged_scores = _average_score_maps(normalized_scores)
+    average_overall = sum(review.overall for review in reviews) / len(reviews)
+    highlights = top_highlights(averaged_scores)
+
+    if aggregate is None:
+        aggregate = BrandMenuAggregate(
+            id=f"rank-{uuid.uuid4().hex}",
+            brand_id=brand_id,
+            menu_id=menu_id,
+            rating=average_overall,
+            review_count=len(reviews),
+            highlight_score_a=highlights[0][1],
+            highlight_label_a=highlights[0][0],
+            highlight_score_b=highlights[1][1],
+            highlight_label_b=highlights[1][0],
+            scores_json=scores_json_dumps(averaged_scores),
+        )
+        db.add(aggregate)
+        return
+
+    aggregate.rating = average_overall
+    aggregate.review_count = len(reviews)
+    aggregate.highlight_score_a = highlights[0][1]
+    aggregate.highlight_label_a = highlights[0][0]
+    aggregate.highlight_score_b = highlights[1][1]
+    aggregate.highlight_label_b = highlights[1][0]
+    aggregate.scores_json = scores_json_dumps(averaged_scores)
+
+
 
 
 
@@ -430,6 +547,72 @@ def _update_store_aggregate(
     aggregate.rating = (aggregate.rating * count + overall) / new_count
 
     aggregate.review_count = new_count
+
+
+def _rebuild_store_aggregate(db: Session, *, store_id: str):
+    # 매장 집계는 항목별 참여 수가 다를 수 있어 평균과 counts_json을 함께 다시 만든다.
+
+    aggregate = (
+        db.query(StoreAggregate)
+        .filter(StoreAggregate.store_id == store_id)
+        .first()
+    )
+    reviews = db.query(Review).filter(Review.store_id == store_id).all()
+
+    if not reviews:
+        if aggregate is not None:
+            db.delete(aggregate)
+        return
+
+    score_sums: dict[str, float] = {}
+    score_counts: dict[str, int] = {}
+    for review in reviews:
+        scores = scores_json_loads(review.scores_json)
+        for key, value in scores.items():
+            score_sums[key] = score_sums.get(key, 0.0) + value
+            score_counts[key] = score_counts.get(key, 0) + 1
+
+    averaged_scores = {
+        key: score_sums[key] / score_counts[key]
+        for key in score_sums
+        if score_counts.get(key, 0) > 0
+    }
+    average_overall = sum(review.overall for review in reviews) / len(reviews)
+
+    if aggregate is None:
+        aggregate = StoreAggregate(
+            id=store_id,
+            store_id=store_id,
+            rating=average_overall,
+            review_count=len(reviews),
+            scores_json=scores_json_dumps(averaged_scores),
+            counts_json=scores_json_dumps(score_counts),
+        )
+        db.add(aggregate)
+        return
+
+    aggregate.rating = average_overall
+    aggregate.review_count = len(reviews)
+    aggregate.scores_json = scores_json_dumps(averaged_scores)
+    aggregate.counts_json = scores_json_dumps(score_counts)
+
+
+def _average_score_maps(score_maps: list[dict[str, float]]) -> dict[str, float]:
+    if not score_maps:
+        return {}
+
+    total_by_key: dict[str, float] = {}
+    count_by_key: dict[str, int] = {}
+    for score_map in score_maps:
+        for key, value in score_map.items():
+            total_by_key[key] = total_by_key.get(key, 0.0) + value
+            count_by_key[key] = count_by_key.get(key, 0) + 1
+
+    return {
+        key: total_by_key[key] / count_by_key[key]
+        for key in total_by_key
+        if count_by_key.get(key, 0) > 0
+    }
 
 
 

@@ -12,4 +12,11 @@ abstract class ReviewRepository {
 
   // ??? ????.
   Future<Review> createReview(ReviewCreateRequest payload, {AuthContext? auth});
+
+  // ??? ??????.
+  Future<Review> updateReview(
+    String reviewId,
+    ReviewCreateRequest payload, {
+    AuthContext? auth,
+  });
 }

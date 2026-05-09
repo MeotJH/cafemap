@@ -22,7 +22,17 @@ class MockReviewRepository implements ReviewRepository {
   }
 
   @override
-  Future<Review> createReview(ReviewCreateRequest payload, {AuthContext? auth}) async {
+  Future<Review> createReview(ReviewCreateRequest payload,
+      {AuthContext? auth}) async {
+    return _dataSource.reviews().first;
+  }
+
+  @override
+  Future<Review> updateReview(
+    String reviewId,
+    ReviewCreateRequest payload, {
+    AuthContext? auth,
+  }) async {
     return _dataSource.reviews().first;
   }
 }

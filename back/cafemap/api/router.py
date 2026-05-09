@@ -295,8 +295,13 @@ def _review_out(
     *,
     review,
     store_name: str,
+    store_address: str = "",
+    place_id: str = "",
     store_link: str,
+    lat: float | None = None,
+    lng: float | None = None,
     brand_name: str,
+    brand_id: str = "",
     menu_name: str,
     menu_category: str,
     user_email: str | None,
@@ -304,8 +309,13 @@ def _review_out(
     return ReviewOut(
         id=review.id,
         storeName=store_name,
+        address=store_address,
+        placeId=place_id,
         link=store_link,
+        lat=lat,
+        lng=lng,
         temperatureOption=review.temperature_option,
+        brandId=brand_id,
         brandName=brand_name,
         menuName=menu_name,
         menuCategory=menu_category,
@@ -793,13 +803,18 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
 
         raise HTTPException(status_code=404, detail="Review not found")
 
-    review, store_name, store_link, brand_name, menu_name, menu_category, user_email = row
+    review, store, brand_name, menu_name, menu_category, user_email = row
 
     return _review_out(
         review=review,
-        store_name=store_name,
-        store_link=store_link,
+        store_name=store.name,
+        store_address=store.address,
+        place_id=store.place_id,
+        store_link=store.link,
+        lat=store.lat,
+        lng=store.lng,
         brand_name=brand_name,
+        brand_id=review.brand_id,
         menu_name=menu_name,
         menu_category=menu_category,
         user_email=user_email,
@@ -858,6 +873,56 @@ def create_review(
         menu_name=menu_name,
         menu_category=menu_category,
         user_email=user.email or "",
+    )
+
+
+@router.put("/reviews/{review_id}", response_model=ReviewOut)
+def update_review(
+    review_id: str,
+    payload: ReviewCreateIn,
+    auth_user: AuthUser = Depends(_require_auth_user),
+    db: Session = Depends(get_db),
+):
+    # 저장은 서비스에 위임하고, 응답은 수정 후 최신 상세 형태로 다시 조립해 내려준다.
+
+    user = get_user(db, auth_user.uid)
+    if user is None:
+        user = upsert_user(db, auth_user)
+        db.flush()
+
+    try:
+        updated_review = review_service.update_review(
+            db,
+            review_id,
+            payload,
+            auth_user.uid,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    if updated_review is None:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    row = review_service.get_review(db, updated_review.id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    review, store, brand_name, menu_name, menu_category, user_email = row
+    return _review_out(
+        review=review,
+        store_name=store.name,
+        store_address=store.address,
+        place_id=store.place_id,
+        store_link=store.link,
+        lat=store.lat,
+        lng=store.lng,
+        brand_name=brand_name,
+        brand_id=review.brand_id,
+        menu_name=menu_name,
+        menu_category=menu_category,
+        user_email=user_email or user.email or "",
     )
 
 

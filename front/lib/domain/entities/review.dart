@@ -2,7 +2,12 @@
 class Review {
   final String id;
   final String storeName;
+  final String address;
+  final String placeId;
   final String link;
+  final double? lat;
+  final double? lng;
+  final String brandId;
   final String temperatureOption;
   final String brandName;
   final String menuName;
@@ -18,7 +23,12 @@ class Review {
   const Review({
     required this.id,
     required this.storeName,
+    required this.address,
+    required this.placeId,
     required this.link,
+    this.lat,
+    this.lng,
+    required this.brandId,
     required this.temperatureOption,
     required this.brandName,
     required this.menuName,
