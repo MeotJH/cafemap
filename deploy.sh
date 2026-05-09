@@ -14,6 +14,7 @@ BACKEND_PORT_BIND="${BACKEND_PORT_BIND:-2027:8000}"
 BACKEND_PUBLIC_URL="${BACKEND_PUBLIC_URL:-https://cafemap.${BACKEND_HOST}.nip.io}"
 FRONTEND_PUBLIC_URL="${FRONTEND_PUBLIC_URL:-https://cafemap.web.app}"
 UPLOAD_BACKEND_ENV="${UPLOAD_BACKEND_ENV:-false}"
+SKIP_BACKEND_TESTS="${SKIP_BACKEND_TESTS:-false}"
 
 DEPLOY_FRONT=false
 DEPLOY_BACK=false
@@ -39,6 +40,7 @@ Env overrides:
   BACKEND_PUBLIC_URL
   FRONTEND_PUBLIC_URL
   UPLOAD_BACKEND_ENV=true  Upload local back/.env to the remote directory
+  SKIP_BACKEND_TESTS=true Skip local backend pytest verification before deploy
 EOF
 }
 
@@ -89,6 +91,22 @@ deploy_frontend() {
 
 deploy_backend() {
   echo "[deploy] Backend (EC2) start"
+
+  if [[ "$SKIP_BACKEND_TESTS" != true ]]; then
+    echo "[deploy] Backend pytest start"
+    (
+      cd "$ROOT_DIR/back"
+      if [[ ! -x "./.venv/bin/python" ]]; then
+        echo "Backend venv python not found: $ROOT_DIR/back/.venv/bin/python"
+        echo "Create the venv and install dependencies before deploying, or set SKIP_BACKEND_TESTS=true."
+        exit 1
+      fi
+      ./.venv/bin/python -m pytest -q
+    )
+    echo "[deploy] Backend pytest passed"
+  else
+    echo "[deploy] Backend pytest skipped (SKIP_BACKEND_TESTS=true)"
+  fi
 
   if [[ ! -f "$SSH_KEY_PATH" ]]; then
     echo "SSH key not found: $SSH_KEY_PATH"
