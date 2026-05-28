@@ -1,6 +1,7 @@
 import 'package:front/data/remote/store_api.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/domain/repositories/store_repository.dart';
 
@@ -23,6 +24,11 @@ class RemoteStoreRepository implements StoreRepository {
   @override
   Future<RatingBreakdown> fetchStoreBreakdown(String storeId) {
     return _api.fetchStoreBreakdown(storeId);
+  }
+
+  @override
+  Future<List<SimilarStore>> fetchSimilarStores(String storeId) {
+    return _api.fetchSimilarStores(storeId);
   }
 
   @override

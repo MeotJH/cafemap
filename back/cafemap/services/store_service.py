@@ -7,7 +7,12 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from cafemap.core.rating_dimensions import scores_json_loads, top_highlights
+from cafemap.core.rating_dimensions import (
+    LEGACY_HIGHLIGHT_DIMENSIONS,
+    scores_json_loads,
+    top_highlights,
+)
+from cafemap.models.entities import Store, StoreAggregate
 from cafemap.repositories import store_repository
 
 
@@ -18,6 +23,8 @@ RANKING_COUPLE = "couple"
 RANKING_WIFE = "wife"
 RANKING_HUSBAND = "husband"
 RANKING_USER = "user"
+MIN_SIMILAR_COMMON_DIMENSIONS = 3
+MAX_RATING_SCORE = 5.0
 
 
 @dataclass
@@ -32,6 +39,15 @@ class AggregatedMenu:
         if self.count <= 0:
             return 0.0
         return self.score_sum / self.count
+
+
+@dataclass
+class SimilarStoreResult:
+    store: Store
+    aggregate: StoreAggregate
+    brand_name: str
+    similarity_score: float
+    matched_dimensions: list[str]
 
 
 def get_nearby_stores(db: Session):
@@ -127,6 +143,63 @@ def get_store_breakdown(db: Session, store_id: str):
     return store_repository.fetch_store_breakdown(db, store_id)
 
 
+def get_similar_stores(
+    db: Session,
+    store_id: str,
+    limit: int = 3,
+) -> list[SimilarStoreResult] | None:
+    rows = store_repository.fetch_store_similarity_rows(db)
+    current = next((row for row in rows if row[0].id == store_id), None)
+    if current is None:
+        return None
+
+    _, current_aggregate, _, _ = current
+    current_scores = _comparable_scores(
+        scores_json_loads(current_aggregate.scores_json)
+    )
+    if not current_scores:
+        return []
+
+    candidates: list[SimilarStoreResult] = []
+    for store, aggregate, brand_name, _ in rows:
+        if store.id == store_id:
+            continue
+
+        candidate_scores = _comparable_scores(scores_json_loads(aggregate.scores_json))
+        common_dimensions = sorted(set(current_scores) & set(candidate_scores))
+        if len(common_dimensions) < MIN_SIMILAR_COMMON_DIMENSIONS:
+            continue
+
+        differences = [
+            (key, abs(current_scores[key] - candidate_scores[key]))
+            for key in common_dimensions
+        ]
+        distance = sum(diff for _, diff in differences) / len(differences)
+        similarity_score = max(0.0, 1.0 - (distance / MAX_RATING_SCORE))
+        matched_dimensions = [
+            key for key, _ in sorted(differences, key=lambda item: (item[1], item[0]))[:3]
+        ]
+        candidates.append(
+            SimilarStoreResult(
+                store=store,
+                aggregate=aggregate,
+                brand_name=brand_name,
+                similarity_score=similarity_score,
+                matched_dimensions=matched_dimensions,
+            )
+        )
+
+    candidates.sort(
+        key=lambda item: (
+            item.similarity_score,
+            item.aggregate.rating,
+            item.aggregate.review_count,
+        ),
+        reverse=True,
+    )
+    return candidates[:limit]
+
+
 def get_store_reviews(db: Session, store_id: str):
     return store_repository.fetch_store_reviews(db, store_id)
 
@@ -143,6 +216,14 @@ def confidence_weighted_score(
     return ((rating * review_count) + (global_average * prior_weight)) / (
         review_count + prior_weight
     )
+
+
+def _comparable_scores(scores: dict[str, float]) -> dict[str, float]:
+    return {
+        key: max(0.0, min(MAX_RATING_SCORE, float(value)))
+        for key, value in scores.items()
+        if key not in LEGACY_HIGHLIGHT_DIMENSIONS and float(value) > 0
+    }
 
 
 def _score_for_ranking_type(item: dict[str, object], ranking_type: str) -> float:

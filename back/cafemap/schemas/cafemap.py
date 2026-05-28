@@ -101,6 +101,19 @@ class RatingBreakdownOut(BaseModel):
     overall: float
 
 
+class SimilarStoreOut(BaseModel):
+    storeId: str
+    name: str
+    brandName: str
+    address: str
+    rating: float
+    reviewCount: int
+    lat: float
+    lng: float
+    similarityScore: float
+    matchedDimensions: list[str] = Field(default_factory=list)
+
+
 class ReviewOut(BaseModel):
     id: str
     storeName: str

@@ -45,6 +45,15 @@ def fetch_store_rankings(db: Session):
     return db.execute(stmt).all()
 
 
+def fetch_store_similarity_rows(db: Session):
+    stmt = (
+        select(Store, StoreAggregate, Brand.name, Brand.logo_url)
+        .join(StoreAggregate, StoreAggregate.store_id == Store.id)
+        .join(Brand, Brand.id == Store.brand_id)
+    )
+    return db.execute(stmt).all()
+
+
 
 
 

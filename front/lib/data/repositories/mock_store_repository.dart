@@ -1,6 +1,7 @@
-﻿import 'package:front/data/mock/mock_data.dart';
+import 'package:front/data/mock/mock_data.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/domain/entities/store_summary.dart';
 import 'package:front/domain/repositories/store_repository.dart';
 
@@ -26,6 +27,12 @@ class MockStoreRepository implements StoreRepository {
   // 지점 상세 점수 분해를 목업 데이터로 반환한다.
   Future<RatingBreakdown> fetchStoreBreakdown(String storeId) async {
     return _dataSource.storeBreakdown();
+  }
+
+  @override
+  // 상세항목 평가가 비슷한 지점을 목업 데이터로 반환한다.
+  Future<List<SimilarStore>> fetchSimilarStores(String storeId) async {
+    return _dataSource.similarStores();
   }
 
   @override

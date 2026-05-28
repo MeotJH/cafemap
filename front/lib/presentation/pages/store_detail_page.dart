@@ -4,6 +4,7 @@ import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:front/presentation/utils/place_external_link.dart';
@@ -110,6 +111,7 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
     final store = ref.watch(storeDetailProvider(widget.storeId));
     final breakdown = ref.watch(storeBreakdownProvider(widget.storeId));
     final reviews = ref.watch(storeReviewsProvider(widget.storeId));
+    final similarStores = ref.watch(similarStoresProvider(widget.storeId));
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -571,6 +573,21 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                   ),
                   error: (_, _) => const Text('점수 정보를 불러오지 못했어요.'),
                 ),
+                similarStores.when(
+                  data: (items) => items.isEmpty
+                      ? const SizedBox.shrink()
+                      : Column(
+                          children: [
+                            const SizedBox(height: 18),
+                            _SimilarStoresSection(stores: items),
+                          ],
+                        ),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.only(top: 18),
+                    child: _SimilarStoresLoading(),
+                  ),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
                 const SizedBox(height: 28),
                 const Text(
                   '리뷰',
@@ -622,6 +639,148 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                 context.go(uri.toString());
               },
               text: '이 지점에서 마신 메뉴 리뷰 남기기',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SimilarStoresSection extends StatelessWidget {
+  final List<SimilarStore> stores;
+
+  const _SimilarStoresSection({required this.stores});
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleStores = stores.take(3).toList();
+
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '비슷한 평가의 카페',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          for (var index = 0; index < visibleStores.length; index++) ...[
+            if (index > 0) const SizedBox(height: 8),
+            _SimilarStoreTile(store: visibleStores[index]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SimilarStoreTile extends StatelessWidget {
+  final SimilarStore store;
+
+  const _SimilarStoreTile({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    final matchedLabels = store.matchedDimensions
+        .map(ratingLabel)
+        .where((label) => label.trim().isNotEmpty)
+        .take(1)
+        .toList();
+    final matchedLabel = matchedLabels.isEmpty ? '상세평가' : matchedLabels.first;
+    final percentLabel =
+        '${(store.similarityScore * 100).clamp(0, 100).toStringAsFixed(0)}%';
+
+    return Material(
+      color: AppColors.backgroundLight,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => context.push('/cafes/${store.storeId}'),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      store.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '$matchedLabel 비슷',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                percentLabel,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SimilarStoresLoading extends StatelessWidget {
+  const _SimilarStoresLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 10),
+          Text(
+            '비슷한 평가의 카페를 찾고 있어요.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

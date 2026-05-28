@@ -1,6 +1,7 @@
 import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/domain/entities/store_ranking.dart';
 import 'package:front/domain/entities/store_summary.dart';
 
@@ -192,6 +193,45 @@ class MockDataSource {
         },
         overall: 4.6,
       );
+
+  List<SimilarStore> similarStores() => const [
+    SimilarStore(
+      storeId: 'store-starbucks-1',
+      name: '스타벅스 시청점',
+      brandName: '스타벅스',
+      address: '서울 중구 세종대로 110',
+      rating: 4.4,
+      reviewCount: 42,
+      lat: 37.5663,
+      lng: 126.9779,
+      similarityScore: 0.91,
+      matchedDimensions: ['coffee_quality', 'value', 'temperature'],
+    ),
+    SimilarStore(
+      storeId: 'store-local-2',
+      name: '연남 조용한 커피',
+      brandName: '개인 카페',
+      address: '서울 마포구 동교로 240',
+      rating: 4.5,
+      reviewCount: 12,
+      lat: 37.5628,
+      lng: 126.9236,
+      similarityScore: 0.88,
+      matchedDimensions: ['quietness', 'work_friendly', 'atmosphere'],
+    ),
+    SimilarStore(
+      storeId: 'store-local-3',
+      name: '서촌 드립바',
+      brandName: '개인 카페',
+      address: '서울 종로구 자하문로 32',
+      rating: 4.3,
+      reviewCount: 9,
+      lat: 37.5796,
+      lng: 126.9719,
+      similarityScore: 0.84,
+      matchedDimensions: ['aftertaste', 'body', 'revisit_intent'],
+    ),
+  ];
 
   List<Review> reviews() => [
         Review(

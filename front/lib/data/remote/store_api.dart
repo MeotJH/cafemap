@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/domain/entities/store_summary.dart';
 
 // 지점 API 호출을 담당한다.
@@ -31,6 +32,16 @@ class StoreApi {
     );
     final json = response.data as Map<String, dynamic>;
     return _breakdownFromJson(json);
+  }
+
+  Future<List<SimilarStore>> fetchSimilarStores(String storeId) async {
+    final response = await _dio.get(
+      '$_baseUrl/api/cafemap/stores/$storeId/similar',
+    );
+    final data = response.data as List<dynamic>;
+    return data
+        .map((item) => _similarStoreFromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<Review>> fetchStoreReviews(String storeId) async {
@@ -79,6 +90,21 @@ RatingBreakdown _breakdownFromJson(Map<String, dynamic> json) {
   );
 }
 
+SimilarStore _similarStoreFromJson(Map<String, dynamic> json) {
+  return SimilarStore(
+    storeId: json['storeId'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    brandName: json['brandName'] as String? ?? '',
+    address: json['address'] as String? ?? '',
+    rating: (json['rating'] as num?)?.toDouble() ?? 0,
+    reviewCount: json['reviewCount'] as int? ?? 0,
+    lat: (json['lat'] as num?)?.toDouble() ?? 0,
+    lng: (json['lng'] as num?)?.toDouble() ?? 0,
+    similarityScore: (json['similarityScore'] as num?)?.toDouble() ?? 0,
+    matchedDimensions: _stringListFromJson(json['matchedDimensions']),
+  );
+}
+
 Review _reviewFromJson(Map<String, dynamic> json) {
   final scores = _scoresFromJson(json['scores']);
   return Review(
@@ -115,10 +141,14 @@ Map<String, double> _scoresFromJson(dynamic raw) {
 }
 
 List<String> _imageUrlsFromJson(dynamic raw) {
+  return _stringListFromJson(raw);
+}
+
+List<String> _stringListFromJson(dynamic raw) {
   if (raw is! List<dynamic>) return const [];
   return raw
       .whereType<String>()
-      .map((url) => url.trim())
-      .where((url) => url.isNotEmpty)
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
       .toList();
 }

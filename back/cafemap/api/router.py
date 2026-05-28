@@ -57,6 +57,7 @@ from cafemap.schemas.cafemap import (
   ReviewOut,
 
   ReviewCreateIn,
+  SimilarStoreOut,
 
   StoreSummaryOut,
   StoreRankingOut,
@@ -724,6 +725,29 @@ def get_store_breakdown(store_id: str, db: Session = Depends(get_db)):
         overall=aggregate.rating,
 
     )
+
+
+@router.get("/stores/{store_id}/similar", response_model=list[SimilarStoreOut])
+def get_similar_stores(store_id: str, db: Session = Depends(get_db)):
+    rows = store_service.get_similar_stores(db, store_id)
+    if rows is None:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    return [
+        SimilarStoreOut(
+            storeId=item.store.id,
+            name=item.store.name,
+            brandName=item.brand_name,
+            address=item.store.address,
+            rating=item.aggregate.rating,
+            reviewCount=item.aggregate.review_count,
+            lat=item.store.lat,
+            lng=item.store.lng,
+            similarityScore=item.similarity_score,
+            matchedDimensions=item.matched_dimensions,
+        )
+        for item in rows
+    ]
 
 
 
