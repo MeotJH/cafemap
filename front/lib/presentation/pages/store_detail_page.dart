@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
@@ -10,6 +11,7 @@ import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/utils/auth_navigation.dart';
 import 'package:front/presentation/utils/place_external_link.dart';
 import 'package:front/presentation/widgets/review_card.dart';
+import 'package:front/presentation/widgets/stacked_image_gallery.dart';
 import 'package:go_router/go_router.dart';
 
 // 지점 상세 화면이다.
@@ -121,6 +123,53 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
     final items = map.values.toList()
       ..sort((a, b) => b.averageScore.compareTo(a.averageScore));
     return items.take(3).toList();
+  }
+
+  List<GalleryImageItem> _reviewGalleryImages(List<Review> reviews) {
+    final urls = <String>[];
+    for (final review in reviews) {
+      for (final rawUrl in review.imageUrls) {
+        final url = rawUrl.trim();
+        if (url.isEmpty || url.toLowerCase().endsWith('.svg')) continue;
+        if (urls.contains(url)) continue;
+        urls.add(url);
+        if (urls.length >= 3) {
+          return _galleryItemsForUrls(urls);
+        }
+      }
+    }
+    return _galleryItemsForUrls(urls);
+  }
+
+  List<GalleryImageItem> _galleryItemsForUrls(List<String> urls) {
+    return urls
+        .map(
+          (url) => GalleryImageItem.url(
+            _thumbnailUrlFor(url, width: 320, height: 220),
+            viewerUrl: url,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  String _thumbnailUrlFor(
+    String sourceUrl, {
+    required int width,
+    required int height,
+  }) {
+    final baseUrl = (dotenv.env['API_BASE_URL'] ?? '').trim();
+    if (baseUrl.isEmpty) return sourceUrl;
+    final baseUri = Uri.parse(baseUrl);
+    return baseUri
+        .replace(
+          path: '/api/cafemap/assets/thumbnail',
+          queryParameters: {
+            'src': sourceUrl,
+            'w': width.toString(),
+            'h': height.toString(),
+          },
+        )
+        .toString();
   }
 
   List<MapEntry<String, String>> _visibleMenuAttributeEntries(Review review) {
@@ -282,9 +331,14 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                         ? (wifeScore + husbandScore) / 2
                         : 0.0;
                     final menus = _recommendedMenus(items);
+                    final reviewImages = _reviewGalleryImages(items);
 
                     return Column(
                       children: [
+                        if (reviewImages.isNotEmpty) ...[
+                          _StoreReviewPhotoSection(images: reviewImages),
+                          const SizedBox(height: 18),
+                        ],
                         Container(
                           width: double.infinity,
                           color: Colors.white,
@@ -756,6 +810,37 @@ class _SimilarStoresSection extends StatelessWidget {
   }
 }
 
+class _StoreReviewPhotoSection extends StatelessWidget {
+  final List<GalleryImageItem> images;
+
+  const _StoreReviewPhotoSection({required this.images});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '방문 사진',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          GalleryImageStrip(
+            images: images,
+            imageWidth: 104,
+            imageHeight: 104,
+            placeholder: const _ReviewPhotoPlaceholder(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SimilarStoreTile extends StatelessWidget {
   final SimilarStore store;
 
@@ -871,6 +956,20 @@ class _SimilarStoresLoading extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewPhotoPlaceholder extends StatelessWidget {
+  const _ReviewPhotoPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFFF4EFEA),
+      child: Center(
+        child: Icon(Icons.image_outlined, size: 20, color: Color(0xFFC28D73)),
       ),
     );
   }

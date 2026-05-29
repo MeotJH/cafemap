@@ -1,6 +1,7 @@
 import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
@@ -152,7 +153,13 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
         : _orderedStoreEntries();
     final reviewImages = widget.review.imageUrls
         .where((url) => url.trim().isNotEmpty)
-        .map((url) => GalleryImageItem.url(url.trim()))
+        .map((url) {
+          final sourceUrl = url.trim();
+          return GalleryImageItem.url(
+            _thumbnailUrlFor(sourceUrl, width: 320, height: 320),
+            viewerUrl: sourceUrl,
+          );
+        })
         .toList(growable: false);
 
     return ListView(
@@ -496,6 +503,26 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
       labels.add(_attributeBadgeLabel(entry.key, valueLabel));
     }
     return labels;
+  }
+
+  String _thumbnailUrlFor(
+    String sourceUrl, {
+    required int width,
+    required int height,
+  }) {
+    final baseUrl = (dotenv.env['API_BASE_URL'] ?? '').trim();
+    if (baseUrl.isEmpty) return sourceUrl;
+    final baseUri = Uri.parse(baseUrl);
+    return baseUri
+        .replace(
+          path: '/api/cafemap/assets/thumbnail',
+          queryParameters: {
+            'src': sourceUrl,
+            'w': width.toString(),
+            'h': height.toString(),
+          },
+        )
+        .toString();
   }
 
   String _attributeBadgeLabel(String key, String valueLabel) {
