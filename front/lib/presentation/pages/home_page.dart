@@ -175,15 +175,37 @@ class _PurposeExplorerSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: 122,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _purposes.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final purpose = _purposes[index];
-              return _PurposeCard(purpose: purpose);
-            },
+          height: 186,
+          child: Stack(
+            children: [
+              ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(right: 48),
+                itemCount: _purposes.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final purpose = _purposes[index];
+                  return _PurposeCard(purpose: purpose);
+                },
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 44,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [Color(0x00F6F0E8), AppColors.backgroundLight],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -234,10 +256,7 @@ class _PurposeCard extends StatelessWidget {
                   color: const Color(0xFFFFF3E8),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  _iconForPurpose(purpose),
-                  color: AppColors.primary,
-                ),
+                child: Icon(_iconForPurpose(purpose), color: AppColors.primary),
               ),
               const SizedBox(height: 14),
               Text(
@@ -252,7 +271,7 @@ class _PurposeCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   purpose.homeDescription,
-                  maxLines: 3,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 13,
