@@ -7,6 +7,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from cafemap.core.config import REVIEW_IMAGE_LIMIT
 from cafemap.core.rating_dimensions import (
     CURRENT_RATING_SCHEMA_VERSION,
     LEGACY_HIGHLIGHT_DIMENSIONS,
@@ -549,7 +550,7 @@ def _build_segmented_rankings(
             image_urls = payload["imageUrls"]
             if (
                 isinstance(image_urls, list)
-                and len(image_urls) < 2
+                and len(image_urls) < REVIEW_IMAGE_LIMIT
                 and image_url not in image_urls
             ):
                 image_urls.append(image_url)

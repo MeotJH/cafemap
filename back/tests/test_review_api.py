@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from cafemap.core.config import REVIEW_IMAGE_LIMIT
 from cafemap.models.entities import Review, Store, StoreAggregate, User
 
 
@@ -321,4 +322,112 @@ def test_store_rankings_supports_purpose_sorting(client, db_session, auth_header
             if user is not None:
                 db_session.delete(user)
 
+        db_session.commit()
+
+
+def test_review_image_limit_allows_five_and_rejects_more(
+    client,
+    db_session,
+    auth_header,
+):
+    suffix = uuid4().hex[:8]
+    base_payload = {
+        "storeName": f"Pytest image limit cafe {suffix}",
+        "address": "서울시 중구 테스트로 5",
+        "placeId": "",
+        "link": "",
+        "temperatureOption": "ice",
+        "lat": 37.5665,
+        "lng": 126.9780,
+        "brandId": "brand-local",
+        "menuName": "아메리카노",
+        "scores": {
+            "coffee_quality": 4.0,
+            "acidity_balance": 4.0,
+            "body": 4.0,
+            "aftertaste": 4.0,
+            "temperature": 4.0,
+            "value": 4.0,
+        },
+        "storeScores": {
+            "atmosphere": 4.0,
+            "work_friendly": 4.0,
+            "quietness": 4.0,
+            "seat_comfort": 4.0,
+            "outlet_access": 4.0,
+            "wifi_quality": 4.0,
+            "service": 4.0,
+            "revisit_intent": 4.0,
+        },
+        "overall": 4.0,
+        "comment": f"pytest image limit {suffix}",
+    }
+    allowed_payload = {
+        **base_payload,
+        "imageUrls": [
+            f"https://example.com/review-image-{index}.png"
+            for index in range(REVIEW_IMAGE_LIMIT)
+        ],
+    }
+    created_review_id: str | None = None
+    created_store_id: str | None = None
+    created_user_id: str | None = None
+
+    try:
+        allowed_response = client.post(
+            "/api/cafemap/reviews",
+            json=allowed_payload,
+            headers=auth_header,
+        )
+
+        assert allowed_response.status_code == 200
+        created = allowed_response.json()
+        assert created["imageUrls"] == allowed_payload["imageUrls"]
+
+        created_review_id = created["id"]
+        review = db_session.get(Review, created_review_id)
+        assert review is not None
+        created_store_id = review.store_id
+        created_user_id = review.user_id
+
+        rejected_payload = {
+            **base_payload,
+            "storeName": f"Pytest image over limit cafe {suffix}",
+            "comment": f"pytest image over limit {suffix}",
+            "imageUrls": [
+                f"https://example.com/review-image-{index}.png"
+                for index in range(REVIEW_IMAGE_LIMIT + 1)
+            ],
+        }
+        rejected_response = client.post(
+            "/api/cafemap/reviews",
+            json=rejected_payload,
+            headers=auth_header,
+        )
+
+        assert rejected_response.status_code == 400
+        assert (
+            rejected_response.json()["detail"]
+            == f"At most {REVIEW_IMAGE_LIMIT} images can be attached"
+        )
+    finally:
+        if created_review_id is not None:
+            review = db_session.get(Review, created_review_id)
+            if review is not None:
+                db_session.delete(review)
+        if created_store_id is not None:
+            aggregate = (
+                db_session.query(StoreAggregate)
+                .filter(StoreAggregate.store_id == created_store_id)
+                .one_or_none()
+            )
+            if aggregate is not None:
+                db_session.delete(aggregate)
+            store = db_session.get(Store, created_store_id)
+            if store is not None:
+                db_session.delete(store)
+        if created_user_id is not None:
+            user = db_session.get(User, created_user_id)
+            if user is not None:
+                db_session.delete(user)
         db_session.commit()

@@ -9,7 +9,11 @@ import re
 from difflib import SequenceMatcher
 
 from sqlalchemy.orm import Session
-from cafemap.core.config import OFFICIAL_HUSBAND_EMAILS, OFFICIAL_WIFE_EMAILS
+from cafemap.core.config import (
+    OFFICIAL_HUSBAND_EMAILS,
+    OFFICIAL_WIFE_EMAILS,
+    REVIEW_IMAGE_LIMIT,
+)
 
 
 
@@ -941,9 +945,9 @@ def _sanitize_image_urls(image_urls: list[str]) -> list[str]:
 
     cleaned = [url.strip() for url in image_urls if isinstance(url, str) and url.strip()]
 
-    if len(cleaned) > 2:
+    if len(cleaned) > REVIEW_IMAGE_LIMIT:
 
-        raise ValueError("At most 2 images can be attached")
+        raise ValueError(f"At most {REVIEW_IMAGE_LIMIT} images can be attached")
 
     for url in cleaned:
 
