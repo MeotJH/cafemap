@@ -7,6 +7,7 @@ import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/store_ranking.dart';
+import 'package:front/presentation/pages/ranking_home/ranking_home_types.dart';
 import 'package:front/presentation/providers/ranking_providers.dart';
 import 'package:front/presentation/widgets/stacked_image_gallery.dart';
 
@@ -35,6 +36,8 @@ class _HomePageState extends ConsumerState<HomePage> {
               children: [
                 const _HeroCard(),
                 const SizedBox(height: 28),
+                const _PurposeExplorerSection(),
+                const SizedBox(height: 30),
                 _RankingSection(
                   title: '아내픽 TOP 3',
                   subtitle: "Wife's Pick",
@@ -134,6 +137,165 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
     }
     return urls.take(2).toList(growable: false);
+  }
+}
+
+class _PurposeExplorerSection extends StatelessWidget {
+  const _PurposeExplorerSection();
+
+  static const List<RankingPurpose> _purposes = [
+    RankingPurpose.date,
+    RankingPurpose.conversation,
+    RankingPurpose.photo,
+    RankingPurpose.coffee,
+    RankingPurpose.longStay,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '상황별 추천 카페',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF390C00),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          '지금 찾는 목적에 맞춰 바로 랭킹으로 들어가세요.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Color(0xFF661F00),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 122,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _purposes.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final purpose = _purposes[index];
+              return _PurposeCard(purpose: purpose);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PurposeCard extends StatelessWidget {
+  final RankingPurpose purpose;
+
+  const _PurposeCard({required this.purpose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () {
+          final uri = Uri(
+            path: '/rankings',
+            queryParameters: {'purpose': purpose.queryValue},
+          );
+          context.push(uri.toString());
+        },
+        child: Ink(
+          width: 188,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E8),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  _iconForPurpose(purpose),
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                purpose.label,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF390C00),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: Text(
+                  purpose.homeDescription,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: Color(0xFF8A6B5C),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: const [
+                  Text(
+                    '랭킹 보기',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _iconForPurpose(RankingPurpose purpose) {
+    return switch (purpose) {
+      RankingPurpose.date => Icons.favorite_rounded,
+      RankingPurpose.conversation => Icons.forum_rounded,
+      RankingPurpose.photo => Icons.photo_camera_rounded,
+      RankingPurpose.coffee => Icons.local_cafe_rounded,
+      RankingPurpose.longStay => Icons.chair_alt_rounded,
+    };
   }
 }
 

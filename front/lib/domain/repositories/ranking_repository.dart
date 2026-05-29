@@ -8,7 +8,10 @@ import 'package:front/presentation/pages/ranking_home/ranking_home_types.dart';
 abstract class RankingRepository {
   Future<List<BrandMenuRanking>> fetchRankings();
 
-  Future<List<StoreRanking>> fetchStoreRankings(RankingAudience audience);
+  Future<List<StoreRanking>> fetchStoreRankings(
+    RankingAudience audience, {
+    RankingPurpose? purpose,
+  });
 
   Future<HomeSummary> fetchHomeSummary();
 

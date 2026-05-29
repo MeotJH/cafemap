@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from cafemap.core.rating_dimensions import (
     CURRENT_RATING_SCHEMA_VERSION,
     LEGACY_HIGHLIGHT_DIMENSIONS,
+    attributes_json_loads,
     category_dimensions_for_schema,
     normalize_rating_schema_version,
     scores_json_loads,
@@ -27,6 +28,18 @@ RANKING_COUPLE = "couple"
 RANKING_WIFE = "wife"
 RANKING_HUSBAND = "husband"
 RANKING_USER = "user"
+RANKING_PURPOSE_DATE = "date"
+RANKING_PURPOSE_CONVERSATION = "conversation"
+RANKING_PURPOSE_PHOTO = "photo"
+RANKING_PURPOSE_COFFEE = "coffee"
+RANKING_PURPOSE_LONG_STAY = "long_stay"
+SUPPORTED_RANKING_PURPOSES = {
+    RANKING_PURPOSE_DATE,
+    RANKING_PURPOSE_CONVERSATION,
+    RANKING_PURPOSE_PHOTO,
+    RANKING_PURPOSE_COFFEE,
+    RANKING_PURPOSE_LONG_STAY,
+}
 MIN_SIMILAR_COMMON_DIMENSIONS = 3
 MAX_RATING_SCORE = 5.0
 
@@ -68,10 +81,18 @@ def get_nearby_stores(db: Session):
     return store_repository.fetch_nearby_stores(db)
 
 
-def get_store_rankings(db: Session, ranking_type: str = RANKING_COUPLE):
+def get_store_rankings(
+    db: Session,
+    ranking_type: str = RANKING_COUPLE,
+    purpose: str | None = None,
+):
     rows = store_repository.fetch_store_rankings(db)
     ranked = []
-    segmented = {item["storeId"]: item for item in _build_segmented_rankings(db)}
+    normalized_purpose = normalize_ranking_purpose(purpose)
+    segmented = {
+        item["storeId"]: item
+        for item in _build_segmented_rankings(db, include_private=True)
+    }
 
     for store, aggregate, brand_name, brand_logo_url in rows:
         display_score = confidence_weighted_score(
@@ -85,8 +106,12 @@ def get_store_rankings(db: Session, ranking_type: str = RANKING_COUPLE):
         audience_score = _score_for_ranking_type(segmented_item, ranking_type)
         if audience_score <= 0:
             continue
+        purpose_score = _purpose_score(segmented_item, normalized_purpose)
+        if normalized_purpose is not None and purpose_score <= 0:
+            continue
         ranked.append(
             (
+                purpose_score,
                 audience_score,
                 segmented_item["latestVisitedAt"] or datetime.min,
                 segmented_item["revisitScore"],
@@ -101,8 +126,23 @@ def get_store_rankings(db: Session, ranking_type: str = RANKING_COUPLE):
             )
         )
 
-    ranked.sort(key=lambda row: (row[0], row[2], row[1], row[4]), reverse=True)
-    return ranked
+    if normalized_purpose is None:
+        ranked.sort(
+            key=lambda row: (row[1], row[3], row[2], row[5]),
+            reverse=True,
+        )
+    else:
+        ranked.sort(
+            key=lambda row: (row[0], row[1], row[3], row[2], row[5]),
+            reverse=True,
+        )
+
+    sanitized = []
+    for row in ranked:
+        item = dict(row[11])
+        _strip_private_fields(item)
+        sanitized.append((*row[:11], item))
+    return sanitized
 
 
 def get_home_summary(db: Session) -> dict[str, object]:
@@ -404,7 +444,11 @@ def _build_recommended_menus(db: Session) -> dict[tuple[str, str], AggregatedMen
     return menu_map
 
 
-def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
+def _build_segmented_rankings(
+    db: Session,
+    *,
+    include_private: bool = False,
+) -> list[dict[str, object]]:
     rows = store_repository.fetch_all_store_review_rows(db)
     store_map: dict[str, dict[str, object]] = {}
 
@@ -458,6 +502,8 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
                 "_scoreTotalsBySchema": {},
                 "_scoreCountsBySchema": {},
                 "_schemaCounts": {},
+                "_attributeTotals": {},
+                "_attributePositiveTotals": {},
             }
             store_map[store.id] = payload
 
@@ -486,6 +532,19 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             payload["_revisitTotal"] = float(payload["_revisitTotal"]) + float(revisit)
             payload["_revisitCount"] = int(payload["_revisitCount"]) + 1
 
+        if schema_version == CURRENT_RATING_SCHEMA_VERSION:
+            attributes = attributes_json_loads(getattr(review, "attributes_json", None))
+            _accumulate_attribute_signal(
+                payload,
+                "outlet_available",
+                attributes.get("outlet_available"),
+            )
+            _accumulate_attribute_signal(
+                payload,
+                "wifi_usable",
+                attributes.get("wifi_usable"),
+            )
+
         for image_url in _image_urls_from_snapshot(review.image_urls_json):
             image_urls = payload["imageUrls"]
             if (
@@ -495,13 +554,14 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             ):
                 image_urls.append(image_url)
 
-        totals_by_schema = payload["_scoreTotalsBySchema"]
-        counts_by_schema = payload["_scoreCountsBySchema"]
-        totals = totals_by_schema.setdefault(schema_version, {})
-        counts = counts_by_schema.setdefault(schema_version, {})
-        for key, value in scores.items():
-            totals[key] = totals.get(key, 0.0) + float(value)
-            counts[key] = counts.get(key, 0) + 1
+        if schema_version == CURRENT_RATING_SCHEMA_VERSION:
+            totals_by_schema = payload["_scoreTotalsBySchema"]
+            counts_by_schema = payload["_scoreCountsBySchema"]
+            totals = totals_by_schema.setdefault(schema_version, {})
+            counts = counts_by_schema.setdefault(schema_version, {})
+            for key, value in scores.items():
+                totals[key] = totals.get(key, 0.0) + float(value)
+                counts[key] = counts.get(key, 0) + 1
 
     results: list[dict[str, object]] = []
     for payload in store_map.values():
@@ -559,16 +619,26 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             payload["_revisitTotal"],
             payload["_revisitCount"],
         )
+        if include_private:
+            payload["_avgScores"] = avg_scores
         payload["tags"] = [
             label
             for label, score in highlights
             if label and score > 0
         ][:3]
         payload["summary"] = _build_summary(payload)
-        _strip_private_fields(payload)
+        if not include_private:
+            _strip_private_fields(payload)
         results.append(payload)
 
     return results
+
+
+def normalize_ranking_purpose(value: str | None) -> str | None:
+    normalized = (value or "").strip().lower()
+    if normalized in SUPPORTED_RANKING_PURPOSES:
+        return normalized
+    return None
 
 
 def _extract_district(address: str | None) -> str:
@@ -606,6 +676,122 @@ def _safe_average(total: object, count: object) -> float:
     if parsed_count <= 0:
         return 0.0
     return float(total) / parsed_count
+
+
+def _accumulate_attribute_signal(
+    payload: dict[str, object],
+    key: str,
+    value: str | None,
+) -> None:
+    if not value:
+        return
+    totals = payload["_attributeTotals"]
+    totals[key] = int(totals.get(key, 0)) + 1
+
+    normalized = value.strip().lower()
+    is_positive = (
+        (key == "outlet_available" and normalized == "yes")
+        or (key == "wifi_usable" and normalized == "good")
+    )
+    if is_positive:
+        positive_totals = payload["_attributePositiveTotals"]
+        positive_totals[key] = int(positive_totals.get(key, 0)) + 1
+
+
+def _purpose_score(item: dict[str, object], purpose: str | None) -> float:
+    if purpose is None:
+        return 0.0
+
+    scores = item.get("_avgScores", {})
+    if not isinstance(scores, dict):
+        scores = {}
+
+    taste_score = _first_positive_score(
+        scores,
+        "taste_satisfaction",
+        "coffee_quality",
+        "coffee_presence",
+    )
+    outlet_score = max(
+        _score_value(scores, "outlet_access"),
+        _attribute_ratio_score(item, "outlet_available"),
+    )
+    wifi_score = max(
+        _score_value(scores, "wifi_quality"),
+        _attribute_ratio_score(item, "wifi_usable"),
+    )
+    image_bonus = 5.0 if item.get("imageUrls") else 0.0
+
+    if purpose == RANKING_PURPOSE_DATE:
+        return _average_scores(
+            _score_value(scores, "atmosphere"),
+            taste_score,
+            _score_value(scores, "revisit_intent"),
+        )
+    if purpose == RANKING_PURPOSE_CONVERSATION:
+        return _average_scores(
+            _score_value(scores, "quietness"),
+            _score_value(scores, "seat_comfort"),
+            _score_value(scores, "service"),
+            fallback=_score_value(scores, "atmosphere"),
+        )
+    if purpose == RANKING_PURPOSE_PHOTO:
+        return _average_scores(
+            _score_value(scores, "atmosphere"),
+            _score_value(scores, "visuals"),
+            _score_value(scores, "restroom_cleanliness"),
+            fallback=image_bonus,
+        )
+    if purpose == RANKING_PURPOSE_COFFEE:
+        return _average_scores(
+            taste_score,
+            _score_value(scores, "aroma"),
+            _score_value(scores, "clean_finish"),
+            fallback=_score_value(scores, "aftertaste"),
+        )
+    if purpose == RANKING_PURPOSE_LONG_STAY:
+        return _average_scores(
+            _score_value(scores, "seat_comfort"),
+            _score_value(scores, "work_friendly"),
+            outlet_score,
+            wifi_score,
+            _score_value(scores, "service"),
+        )
+    return 0.0
+
+
+def _average_scores(*values: float, fallback: float = 0.0) -> float:
+    parsed = [float(value) for value in values if float(value) > 0]
+    if parsed:
+        return sum(parsed) / len(parsed)
+    return fallback
+
+
+def _score_value(scores: dict[str, object], key: str) -> float:
+    try:
+        return max(0.0, float(scores.get(key, 0.0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _first_positive_score(scores: dict[str, object], *keys: str) -> float:
+    for key in keys:
+        value = _score_value(scores, key)
+        if value > 0:
+            return value
+    return 0.0
+
+
+def _attribute_ratio_score(item: dict[str, object], key: str) -> float:
+    totals = item.get("_attributeTotals", {})
+    positive_totals = item.get("_attributePositiveTotals", {})
+    if not isinstance(totals, dict) or not isinstance(positive_totals, dict):
+        return 0.0
+    total = int(totals.get(key, 0))
+    if total <= 0:
+        return 0.0
+    positive = int(positive_totals.get(key, 0))
+    return (positive / total) * 5.0
 
 
 def _image_urls_from_snapshot(image_urls_json: str | None) -> list[str]:

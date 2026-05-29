@@ -20,8 +20,9 @@ class MockRankingRepository implements RankingRepository {
 
   @override
   Future<List<StoreRanking>> fetchStoreRankings(
-    RankingAudience audience,
-  ) async {
+    RankingAudience audience, {
+    RankingPurpose? purpose,
+  }) async {
     return _dataSource.storeRankings();
   }
 

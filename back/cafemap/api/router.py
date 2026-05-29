@@ -597,16 +597,21 @@ def get_home_summary(request: Request, db: Session = Depends(get_db)):
 def list_store_rankings(
     request: Request,
     type: str = "couple",
+    purpose: str | None = None,
     db: Session = Depends(get_db),
 ):
 
-    rows = store_service.get_store_rankings(db, ranking_type=type)
+    rows = store_service.get_store_rankings(
+        db,
+        ranking_type=type,
+        purpose=purpose,
+    )
 
     return [
 
         _store_ranking_out(request, segmented_item)
 
-        for _, _, _, _, _, _, _, _, _, _, segmented_item in rows
+        for _, _, _, _, _, _, _, _, _, _, _, segmented_item in rows
 
     ]
 

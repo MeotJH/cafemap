@@ -18,9 +18,10 @@ class RemoteRankingRepository implements RankingRepository {
 
   @override
   Future<List<StoreRanking>> fetchStoreRankings(
-    RankingAudience audience,
-  ) async {
-    return _api.fetchStoreRankings(audience);
+    RankingAudience audience, {
+    RankingPurpose? purpose,
+  }) async {
+    return _api.fetchStoreRankings(audience, purpose: purpose);
   }
 
   @override

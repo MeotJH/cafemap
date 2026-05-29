@@ -14,7 +14,9 @@ import 'package:front/presentation/providers/ranking_providers.dart';
 import 'package:front/presentation/widgets/store_ranking_card.dart';
 
 class RankingHomeCafe extends ConsumerStatefulWidget {
-  const RankingHomeCafe({super.key});
+  final RankingPurpose? initialPurpose;
+
+  const RankingHomeCafe({super.key, this.initialPurpose});
 
   @override
   ConsumerState<RankingHomeCafe> createState() => _RankingHomeCafeState();
@@ -26,6 +28,21 @@ class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
   RankingAudience _selectedAudience = RankingAudience.couple;
   StoreRankingSort _selectedSort = StoreRankingSort.rating;
   String? _selectedDistrict;
+  RankingPurpose? _selectedPurpose;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPurpose = widget.initialPurpose;
+  }
+
+  @override
+  void didUpdateWidget(covariant RankingHomeCafe oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialPurpose != widget.initialPurpose) {
+      _selectedPurpose = widget.initialPurpose;
+    }
+  }
 
   Future<void> _handleProfileMenuSelect(
     BuildContext context,
@@ -164,7 +181,14 @@ class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
 
   @override
   Widget build(BuildContext context) {
-    final rankings = ref.watch(storeRankingListProvider(_selectedAudience));
+    final rankings = ref.watch(
+      storeRankingListProvider(
+        StoreRankingQuery(
+          audience: _selectedAudience,
+          purpose: _selectedPurpose,
+        ),
+      ),
+    );
     final districtOptions = _districtOptions(rankings.asData?.value ?? const []);
     final currentLocation = ref.watch(currentLocationProvider);
     final user =
@@ -179,6 +203,7 @@ class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
             RankingHomeHeader(
               selectedAudience: _selectedAudience,
               selectedSort: _selectedSort,
+              selectedPurpose: _selectedPurpose,
               selectedDistrictLabel: _selectedDistrict ?? _allDistrictLabel,
               onAudienceSelected: (value) =>
                   setState(() => _selectedAudience = value),
@@ -199,6 +224,7 @@ class _RankingHomeCafeState extends ConsumerState<RankingHomeCafe> {
                   currentLocation: currentLocation,
                   selectedAudience: _selectedAudience,
                   selectedSort: _selectedSort,
+                  selectedPurpose: _selectedPurpose,
                   selectedDistrict: _selectedDistrict,
                   onSelectRanking: (ranking) =>
                       context.push('/cafes/${ranking.storeId}'),
@@ -217,6 +243,7 @@ class _RankingHomeCafeList extends StatelessWidget {
   final AppLocationState currentLocation;
   final RankingAudience selectedAudience;
   final StoreRankingSort selectedSort;
+  final RankingPurpose? selectedPurpose;
   final String? selectedDistrict;
   final ValueChanged<StoreRanking> onSelectRanking;
 
@@ -225,6 +252,7 @@ class _RankingHomeCafeList extends StatelessWidget {
     required this.currentLocation,
     required this.selectedAudience,
     required this.selectedSort,
+    required this.selectedPurpose,
     required this.selectedDistrict,
     required this.onSelectRanking,
   });
@@ -236,6 +264,9 @@ class _RankingHomeCafeList extends StatelessWidget {
   }
 
   List<StoreRanking> _sortRankings(List<StoreRanking> items) {
+    if (selectedPurpose != null && selectedSort == StoreRankingSort.rating) {
+      return items;
+    }
     final sorted = [...items];
     sorted.sort((a, b) {
       return switch (selectedSort) {
@@ -276,6 +307,9 @@ class _RankingHomeCafeList extends StatelessWidget {
 
   String _emptyMessage() {
     final regionPrefix = selectedDistrict == null ? '' : '$selectedDistrict에는 ';
+    if (selectedPurpose != null) {
+      return '$regionPrefix${selectedPurpose!.label} 추천 데이터가 아직 부족해요.';
+    }
     return switch (selectedAudience) {
       RankingAudience.couple => '$regionPrefix아직 부부픽 랭킹이 없어요.',
       RankingAudience.wife => '$regionPrefix아직 아내픽 랭킹이 없어요.',

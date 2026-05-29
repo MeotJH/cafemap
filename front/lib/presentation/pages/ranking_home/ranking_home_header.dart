@@ -10,6 +10,7 @@ import 'package:front/presentation/widgets/section_title.dart';
 class RankingHomeHeader extends StatelessWidget {
   final RankingAudience selectedAudience;
   final StoreRankingSort selectedSort;
+  final RankingPurpose? selectedPurpose;
   final String selectedDistrictLabel;
   final ValueChanged<RankingAudience> onAudienceSelected;
   final ValueChanged<StoreRankingSort> onSortSelected;
@@ -21,6 +22,7 @@ class RankingHomeHeader extends StatelessWidget {
     super.key,
     required this.selectedAudience,
     required this.selectedSort,
+    required this.selectedPurpose,
     required this.selectedDistrictLabel,
     required this.onAudienceSelected,
     required this.onSortSelected,
@@ -124,7 +126,7 @@ class RankingHomeHeader extends StatelessWidget {
           _RankingFilterScroller(
             children: [
               AppFilterChip(
-                label: '평점 높은순',
+                label: selectedPurpose == null ? '평점 높은순' : '추천순',
                 selected: selectedSort == StoreRankingSort.rating,
                 onSelected: (_) => onSortSelected(StoreRankingSort.rating),
                 margin: const EdgeInsets.only(right: 8),
@@ -148,12 +150,16 @@ class RankingHomeHeader extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           SectionTitle(
-            title: _titleForAudience(selectedAudience, selectedDistrictLabel),
+            title: _titleForAudience(
+              selectedAudience,
+              selectedDistrictLabel,
+              selectedPurpose,
+            ),
             trailing: '실제 방문 기준',
           ),
           const SizedBox(height: 2),
           Text(
-            _descriptionForAudience(selectedAudience),
+            _descriptionForAudience(selectedAudience, selectedPurpose),
             style: const TextStyle(fontSize: 11, color: Colors.black54),
           ),
         ],
@@ -161,7 +167,14 @@ class RankingHomeHeader extends StatelessWidget {
     );
   }
 
-  String _titleForAudience(RankingAudience audience, String districtLabel) {
+  String _titleForAudience(
+    RankingAudience audience,
+    String districtLabel,
+    RankingPurpose? purpose,
+  ) {
+    if (purpose != null) {
+      return purpose.title(districtLabel);
+    }
     final audienceLabel = switch (audience) {
       RankingAudience.couple => '부부픽 랭킹',
       RankingAudience.wife => '아내픽 랭킹',
@@ -171,12 +184,27 @@ class RankingHomeHeader extends StatelessWidget {
     return '$districtLabel $audienceLabel';
   }
 
-  String _descriptionForAudience(RankingAudience audience) {
+  String _descriptionForAudience(
+    RankingAudience audience,
+    RankingPurpose? purpose,
+  ) {
+    if (purpose != null) {
+      return '${purpose.rankingDescription} 현재 ${_audienceLabel(audience)} 기준으로 정렬합니다.';
+    }
     return switch (audience) {
       RankingAudience.couple => '둘 다 좋게 평가한 카페부터 보여줍니다.',
       RankingAudience.wife => '감성, 분위기, 디저트 만족도가 높은 카페 기준입니다.',
       RankingAudience.husband => '커피, 작업성, 실용성이 좋은 카페 기준입니다.',
       RankingAudience.user => '일반 사용자 평균 점수 기준 랭킹입니다.',
+    };
+  }
+
+  String _audienceLabel(RankingAudience audience) {
+    return switch (audience) {
+      RankingAudience.couple => '부부픽',
+      RankingAudience.wife => '아내픽',
+      RankingAudience.husband => '남편픽',
+      RankingAudience.user => '사용자픽',
     };
   }
 }
