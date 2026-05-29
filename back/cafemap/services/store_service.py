@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -18,7 +17,7 @@ from cafemap.core.rating_dimensions import (
     store_dimensions_for_schema,
     top_highlights,
 )
-from cafemap.models.entities import Store, StoreAggregate
+from cafemap.models.entities import Store
 from cafemap.repositories import store_repository
 
 REVIEWER_WIFE = "WIFE"

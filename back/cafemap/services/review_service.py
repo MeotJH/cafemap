@@ -1,37 +1,22 @@
-from datetime import datetime
-
 import json
-
-import uuid
-
 import re
-
+import uuid
+from datetime import datetime
 from difflib import SequenceMatcher
 
 from sqlalchemy.orm import Session
+
 from cafemap.core.config import (
     OFFICIAL_HUSBAND_EMAILS,
     OFFICIAL_WIFE_EMAILS,
     REVIEW_IMAGE_LIMIT,
 )
-
-
-from cafemap.models.entities import (
-    Brand,
-    Menu,
-    Store,
-    Review,
-    BrandMenuAggregate,
-    StoreAggregate,
-    User,
-)
-
 from cafemap.core.rating_dimensions import (
     CURRENT_RATING_SCHEMA_VERSION,
     attributes_json_dumps,
     compute_overall,
-    normalize_category,
     normalize_attributes,
+    normalize_category,
     normalize_rating_schema_version,
     normalize_scores,
     normalize_store_scores,
@@ -39,9 +24,16 @@ from cafemap.core.rating_dimensions import (
     scores_json_loads,
     top_highlights,
 )
-
+from cafemap.models.entities import (
+    Brand,
+    BrandMenuAggregate,
+    Menu,
+    Review,
+    Store,
+    StoreAggregate,
+    User,
+)
 from cafemap.repositories import review_repository
-
 from cafemap.services import geocode_service
 
 # Review creation, validation, and aggregate update logic.

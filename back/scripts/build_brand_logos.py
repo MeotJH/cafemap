@@ -3,8 +3,8 @@ from __future__ import annotations
 import base64
 import html
 import imghdr
-from pathlib import Path
 import sys
+from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 

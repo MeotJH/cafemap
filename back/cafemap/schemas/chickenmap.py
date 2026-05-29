@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 # API 응답 스키마를 정의하는 모듈이다.

@@ -1,26 +1,19 @@
 import json
-from urllib.parse import quote
 import logging
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from cafemap.db.session import get_db
-from cafemap.models.entities import Menu
+
 from cafemap.core.rating_dimensions import (
     attributes_json_loads,
-    compute_overall,
     scores_json_loads,
     top_highlights,
     visible_scores_for_category,
 )
-
-from cafemap.services.auth_service import (
-    resolve_auth_user,
-    upsert_user,
-    get_user,
-    AuthUser,
-)
-
+from cafemap.db.session import get_db
+from cafemap.models.entities import Menu
 from cafemap.schemas.cafemap import (
     AuthOut,
     BrandMenuRankingOut,
@@ -28,25 +21,30 @@ from cafemap.schemas.cafemap import (
     HomeRecommendedMenuOut,
     HomeSummaryOut,
     MenuOut,
+    PlaceSearchOut,
     RatingBreakdownOut,
+    ReviewCreateIn,
     ReviewImagePresignIn,
     ReviewImagePresignOut,
     ReviewOut,
-    ReviewCreateIn,
     SimilarStoreOut,
-    StoreSummaryOut,
     StoreRankingOut,
-    PlaceSearchOut,
+    StoreSummaryOut,
 )
-
 from cafemap.services import (
     brand_menu_service,
-    store_service,
-    review_service,
-    place_search_service,
     brand_service,
-    upload_service,
+    place_search_service,
+    review_service,
+    store_service,
     thumbnail_service,
+    upload_service,
+)
+from cafemap.services.auth_service import (
+    AuthUser,
+    get_user,
+    resolve_auth_user,
+    upsert_user,
 )
 
 # API Router for CafeMap related endpoints.

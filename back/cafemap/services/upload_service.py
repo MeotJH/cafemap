@@ -3,8 +3,8 @@ import uuid
 from urllib.parse import urlparse
 
 import boto3
-from botocore.config import Config
 from botocore.client import BaseClient
+from botocore.config import Config
 
 from cafemap.core.config import (
     AWS_REGION,

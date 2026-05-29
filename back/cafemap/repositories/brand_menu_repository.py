@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from cafemap.core.menu_catalog import menu_sort_key
-from cafemap.models.entities import BrandMenuAggregate, Brand, Menu, Review, Store, User
+from cafemap.models.entities import Brand, BrandMenuAggregate, Menu, Review, Store, User
 
 # ??? ?? ?? ?? ??? ?? ????.
 

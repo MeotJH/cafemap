@@ -8,6 +8,12 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from cafemap.core.config import (
+    OFFICIAL_HUSBAND_EMAILS,
+    OFFICIAL_WIFE_EMAILS,
+    SEED_CATALOG_ON_STARTUP,
+    SEED_SAMPLE_DATA_ON_STARTUP,
+)
 from cafemap.core.menu_catalog import COMMON_CAFE_MENU_SEEDS, classify_menu_category
 from cafemap.core.rating_dimensions import (
     compute_overall,
@@ -18,12 +24,6 @@ from cafemap.core.rating_dimensions import (
     scores_json_loads,
     top_highlights,
     visible_scores_for_category,
-)
-from cafemap.core.config import (
-    OFFICIAL_HUSBAND_EMAILS,
-    OFFICIAL_WIFE_EMAILS,
-    SEED_CATALOG_ON_STARTUP,
-    SEED_SAMPLE_DATA_ON_STARTUP,
 )
 from cafemap.db.brand_catalog import BRAND_CATALOG
 from cafemap.db.session import Base, engine

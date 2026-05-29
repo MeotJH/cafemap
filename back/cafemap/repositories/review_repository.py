@@ -1,9 +1,7 @@
 from sqlalchemy import select
-
 from sqlalchemy.orm import Session
 
-
-from cafemap.models.entities import Review, Store, Brand, Menu, User
+from cafemap.models.entities import Brand, Menu, Review, Store, User
 
 # ?? ?? ??? ?? ????.
 
