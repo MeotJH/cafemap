@@ -23,6 +23,19 @@ Apply ECC-style harness engineering here by keeping instructions stable, task ex
 - Do not overwrite visibly garbled text blindly; verify file encoding first and preserve or restore UTF-8 text safely.
 - Follow commit message prefixes: `feat(scope): ...`, `fix(scope): ...`, `refactor(scope): ...`, `chore(scope): ...`, `docs(scope): ...`, `style(scope): ...`, `test(scope): ...`.
 
+## Feature Planning Workflow
+
+For feature planning and backlog documentation, read and follow:
+
+- `feature-delivery-workflow.md`
+
+Key rules:
+
+- Feature briefs live in `backlog/`.
+- User stories live in `user-stories/`.
+- Each feature brief must have a matching `user-stories/<feature-file-name-without-md>/` folder.
+- User-story `.md` files must include frontend tasks, backend tasks, and designer tasks.
+
 ## Frontend Architecture Rules
 
 - For Flutter refactors, page boundaries should follow route boundaries before convenience of extraction.
