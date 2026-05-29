@@ -8,8 +8,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from cafemap.core.rating_dimensions import (
+    CURRENT_RATING_SCHEMA_VERSION,
     LEGACY_HIGHLIGHT_DIMENSIONS,
+    category_dimensions_for_schema,
+    normalize_rating_schema_version,
     scores_json_loads,
+    store_dimensions_for_schema,
     top_highlights,
 )
 from cafemap.models.entities import Store, StoreAggregate
@@ -44,10 +48,20 @@ class AggregatedMenu:
 @dataclass
 class SimilarStoreResult:
     store: Store
-    aggregate: StoreAggregate
     brand_name: str
+    rating: float
+    review_count: int
+    rating_schema_version: int
     similarity_score: float
     matched_dimensions: list[str]
+
+
+@dataclass
+class RatingBreakdownResult:
+    scores: dict[str, float]
+    overall: float
+    rating_schema_version: int
+    review_count: int
 
 
 def get_nearby_stores(db: Session):
@@ -140,7 +154,30 @@ def get_store_detail(db: Session, store_id: str):
 
 
 def get_store_breakdown(db: Session, store_id: str):
-    return store_repository.fetch_store_breakdown(db, store_id)
+    rows = store_repository.fetch_store_reviews(db, store_id)
+    if rows:
+        schema_version = _preferred_schema_version(review for review, *_ in rows)
+        scores, overall, review_count = _average_review_rows(
+            rows,
+            schema_version=schema_version,
+        )
+        if review_count > 0:
+            return RatingBreakdownResult(
+                scores=scores,
+                overall=overall,
+                rating_schema_version=schema_version,
+                review_count=review_count,
+            )
+
+    aggregate = store_repository.fetch_store_breakdown(db, store_id)
+    if aggregate is None:
+        return None
+    return RatingBreakdownResult(
+        scores=scores_json_loads(aggregate.scores_json),
+        overall=aggregate.rating,
+        rating_schema_version=1,
+        review_count=aggregate.review_count,
+    )
 
 
 def get_similar_stores(
@@ -148,24 +185,30 @@ def get_similar_stores(
     store_id: str,
     limit: int = 3,
 ) -> list[SimilarStoreResult] | None:
-    rows = store_repository.fetch_store_similarity_rows(db)
-    current = next((row for row in rows if row[0].id == store_id), None)
+    rows = store_repository.fetch_all_store_review_rows(db)
+    stores = _build_store_comparison_payloads(rows)
+    current = stores.get(store_id)
     if current is None:
         return None
 
-    _, current_aggregate, _, _ = current
+    current_schema = (
+        CURRENT_RATING_SCHEMA_VERSION
+        if current["schemas"].get(CURRENT_RATING_SCHEMA_VERSION, {}).get("count", 0) > 0
+        else 1
+    )
     current_scores = _comparable_scores(
-        scores_json_loads(current_aggregate.scores_json)
+        current["schemas"].get(current_schema, {}).get("scores", {})
     )
     if not current_scores:
         return []
 
     candidates: list[SimilarStoreResult] = []
-    for store, aggregate, brand_name, _ in rows:
-        if store.id == store_id:
+    for candidate_id, payload in stores.items():
+        if candidate_id == store_id:
             continue
 
-        candidate_scores = _comparable_scores(scores_json_loads(aggregate.scores_json))
+        candidate_schema_payload = payload["schemas"].get(current_schema, {})
+        candidate_scores = _comparable_scores(candidate_schema_payload.get("scores", {}))
         common_dimensions = sorted(set(current_scores) & set(candidate_scores))
         if len(common_dimensions) < MIN_SIMILAR_COMMON_DIMENSIONS:
             continue
@@ -181,9 +224,11 @@ def get_similar_stores(
         ]
         candidates.append(
             SimilarStoreResult(
-                store=store,
-                aggregate=aggregate,
-                brand_name=brand_name,
+                store=payload["store"],
+                brand_name=str(payload["brand_name"]),
+                rating=float(candidate_schema_payload.get("overall", 0.0)),
+                review_count=int(candidate_schema_payload.get("count", 0)),
+                rating_schema_version=current_schema,
                 similarity_score=similarity_score,
                 matched_dimensions=matched_dimensions,
             )
@@ -192,8 +237,8 @@ def get_similar_stores(
     candidates.sort(
         key=lambda item: (
             item.similarity_score,
-            item.aggregate.rating,
-            item.aggregate.review_count,
+            item.rating,
+            item.review_count,
         ),
         reverse=True,
     )
@@ -226,6 +271,115 @@ def _comparable_scores(scores: dict[str, float]) -> dict[str, float]:
     }
 
 
+def _preferred_schema_version(reviews) -> int:
+    for review in reviews:
+        if _review_schema_version(review) == CURRENT_RATING_SCHEMA_VERSION:
+            return CURRENT_RATING_SCHEMA_VERSION
+    return 1
+
+
+def _review_schema_version(review) -> int:
+    return normalize_rating_schema_version(
+        getattr(review, "rating_schema_version", None)
+    )
+
+
+def _allowed_score_keys(category: str | None, schema_version: int) -> set[str]:
+    keys = set(category_dimensions_for_schema(category, schema_version))
+    keys.update(store_dimensions_for_schema(schema_version, include_optional=True))
+    return keys
+
+
+def _visible_review_scores(review, category: str | None) -> dict[str, float]:
+    schema_version = _review_schema_version(review)
+    allowed = _allowed_score_keys(category, schema_version)
+    source = scores_json_loads(getattr(review, "scores_json", None))
+    return {
+        key: float(value)
+        for key, value in source.items()
+        if key in allowed and key not in LEGACY_HIGHLIGHT_DIMENSIONS
+    }
+
+
+def _average_review_rows(rows, *, schema_version: int) -> tuple[dict[str, float], float, int]:
+    score_sums: dict[str, float] = {}
+    score_counts: dict[str, int] = {}
+    overall_sum = 0.0
+    review_count = 0
+
+    for review, *rest in rows:
+        menu_category = rest[4] if len(rest) >= 5 else None
+        if _review_schema_version(review) != schema_version:
+            continue
+        review_count += 1
+        overall_sum += float(getattr(review, "overall", 0.0) or 0.0)
+        for key, value in _visible_review_scores(review, menu_category).items():
+            score_sums[key] = score_sums.get(key, 0.0) + value
+            score_counts[key] = score_counts.get(key, 0) + 1
+
+    averaged_scores = {
+        key: score_sums[key] / score_counts[key]
+        for key in score_sums
+        if score_counts.get(key, 0) > 0
+    }
+    overall = overall_sum / review_count if review_count > 0 else 0.0
+    return averaged_scores, overall, review_count
+
+
+def _build_store_comparison_payloads(rows) -> dict[str, dict[str, object]]:
+    store_map: dict[str, dict[str, object]] = {}
+
+    for review, store, brand_name, _, _, menu_category, _ in rows:
+        payload = store_map.get(store.id)
+        if payload is None:
+            payload = {
+                "store": store,
+                "brand_name": brand_name,
+                "schemas": {},
+            }
+            store_map[store.id] = payload
+
+        schema_version = _review_schema_version(review)
+        schemas = payload["schemas"]
+        schema_payload = schemas.get(schema_version)
+        if schema_payload is None:
+            schema_payload = {
+                "score_sums": {},
+                "score_counts": {},
+                "scores": {},
+                "overall_sum": 0.0,
+                "overall": 0.0,
+                "count": 0,
+            }
+            schemas[schema_version] = schema_payload
+
+        schema_payload["overall_sum"] = float(schema_payload["overall_sum"]) + float(
+            getattr(review, "overall", 0.0) or 0.0
+        )
+        schema_payload["count"] = int(schema_payload["count"]) + 1
+        score_sums = schema_payload["score_sums"]
+        score_counts = schema_payload["score_counts"]
+        for key, value in _visible_review_scores(review, menu_category).items():
+            score_sums[key] = score_sums.get(key, 0.0) + value
+            score_counts[key] = score_counts.get(key, 0) + 1
+
+    for payload in store_map.values():
+        for schema_payload in payload["schemas"].values():
+            count = int(schema_payload["count"])
+            score_sums = schema_payload["score_sums"]
+            score_counts = schema_payload["score_counts"]
+            schema_payload["scores"] = {
+                key: score_sums[key] / score_counts[key]
+                for key in score_sums
+                if score_counts.get(key, 0) > 0
+            }
+            schema_payload["overall"] = (
+                float(schema_payload["overall_sum"]) / count if count > 0 else 0.0
+            )
+
+    return store_map
+
+
 def _score_for_ranking_type(item: dict[str, object], ranking_type: str) -> float:
     if ranking_type == RANKING_WIFE:
         return float(item["wifeScore"])
@@ -254,7 +408,7 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
     rows = store_repository.fetch_all_store_review_rows(db)
     store_map: dict[str, dict[str, object]] = {}
 
-    for review, store, brand_name, brand_logo_url, _, _, user_email in rows:
+    for review, store, brand_name, brand_logo_url, _, menu_category, user_email in rows:
         payload = store_map.get(store.id)
         if payload is None:
             payload = {
@@ -301,10 +455,15 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
                 "_userCount": 0,
                 "_revisitTotal": 0.0,
                 "_revisitCount": 0,
-                "_scoreTotals": {},
+                "_scoreTotalsBySchema": {},
+                "_scoreCountsBySchema": {},
+                "_schemaCounts": {},
             }
             store_map[store.id] = payload
 
+        schema_version = _review_schema_version(review)
+        schema_counts = payload["_schemaCounts"]
+        schema_counts[schema_version] = int(schema_counts.get(schema_version, 0)) + 1
         payload["_reviewScoreSum"] = float(payload["_reviewScoreSum"]) + float(review.overall)
         payload["_reviewCount"] = int(payload["_reviewCount"]) + 1
         if payload["latestVisitedAt"] is None or review.created_at > payload["latestVisitedAt"]:
@@ -321,7 +480,7 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             payload["_userTotal"] = float(payload["_userTotal"]) + float(review.overall)
             payload["_userCount"] = int(payload["_userCount"]) + 1
 
-        scores = scores_json_loads(review.scores_json)
+        scores = _visible_review_scores(review, menu_category)
         revisit = scores.get("revisit_intent")
         if revisit is not None:
             payload["_revisitTotal"] = float(payload["_revisitTotal"]) + float(revisit)
@@ -336,9 +495,13 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             ):
                 image_urls.append(image_url)
 
-        totals = payload["_scoreTotals"]
+        totals_by_schema = payload["_scoreTotalsBySchema"]
+        counts_by_schema = payload["_scoreCountsBySchema"]
+        totals = totals_by_schema.setdefault(schema_version, {})
+        counts = counts_by_schema.setdefault(schema_version, {})
         for key, value in scores.items():
             totals[key] = totals.get(key, 0.0) + float(value)
+            counts[key] = counts.get(key, 0) + 1
 
     results: list[dict[str, object]] = []
     for payload in store_map.values():
@@ -346,11 +509,20 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
         if review_count <= 0:
             continue
 
+        schema_counts = payload["_schemaCounts"]
+        schema_version = (
+            CURRENT_RATING_SCHEMA_VERSION
+            if schema_counts.get(CURRENT_RATING_SCHEMA_VERSION, 0) > 0
+            else 1
+        )
+        score_totals = payload["_scoreTotalsBySchema"].get(schema_version, {})
+        score_counts = payload["_scoreCountsBySchema"].get(schema_version, {})
         avg_scores = {
-            key: total / review_count
-            for key, total in payload["_scoreTotals"].items()
+            key: score_totals[key] / score_counts[key]
+            for key in score_totals
+            if score_counts.get(key, 0) > 0
         }
-        highlights = top_highlights(avg_scores)
+        highlights = top_highlights(avg_scores, schema_version)
         wife_score = _safe_average(payload["_wifeTotal"], payload["_wifeCount"])
         husband_score = _safe_average(payload["_husbandTotal"], payload["_husbandCount"])
         user_score = _safe_average(payload["_userTotal"], payload["_userCount"])
@@ -368,7 +540,10 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             review_count=review_count,
         )
         payload["reviewCount"] = review_count
-        payload["coffeeQualityScore"] = float(avg_scores.get("coffee_quality", 0.0))
+        payload["ratingSchemaVersion"] = schema_version
+        payload["coffeeQualityScore"] = float(
+            avg_scores.get("taste_satisfaction", avg_scores.get("coffee_quality", 0.0))
+        )
         payload["workFriendlyScore"] = float(avg_scores.get("work_friendly", 0.0))
         payload["quietnessScore"] = float(avg_scores.get("quietness", 0.0))
         payload["dessertScore"] = _dessert_signal(avg_scores)
@@ -413,8 +588,10 @@ def _extract_district(address: str | None) -> str:
 
 def _dessert_signal(scores: dict[str, float]) -> float:
     values = [
+        scores.get("taste_satisfaction"),
         scores.get("flavor_balance"),
         scores.get("sweetness"),
+        scores.get("texture"),
         scores.get("visuals"),
         scores.get("portion"),
     ]

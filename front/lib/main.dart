@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:front/app/app.dart';
+import 'package:front/app/router.dart';
+import 'package:front/core/services/analytics_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/presentation/utils/naver_map_init.dart';
 import 'package:front/presentation/providers/app_providers.dart';
@@ -54,7 +56,8 @@ Future<void> _loadEnv() async {
   }
   debugPrint(
     'Env loaded: API_BASE_URL=${dotenv.env['API_BASE_URL']}, '
-    'NAVER_MAP_CLIENT_ID=${_describeEnvValue(dotenv.env['NAVER_MAP_CLIENT_ID'])}',
+    'NAVER_MAP_CLIENT_ID=${_describeEnvValue(dotenv.env['NAVER_MAP_CLIENT_ID'])}, '
+    'GA4_MEASUREMENT_ID=${_describeEnvValue(dotenv.env['GA4_MEASUREMENT_ID'])}',
   );
 }
 
@@ -70,6 +73,9 @@ Future<void> main() async {
     } else {
       await Firebase.initializeApp();
     }
+    await analyticsService.initialize(
+      measurementId: dotenv.env['GA4_MEASUREMENT_ID'],
+    );
 
     final clientId = dotenv.env['NAVER_MAP_CLIENT_ID'];
     if (clientId == null || clientId.isEmpty) {
@@ -85,6 +91,7 @@ Future<void> main() async {
         child: const CafeMapApp(),
       ),
     );
+    bindAnalyticsRouteTracking(appRouter);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(container.read(currentLocationProvider.notifier).initialize());

@@ -102,6 +102,8 @@ def _migrate_scores_json_columns(db: Session):
             "image_urls_json",
             "temperature_option",
             "reviewer_type",
+            "rating_schema_version",
+            "attributes_json",
         ),
         "brand_menu_aggregate": ("scores_json",),
         "store_aggregate": ("scores_json", "counts_json"),
@@ -149,6 +151,20 @@ def _migrate_scores_json_columns(db: Session):
                     table_name,
                     f"ALTER TABLE {table_name} "
                     "ADD COLUMN reviewer_type VARCHAR NOT NULL DEFAULT 'USER'",
+                )
+            elif column_name == "rating_schema_version":
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN rating_schema_version INTEGER NOT NULL DEFAULT 1",
+                )
+            elif column_name == "attributes_json":
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN attributes_json VARCHAR NOT NULL DEFAULT '{}'",
                 )
             elif column_name == "store_type":
                 _safe_add_sqlite_column(
@@ -628,7 +644,9 @@ def seed_if_empty(db: Session):
                     store_id=store_id,
                     brand_id=brand_id,
                     menu_id=menu.id,
+                    rating_schema_version=1,
                     scores_json=scores_json_dumps(scores),
+                    attributes_json="{}",
                     image_urls_json="[]",
                     temperature_option=_default_temperature_option(menu.category),
                     overall=overall,
@@ -643,6 +661,10 @@ def seed_if_empty(db: Session):
                 existing_review.store_id = store_id
                 existing_review.brand_id = brand_id
                 existing_review.menu_id = menu.id
+                existing_review.rating_schema_version = (
+                    existing_review.rating_schema_version or 1
+                )
+                existing_review.attributes_json = existing_review.attributes_json or "{}"
                 existing_review.scores_json = scores_json_dumps(scores)
                 existing_review.image_urls_json = "[]"
                 existing_review.temperature_option = (

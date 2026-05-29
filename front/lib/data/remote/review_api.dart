@@ -111,8 +111,10 @@ class ReviewCreateRequest {
   final double? lng;
   final String brandId;
   final String menuName;
+  final int ratingSchemaVersion;
   final Map<String, double> scores;
   final Map<String, double> storeScores;
+  final Map<String, String> attributes;
   final double overall;
   final String comment;
   final List<String> imageUrls;
@@ -127,8 +129,10 @@ class ReviewCreateRequest {
     this.lng,
     required this.brandId,
     required this.menuName,
+    this.ratingSchemaVersion = 1,
     required this.scores,
     required this.storeScores,
+    this.attributes = const {},
     required this.overall,
     required this.comment,
     required this.imageUrls,
@@ -144,8 +148,10 @@ class ReviewCreateRequest {
         'lng': lng,
         'brandId': brandId,
         'menuName': menuName,
+        'ratingSchemaVersion': ratingSchemaVersion,
         'scores': scores,
         'storeScores': storeScores,
+        'attributes': attributes,
         'overall': overall,
         'comment': comment,
         'imageUrls': imageUrls,
@@ -194,7 +200,9 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     menuCategory: json['menuCategory'] as String? ?? '',
     userEmail: json['userEmail'] as String? ?? '',
     reviewerType: json['reviewerType'] as String? ?? 'USER',
+    ratingSchemaVersion: (json['ratingSchemaVersion'] as num?)?.toInt() ?? 1,
     scores: scores,
+    attributes: _attributesFromJson(json['attributes']),
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',
     imageUrls: _imageUrlsFromJson(json['imageUrls']),
@@ -209,6 +217,14 @@ Map<String, double> _scoresFromJson(dynamic raw) {
   return {
     for (final entry in raw.entries)
       entry.key: (entry.value as num?)?.toDouble() ?? 0,
+  };
+}
+
+Map<String, String> _attributesFromJson(dynamic raw) {
+  if (raw is! Map<String, dynamic>) return const {};
+  return {
+    for (final entry in raw.entries)
+      if (entry.value != null) entry.key: entry.value.toString(),
   };
 }
 

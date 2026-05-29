@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
+import 'package:front/core/services/analytics_service.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/app_providers.dart';
 import 'package:go_router/go_router.dart';
@@ -14,9 +15,11 @@ class AuthStartPage extends ConsumerWidget {
 
   Future<void> _signInWithGoogle(BuildContext context, WidgetRef ref) async {
     try {
+      analyticsService.trackEvent('login_start', {'provider': 'google'});
       final authController = ref.read(authControllerProvider);
       await authController.signInWithGoogle();
       await _syncSignedInUser(ref, authController);
+      analyticsService.trackEvent('login_success', {'provider': 'google'});
       if (!context.mounted) return;
       context.go('/rankings');
     } on FirebaseAuthException catch (e) {
@@ -34,9 +37,11 @@ class AuthStartPage extends ConsumerWidget {
 
   Future<void> _signInWithKakao(BuildContext context, WidgetRef ref) async {
     try {
+      analyticsService.trackEvent('login_start', {'provider': 'kakao'});
       final authController = ref.read(authControllerProvider);
       await authController.signInWithKakao();
       await _syncSignedInUser(ref, authController);
+      analyticsService.trackEvent('login_success', {'provider': 'kakao'});
       if (!context.mounted) return;
       context.go('/rankings');
     } on FirebaseAuthException catch (e) {

@@ -16,10 +16,17 @@ from cafemap.core.config import OFFICIAL_HUSBAND_EMAILS, OFFICIAL_WIFE_EMAILS
 from cafemap.models.entities import Brand, Menu, Store, Review, BrandMenuAggregate, StoreAggregate, User
 
 from cafemap.core.rating_dimensions import (
+    CURRENT_RATING_SCHEMA_VERSION,
+
+    attributes_json_dumps,
 
     compute_overall,
 
     normalize_category,
+
+    normalize_attributes,
+
+    normalize_rating_schema_version,
 
     normalize_scores,
 
@@ -85,7 +92,9 @@ def create_review(db: Session, payload, user_id: str):
         menu_scores,
         resolved_overall,
         temperature_option,
+        attributes,
         image_urls,
+        rating_schema_version,
     ) = _prepare_review_payload(db, payload)
 
     review = Review(
@@ -100,7 +109,11 @@ def create_review(db: Session, payload, user_id: str):
 
         menu_id=menu.id,
 
+        rating_schema_version=rating_schema_version,
+
         scores_json=scores_json_dumps(aggregate_scores),
+
+        attributes_json=attributes_json_dumps(attributes),
 
         image_urls_json=json.dumps(image_urls, ensure_ascii=False),
 
@@ -118,7 +131,10 @@ def create_review(db: Session, payload, user_id: str):
 
     db.add(review)
 
-    if brand.id != LOCAL_BRAND_ID:
+    if (
+        brand.id != LOCAL_BRAND_ID
+        and rating_schema_version != CURRENT_RATING_SCHEMA_VERSION
+    ):
 
         _update_brand_menu_aggregate(
 
@@ -174,13 +190,17 @@ def update_review(db: Session, review_id: str, payload, user_id: str):
         _menu_scores,
         resolved_overall,
         temperature_option,
+        attributes,
         image_urls,
+        rating_schema_version,
     ) = _prepare_review_payload(db, payload)
 
     review.store_id = store.id
     review.brand_id = brand.id
     review.menu_id = menu.id
+    review.rating_schema_version = rating_schema_version
     review.scores_json = scores_json_dumps(aggregate_scores)
+    review.attributes_json = attributes_json_dumps(attributes)
     review.image_urls_json = json.dumps(image_urls, ensure_ascii=False)
     review.temperature_option = temperature_option
     review.reviewer_type = _reviewer_type_for_user_id(db, user_id)
@@ -226,12 +246,28 @@ def _prepare_review_payload(db: Session, payload):
     if not input_scores:
         raise ValueError("scores is required")
 
-    image_urls = _sanitize_image_urls(getattr(payload, "imageUrls", []))
-    menu_scores = normalize_scores(menu_category, input_scores)
-    store_scores = normalize_store_scores(getattr(payload, "storeScores", {}) or {})
-    aggregate_scores = {**menu_scores, **store_scores}
+    rating_schema_version = normalize_rating_schema_version(
+        getattr(payload, "ratingSchemaVersion", 1)
+    )
     temperature_option = _normalize_temperature_option(
         getattr(payload, "temperatureOption", "")
+    )
+    image_urls = _sanitize_image_urls(getattr(payload, "imageUrls", []))
+    menu_scores = normalize_scores(
+        menu_category,
+        input_scores,
+        schema_version=rating_schema_version,
+    )
+    store_scores = normalize_store_scores(
+        getattr(payload, "storeScores", {}) or {},
+        schema_version=rating_schema_version,
+    )
+    aggregate_scores = {**menu_scores, **store_scores}
+    attributes = normalize_attributes(
+        menu_category,
+        getattr(payload, "attributes", {}) or {},
+        schema_version=rating_schema_version,
+        temperature_option=temperature_option,
     )
     resolved_overall = (
         float(payload.overall)
@@ -247,7 +283,9 @@ def _prepare_review_payload(db: Session, payload):
         menu_scores,
         resolved_overall,
         temperature_option,
+        attributes,
         image_urls,
+        rating_schema_version,
     )
 
 
@@ -426,6 +464,7 @@ def _rebuild_brand_menu_aggregate(db: Session, *, brand_id: str, menu_id: str):
         db.query(Review)
         .filter(Review.brand_id == brand_id)
         .filter(Review.menu_id == menu_id)
+        .filter(Review.rating_schema_version != CURRENT_RATING_SCHEMA_VERSION)
         .all()
     )
 

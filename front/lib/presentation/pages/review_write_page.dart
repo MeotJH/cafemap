@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
+import 'package:front/core/services/analytics_service.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/widgets/rating_slider.dart';
 import 'package:front/domain/entities/brand.dart';
@@ -17,6 +18,7 @@ import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/domain/entities/auth_context.dart';
 import 'package:front/presentation/utils/web_image_picker.dart';
+import 'package:front/presentation/widgets/rating_choice_chip.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/data/remote/review_api.dart';
 import 'package:dio/dio.dart';
@@ -59,13 +61,23 @@ class ReviewWritePage extends ConsumerStatefulWidget {
 
 class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   static const String _localBrandId = 'brand-local';
-  List<String> _activeDimensions = dimensionsForCategory(null);
+  static const int _maxReviewImages = 5;
+  List<String> _activeDimensions = dimensionsForCategoryForSchema(
+    null,
+    currentRatingSchemaVersion,
+  );
   Map<String, double> _scores = {
-    for (final key in dimensionsForCategory(null)) key: 3.0,
+    for (final key in dimensionsForCategoryForSchema(
+      null,
+      currentRatingSchemaVersion,
+    ))
+      key: 3.0,
   };
   Map<String, double> _storeScores = {
-    for (final key in storeExperienceDimensions) key: 3.0,
+    for (final key in storeDimensionsForSchema(currentRatingSchemaVersion))
+      key: 3.0,
   };
+  Map<String, String> _attributes = {};
   double overall = 3.0;
   List<Brand> _brands = [];
   Brand? _selectedBrand;
@@ -93,6 +105,11 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   String get _submitButtonText => _isEditMode ? '리뷰 수정 저장' : '리뷰 제출';
   String get _submittingButtonText => _isEditMode ? '저장 중...' : '제출 중...';
   String get _reviewActionNoun => _isEditMode ? '수정' : '등록';
+  int get _ratingSchemaVersion =>
+      _editingReview?.ratingSchemaVersion ?? currentRatingSchemaVersion;
+  bool get _usesCurrentRatingSchema =>
+      normalizeRatingSchemaVersion(_ratingSchemaVersion) ==
+      currentRatingSchemaVersion;
   int get _currentImageCount =>
       _existingImageUrls.length + _selectedImages.length;
   String? get _resolvedStoreName =>
@@ -165,15 +182,23 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
 
   void _applyInitialReview(Review review) {
     // 기존 리뷰를 작성 폼 상태로 그대로 옮겨서 작성/수정 화면을 하나로 재사용한다.
-    final nextDimensions = dimensionsForCategory(review.menuCategory);
+    final schemaVersion = normalizeRatingSchemaVersion(
+      review.ratingSchemaVersion,
+    );
+    final nextDimensions = dimensionsForCategoryForSchema(
+      review.menuCategory,
+      schemaVersion,
+    );
     _activeDimensions = nextDimensions;
     _scores = {
       for (final key in nextDimensions) key: review.scores[key] ?? 3.0,
     };
     _storeScores = {
-      for (final key in storeExperienceDimensions)
+      for (final key in storeDimensionsForSchema(schemaVersion))
         key: review.scores[key] ?? 3.0,
     };
+    _attributes = _attributeDefaultsForCategory(review.menuCategory)
+      ..addAll(review.attributes);
     overall = review.overall > 0 ? review.overall : _calculateOverall();
     _selectedTemperatureOption = review.temperatureOption;
     _commentController.text = review.comment;
@@ -400,8 +425,10 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         lng: _resolvedLng,
         brandId: _selectedBrand!.id,
         menuName: menuName,
+        ratingSchemaVersion: _ratingSchemaVersion,
         scores: _scores,
         storeScores: _storeScores,
+        attributes: _attributesForPayload(selectedMenu),
         overall: overall,
         comment: _commentController.text.trim(),
         imageUrls: [..._existingImageUrls, ...uploadedImageUrls],
@@ -410,6 +437,14 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       final review = _isEditMode
           ? await _updateReviewWithRecovery(widget.reviewId!, payload, auth)
           : await _createReviewWithRecovery(payload, auth);
+      analyticsService.trackEvent(
+        _isEditMode ? 'review_update_success' : 'review_submit_success',
+        <String, Object?>{
+          'rating_schema_version': _ratingSchemaVersion,
+          'menu_category': normalizeRatingCategory(selectedMenu.category),
+          'image_count': payload.imageUrls.length,
+        },
+      );
       _invalidateReviewRelatedProviders(review.id);
       if (!mounted) return;
       if (_isEditMode) {
@@ -548,29 +583,58 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     }
   }
 
-  ChoiceChip _buildTemperatureChip({
+  Widget _buildTemperatureChip({
     required String label,
     required String value,
   }) {
     final isSelected = _selectedTemperatureOption == value;
-    return ChoiceChip(
-      label: Text(label),
+    return RatingChoiceChip(
+      label: label,
       selected: isSelected,
-      onSelected: (_) {
+      onTap: () {
         setState(() {
           _selectedTemperatureOption = value;
+          if (_usesCurrentRatingSchema) {
+            _attributes['temperature_option'] = value;
+          }
         });
       },
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : AppColors.textSecondary,
-        fontWeight: FontWeight.w600,
-      ),
-      backgroundColor: Colors.white,
-      selectedColor: AppColors.primary,
-      side: BorderSide(
-        color: isSelected ? AppColors.primary : AppColors.cardBorder,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    );
+  }
+
+  Widget _buildAttributeChoiceGroup(String key) {
+    final options = ratingAttributeValueLabels[key] ?? const <String, String>{};
+    final selected = _attributes[key] ?? defaultAttributeValue(key);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          attributeLabel(key),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final entry in options.entries)
+              Builder(
+                builder: (context) {
+                  final isSelected = selected == entry.key;
+                  final isNeutral = entry.key == 'unknown' ||
+                      entry.key == 'not_used' ||
+                      entry.key == 'unspecified';
+                  return RatingChoiceChip(
+                    label: entry.value,
+                    selected: isSelected,
+                    neutral: isNeutral,
+                    onTap: () => _updateAttribute(key, entry.key),
+                  );
+                },
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -597,9 +661,9 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   }
 
   Future<void> _pickImages() async {
-    final remaining = 2 - _currentImageCount;
+    final remaining = _maxReviewImages - _currentImageCount;
     if (remaining <= 0) {
-      await _showTopToast('사진은 최대 2장까지 첨부할 수 있어요.');
+      await _showTopToast('사진은 최대 $_maxReviewImages장까지 첨부할 수 있어요.');
       return;
     }
 
@@ -621,7 +685,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
         _selectedImages.addAll(next);
       });
       if (webPicked.length > remaining) {
-        await _showTopToast('사진은 최대 2장까지 첨부할 수 있어요.');
+        await _showTopToast('사진은 최대 $_maxReviewImages장까지 첨부할 수 있어요.');
       }
       return;
     } else {
@@ -654,7 +718,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
       _selectedImages.addAll(next);
     });
     if (picked.length > remaining) {
-      await _showTopToast('사진은 최대 2장까지 첨부할 수 있어요.');
+      await _showTopToast('사진은 최대 $_maxReviewImages장까지 첨부할 수 있어요.');
     }
   }
 
@@ -719,13 +783,64 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     });
   }
 
+  void _updateAttribute(String key, String value) {
+    setState(() {
+      _attributes[key] = value;
+    });
+  }
+
+  Map<String, String> _attributeDefaultsForCategory(String? category) {
+    if (!_usesCurrentRatingSchema) return const {};
+    final defaults = <String, String>{};
+    for (final key in menuAttributeKeysForCategory(category)) {
+      defaults[key] = defaultAttributeValue(key);
+    }
+    for (final key in v2StoreAttributeKeys) {
+      defaults[key] = defaultAttributeValue(key);
+    }
+    if (_selectedTemperatureOption.isNotEmpty &&
+        defaults.containsKey('temperature_option')) {
+      defaults['temperature_option'] = _selectedTemperatureOption;
+    }
+    return defaults;
+  }
+
+  Map<String, String> _attributesForPayload(Menu menu) {
+    if (!_usesCurrentRatingSchema) return const {};
+    final defaults = _attributeDefaultsForCategory(menu.category);
+    return {
+      for (final entry in defaults.entries)
+        entry.key: entry.key == 'temperature_option' &&
+                _selectedTemperatureOption.isNotEmpty
+            ? _selectedTemperatureOption
+            : (_attributes[entry.key] ?? entry.value),
+    };
+  }
+
   void _syncActiveDimensions(String? category) {
-    final next = dimensionsForCategory(category);
+    final schemaVersion = _ratingSchemaVersion;
+    final next = dimensionsForCategoryForSchema(category, schemaVersion);
     _activeDimensions = next;
     _scores = {
       for (final key in next)
         key: _scores.containsKey(key) ? _scores[key]! : 3.0,
     };
+    final storeKeys = storeDimensionsForSchema(
+      schemaVersion,
+    );
+    _storeScores = {
+      for (final key in storeKeys)
+        key: _storeScores.containsKey(key) ? _storeScores[key]! : 3.0,
+    };
+    if (_usesCurrentRatingSchema) {
+      final defaults = _attributeDefaultsForCategory(category);
+      _attributes = {
+        for (final entry in defaults.entries)
+          entry.key: _attributes[entry.key] ?? entry.value,
+      };
+    } else {
+      _attributes = {};
+    }
     overall = _calculateOverall();
   }
 
@@ -1110,13 +1225,39 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                         ..._activeDimensions.expand(
                           (key) => [
                             RatingSlider(
-                              label: ratingLabel(key),
+                              label: ratingLabelForSchema(
+                                key,
+                                _ratingSchemaVersion,
+                              ),
                               value: _scores[key] ?? 3.0,
                               onChanged: (v) => _updateScore(key, v),
                             ),
                             const SizedBox(height: 8),
                           ],
                         ),
+                        if (_usesCurrentRatingSchema &&
+                            _selectedMenu != null &&
+                            visibleMenuAttributeKeysForCategory(
+                              _selectedMenu?.category,
+                            ).isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const Text(
+                            '취향 정보',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...visibleMenuAttributeKeysForCategory(
+                            _selectedMenu?.category,
+                          ).expand(
+                            (key) => [
+                              _buildAttributeChoiceGroup(key),
+                              const SizedBox(height: 14),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         RatingSlider(
                           label: '총점',
@@ -1131,16 +1272,38 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                               fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
-                        ...storeExperienceDimensions.expand(
+                        ...storeDimensionsForSchema(
+                          _ratingSchemaVersion,
+                        ).expand(
                           (key) => [
                             RatingSlider(
-                              label: ratingLabel(key),
+                              label: ratingLabelForSchema(
+                                key,
+                                _ratingSchemaVersion,
+                              ),
                               value: _storeScores[key] ?? 3.0,
                               onChanged: (v) => _updateStoreScore(key, v),
                             ),
                             const SizedBox(height: 8),
                           ],
                         ),
+                        if (_usesCurrentRatingSchema) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            '방문 정보',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...v2StoreAttributeKeys.expand(
+                            (key) => [
+                              _buildAttributeChoiceGroup(key),
+                              const SizedBox(height: 14),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 20),
                         const Text(
                           '사진 추가',
@@ -1157,12 +1320,12 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                                 const SizedBox(width: 12),
                             itemBuilder: (context, index) {
                               if (index == 0) {
-                                return _ReviewImageAddTile(
-                                  count: _currentImageCount,
-                                  maxCount: 2,
-                                  disabled: _isSubmitting,
-                                  onTap: _pickImages,
-                                );
+                            return _ReviewImageAddTile(
+                              count: _currentImageCount,
+                              maxCount: _maxReviewImages,
+                              disabled: _isSubmitting,
+                              onTap: _pickImages,
+                            );
                               }
                               final imageIndex = index - 1;
                               if (imageIndex < _existingImageUrls.length) {

@@ -16,10 +16,16 @@ class RankingDetailPage extends ConsumerWidget {
 
   const RankingDetailPage({super.key, required this.rankingId, this.ranking});
 
-  List<MapEntry<String, double>> _scoreEntries(Map<String, double> scores) {
+  List<MapEntry<String, double>> _scoreEntries(
+    Map<String, double> scores,
+    int schemaVersion,
+  ) {
     final allowed = ranking == null
         ? null
-        : dimensionsForCategory(ranking!.category).toSet();
+        : dimensionsForCategoryForSchema(
+            ranking!.category,
+            schemaVersion,
+          ).toSet();
     final source = allowed == null
         ? scores.entries
         : scores.entries.where((entry) => allowed.contains(entry.key));
@@ -131,10 +137,16 @@ class RankingDetailPage extends ConsumerWidget {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            ..._scoreEntries(data.scores).expand(
+                            ..._scoreEntries(
+                              data.scores,
+                              data.ratingSchemaVersion,
+                            ).expand(
                               (entry) => [
                                 _ScoreProgressRow(
-                                  label: ratingLabel(entry.key),
+                                  label: ratingLabelForSchema(
+                                    entry.key,
+                                    data.ratingSchemaVersion,
+                                  ),
                                   value: entry.value,
                                 ),
                                 const SizedBox(height: 16),

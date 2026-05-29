@@ -17,6 +17,7 @@ from cafemap.db.session import get_db
 from cafemap.models.entities import Menu
 
 from cafemap.core.rating_dimensions import (
+    attributes_json_loads,
     compute_overall,
     scores_json_loads,
     top_highlights,
@@ -321,7 +322,9 @@ def _review_out(
         menuName=menu_name,
         menuCategory=menu_category,
         reviewerType=(getattr(review, "reviewer_type", None) or "USER"),
+        ratingSchemaVersion=(getattr(review, "rating_schema_version", None) or 1),
         scores=_scores_from_snapshot(review.scores_json),
+        attributes=attributes_json_loads(getattr(review, "attributes_json", None)),
         overall=review.overall,
         comment=review.comment,
         userEmail=user_email or "",
@@ -714,15 +717,15 @@ def get_store_breakdown(store_id: str, db: Session = Depends(get_db)):
 
         raise HTTPException(status_code=404, detail="Store not found")
 
-    scores = _scores_from_snapshot(aggregate.scores_json)
-
 
 
     return RatingBreakdownOut(
 
-        scores=scores,
+        scores=aggregate.scores,
 
-        overall=aggregate.rating,
+        overall=aggregate.overall,
+        ratingSchemaVersion=aggregate.rating_schema_version,
+        reviewCount=aggregate.review_count,
 
     )
 
@@ -739,11 +742,12 @@ def get_similar_stores(store_id: str, db: Session = Depends(get_db)):
             name=item.store.name,
             brandName=item.brand_name,
             address=item.store.address,
-            rating=item.aggregate.rating,
-            reviewCount=item.aggregate.review_count,
+            rating=item.rating,
+            reviewCount=item.review_count,
             lat=item.store.lat,
             lng=item.store.lng,
             similarityScore=item.similarity_score,
+            ratingSchemaVersion=item.rating_schema_version,
             matchedDimensions=item.matched_dimensions,
         )
         for item in rows

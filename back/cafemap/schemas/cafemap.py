@@ -99,6 +99,8 @@ class HomeSummaryOut(BaseModel):
 class RatingBreakdownOut(BaseModel):
     scores: dict[str, float] = Field(default_factory=dict)
     overall: float
+    ratingSchemaVersion: int = 1
+    reviewCount: int = 0
 
 
 class SimilarStoreOut(BaseModel):
@@ -111,6 +113,7 @@ class SimilarStoreOut(BaseModel):
     lat: float
     lng: float
     similarityScore: float
+    ratingSchemaVersion: int = 1
     matchedDimensions: list[str] = Field(default_factory=list)
 
 
@@ -128,7 +131,9 @@ class ReviewOut(BaseModel):
     menuName: str
     menuCategory: str
     reviewerType: str = "USER"
+    ratingSchemaVersion: int = 1
     scores: dict[str, float] = Field(default_factory=dict)
+    attributes: dict[str, str] = Field(default_factory=dict)
     overall: float
     comment: str
     userEmail: str = ""
@@ -177,8 +182,10 @@ class ReviewCreateIn(BaseModel):
     lng: float | None = None
     brandId: str
     menuName: str
+    ratingSchemaVersion: int = 1
     scores: dict[str, float] = Field(default_factory=dict)
     storeScores: dict[str, float] = Field(default_factory=dict)
+    attributes: dict[str, str] = Field(default_factory=dict)
     overall: float = 0.0
     comment: str
     imageUrls: list[str] = Field(default_factory=list)

@@ -5,6 +5,7 @@
 1. `firebase login`
 2. Set Firebase project id in `.firebaserc`
 3. Create `.env.production` from `.env.production.example`
+   - Set `GA4_MEASUREMENT_ID=G-XXXXXXXXXX` if you want web analytics
 4. Run:
    - `./scripts/deploy_web.sh`
 

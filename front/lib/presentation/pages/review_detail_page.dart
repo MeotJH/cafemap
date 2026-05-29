@@ -380,10 +380,27 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                 ),
               ...entries.expand(
                 (entry) => [
-                  _ScoreRow(label: ratingLabel(entry.key), value: entry.value),
+                  _ScoreRow(
+                    label: ratingLabelForSchema(
+                      entry.key,
+                      widget.review.ratingSchemaVersion,
+                    ),
+                    value: entry.value,
+                  ),
                   const SizedBox(height: 18),
                 ],
               ),
+              if (_visibleAttributes().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final label in _visibleAttributes())
+                      _AttributeChip(label: label),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -436,7 +453,10 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
   }
 
   List<MapEntry<String, double>> _orderedCoffeeEntries() {
-    final preferred = dimensionsForCategory(widget.review.menuCategory);
+    final preferred = dimensionsForCategoryForSchema(
+      widget.review.menuCategory,
+      widget.review.ratingSchemaVersion,
+    );
     final result = <MapEntry<String, double>>[];
 
     for (final key in preferred) {
@@ -452,7 +472,10 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
   List<MapEntry<String, double>> _orderedStoreEntries() {
     final result = <MapEntry<String, double>>[];
 
-    for (final key in storeExperienceDimensions) {
+    for (final key in storeDimensionsForSchema(
+      widget.review.ratingSchemaVersion,
+      includeOptional: true,
+    )) {
       final value = widget.review.scores[key];
       if (value != null) {
         result.add(MapEntry(key, value));
@@ -460,6 +483,43 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
     }
 
     return result;
+  }
+
+  List<String> _visibleAttributes() {
+    final labels = <String>[];
+    for (final entry in widget.review.attributes.entries) {
+      if (entry.key == 'temperature_option') continue;
+      final valueLabel = attributeValueLabel(entry.key, entry.value);
+      if (valueLabel == '잘 모르겠음' || valueLabel == '미선택') continue;
+      labels.add(valueLabel);
+    }
+    return labels;
+  }
+}
+
+class _AttributeChip extends StatelessWidget {
+  final String label;
+
+  const _AttributeChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundLight,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 

@@ -14,7 +14,9 @@ class Review {
   final String menuCategory;
   final String userEmail;
   final String reviewerType;
+  final int ratingSchemaVersion;
   final Map<String, double> scores;
+  final Map<String, String> attributes;
   final double overall;
   final String comment;
   final List<String> imageUrls;
@@ -35,7 +37,9 @@ class Review {
     required this.menuCategory,
     required this.userEmail,
     required this.reviewerType,
+    required this.ratingSchemaVersion,
     required this.scores,
+    required this.attributes,
     required this.overall,
     required this.comment,
     required this.imageUrls,

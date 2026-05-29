@@ -8,6 +8,7 @@ class SimilarStore {
   final double lat;
   final double lng;
   final double similarityScore;
+  final int ratingSchemaVersion;
   final List<String> matchedDimensions;
 
   const SimilarStore({
@@ -20,6 +21,7 @@ class SimilarStore {
     required this.lat,
     required this.lng,
     required this.similarityScore,
+    required this.ratingSchemaVersion,
     required this.matchedDimensions,
   });
 }

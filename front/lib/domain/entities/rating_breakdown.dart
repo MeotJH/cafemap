@@ -2,9 +2,13 @@
 class RatingBreakdown {
   final Map<String, double> scores;
   final double overall;
+  final int ratingSchemaVersion;
+  final int reviewCount;
 
   const RatingBreakdown({
     required this.scores,
     required this.overall,
+    this.ratingSchemaVersion = 1,
+    this.reviewCount = 0,
   });
 }

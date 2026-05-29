@@ -87,6 +87,8 @@ RatingBreakdown _breakdownFromJson(Map<String, dynamic> json) {
   return RatingBreakdown(
     scores: scores,
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
+    ratingSchemaVersion: (json['ratingSchemaVersion'] as num?)?.toInt() ?? 1,
+    reviewCount: json['reviewCount'] as int? ?? 0,
   );
 }
 
@@ -101,6 +103,7 @@ SimilarStore _similarStoreFromJson(Map<String, dynamic> json) {
     lat: (json['lat'] as num?)?.toDouble() ?? 0,
     lng: (json['lng'] as num?)?.toDouble() ?? 0,
     similarityScore: (json['similarityScore'] as num?)?.toDouble() ?? 0,
+    ratingSchemaVersion: (json['ratingSchemaVersion'] as num?)?.toInt() ?? 1,
     matchedDimensions: _stringListFromJson(json['matchedDimensions']),
   );
 }
@@ -122,7 +125,9 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     menuCategory: json['menuCategory'] as String? ?? '',
     userEmail: json['userEmail'] as String? ?? '',
     reviewerType: json['reviewerType'] as String? ?? 'USER',
+    ratingSchemaVersion: (json['ratingSchemaVersion'] as num?)?.toInt() ?? 1,
     scores: scores,
+    attributes: _attributesFromJson(json['attributes']),
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',
     imageUrls: _imageUrlsFromJson(json['imageUrls']),
@@ -137,6 +142,14 @@ Map<String, double> _scoresFromJson(dynamic raw) {
   return {
     for (final entry in raw.entries)
       entry.key: (entry.value as num?)?.toDouble() ?? 0,
+  };
+}
+
+Map<String, String> _attributesFromJson(dynamic raw) {
+  if (raw is! Map<String, dynamic>) return const {};
+  return {
+    for (final entry in raw.entries)
+      if (entry.value != null) entry.key: entry.value.toString(),
   };
 }
 

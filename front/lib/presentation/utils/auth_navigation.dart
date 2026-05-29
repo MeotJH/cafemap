@@ -1,6 +1,7 @@
 import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:front/core/services/analytics_service.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:go_router/go_router.dart';
 
@@ -27,6 +28,7 @@ Future<bool> ensureSignedInForReview(
   ).show(context);
 
   if (context.mounted) {
+    analyticsService.trackEvent('review_write_require_login');
     context.push('/auth');
   }
   return false;

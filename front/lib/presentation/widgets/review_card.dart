@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:front/core/constants/app_colors.dart';
+import 'package:front/core/constants/rating_dimensions.dart';
 import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/widgets/review_temperature_badge.dart';
@@ -123,6 +124,17 @@ class ReviewCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(review.comment, style: const TextStyle(fontSize: 13)),
               ],
+              if (_visibleAttributeLabels(review).isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final label in _visibleAttributeLabels(review).take(3))
+                      _ReviewAttributeChip(label: label),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -148,5 +160,38 @@ class ReviewCard extends StatelessWidget {
     final at = normalized.indexOf('@');
     if (at <= 0) return normalized;
     return normalized.substring(0, at);
+  }
+
+  List<String> _visibleAttributeLabels(Review review) {
+    return review.attributes.entries
+        .where((entry) => entry.key != 'temperature_option')
+        .map((entry) => attributeValueLabel(entry.key, entry.value))
+        .where((label) => label != '잘 모르겠음' && label != '미선택')
+        .toList();
+  }
+}
+
+class _ReviewAttributeChip extends StatelessWidget {
+  final String label;
+
+  const _ReviewAttributeChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundLight,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }

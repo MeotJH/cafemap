@@ -204,7 +204,11 @@ class Review(Base):
 
     menu_id: Mapped[str] = mapped_column(ForeignKey("menu.id"), index=True)
 
+    rating_schema_version: Mapped[int] = mapped_column(Integer, default=1)
+
     scores_json: Mapped[str] = mapped_column(String, default="{}")
+
+    attributes_json: Mapped[str] = mapped_column(String, default="{}")
 
     image_urls_json: Mapped[str] = mapped_column(String, default="[]")
 

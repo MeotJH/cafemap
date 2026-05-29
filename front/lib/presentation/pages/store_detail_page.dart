@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/app/write_cafe_review_button.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
+import 'package:front/core/services/analytics_service.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/presentation/providers/store_providers.dart';
@@ -50,21 +51,32 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
   List<MapEntry<String, double>> _filteredEntries(
     Map<String, double> scores,
     String selectedCategory,
+    int schemaVersion,
   ) {
     final all = _scoreEntries(scores);
     if (selectedCategory.isEmpty) return all;
 
-    final allowed =
-        categoryRatingDimensions[selectedCategory] ?? const <String>[];
+    final allowed = dimensionsForCategoryForSchema(
+      selectedCategory,
+      schemaVersion,
+    );
     final filtered = all.where((entry) => allowed.contains(entry.key)).toList();
     if (filtered.isEmpty) return all;
     return filtered;
   }
 
-  List<MapEntry<String, double>> _storeEntries(Map<String, double> scores) {
+  List<MapEntry<String, double>> _storeEntries(
+    Map<String, double> scores,
+    int schemaVersion,
+  ) {
     final all = _scoreEntries(scores);
     final filtered = all
-        .where((entry) => storeExperienceDimensions.contains(entry.key))
+        .where(
+          (entry) => storeDimensionsForSchema(
+            schemaVersion,
+            includeOptional: true,
+          ).contains(entry.key),
+        )
         .toList();
     if (filtered.isEmpty) return all;
     return filtered;
@@ -421,8 +433,15 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                 final isCoffeeSection =
                                     _selectedSection == _coffeeSection;
                                 final entries = isCoffeeSection
-                                    ? _filteredEntries(data.scores, selected)
-                                    : _storeEntries(data.scores);
+                                    ? _filteredEntries(
+                                        data.scores,
+                                        selected,
+                                        data.ratingSchemaVersion,
+                                      )
+                                    : _storeEntries(
+                                        data.scores,
+                                        data.ratingSchemaVersion,
+                                      );
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,7 +571,10 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                     ...entries.expand(
                                       (entry) => [
                                         _ScoreProgressRow(
-                                          label: ratingLabel(entry.key),
+                                          label: ratingLabelForSchema(
+                                            entry.key,
+                                            data.ratingSchemaVersion,
+                                          ),
                                           value: entry.value,
                                         ),
                                         const SizedBox(height: 16),
@@ -686,7 +708,7 @@ class _SimilarStoreTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final matchedLabels = store.matchedDimensions
-        .map(ratingLabel)
+        .map((key) => ratingLabelForSchema(key, store.ratingSchemaVersion))
         .where((label) => label.trim().isNotEmpty)
         .take(1)
         .toList();
@@ -698,7 +720,15 @@ class _SimilarStoreTile extends StatelessWidget {
       color: AppColors.backgroundLight,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: () => context.push('/cafes/${store.storeId}'),
+        onTap: () {
+          analyticsService.trackEvent('similar_store_click', <String, Object?>{
+            'store_id': store.storeId,
+            'rating_schema_version': store.ratingSchemaVersion,
+            'similarity_percent':
+                (store.similarityScore * 100).clamp(0, 100).round(),
+          });
+          context.push('/cafes/${store.storeId}');
+        },
         borderRadius: BorderRadius.circular(12),
         child: Container(
           height: 56,

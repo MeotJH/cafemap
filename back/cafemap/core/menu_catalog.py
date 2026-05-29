@@ -17,7 +17,7 @@ COMMON_CAFE_MENU_SEEDS: tuple[tuple[str, str], ...] = (
     ("화이트 모카", "latte"),
     ("아인슈페너", "coffee"),
     ("콜드브루", "cold_brew"),
-    ("콜드브루 라떼", "cold_brew"),
+    ("콜드브루 라떼", "latte"),
     ("디카페인 콜드브루", "cold_brew"),
     ("핸드드립", "hand_drip"),
     ("드립커피", "hand_drip"),
@@ -87,6 +87,8 @@ STANDARD_MENU_ORDER = {
 
 def classify_menu_category(name: str, category: str) -> str:
     normalized_name = name.strip()
+    if normalized_name == "콜드브루 라떼":
+        return "latte"
     if normalized_name in TEA_MENU_NAMES:
         return "tea"
     return category
