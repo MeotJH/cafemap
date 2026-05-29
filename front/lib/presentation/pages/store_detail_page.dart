@@ -98,23 +98,63 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
     final map = <String, _RecommendedMenuStat>{};
     for (final review in reviews) {
       final key = review.menuName.trim();
+      final attributes = _visibleMenuAttributeEntries(review);
       final existing = map[key];
       if (existing == null) {
         map[key] = _RecommendedMenuStat(
           menuName: review.menuName,
           totalScore: review.overall,
           count: 1,
+          attributeCounts: _attributeCountsFromEntries(attributes),
         );
         continue;
       }
       map[key] = existing.copyWith(
         totalScore: existing.totalScore + review.overall,
         count: existing.count + 1,
+        attributeCounts: _mergedAttributeCounts(
+          existing.attributeCounts,
+          attributes,
+        ),
       );
     }
     final items = map.values.toList()
       ..sort((a, b) => b.averageScore.compareTo(a.averageScore));
     return items.take(3).toList();
+  }
+
+  List<MapEntry<String, String>> _visibleMenuAttributeEntries(Review review) {
+    final keys = visibleMenuAttributeKeysForCategory(review.menuCategory);
+    final entries = <MapEntry<String, String>>[];
+    for (final key in keys) {
+      final value = review.attributes[key];
+      if (value == null) continue;
+      final valueLabel = attributeValueLabel(key, value);
+      if (valueLabel == '잘 모르겠음' || valueLabel == '미선택') continue;
+      entries.add(MapEntry(key, value));
+    }
+    return entries;
+  }
+
+  Map<String, Map<String, int>> _attributeCountsFromEntries(
+    List<MapEntry<String, String>> entries,
+  ) {
+    return _mergedAttributeCounts(const {}, entries);
+  }
+
+  Map<String, Map<String, int>> _mergedAttributeCounts(
+    Map<String, Map<String, int>> source,
+    List<MapEntry<String, String>> entries,
+  ) {
+    final next = {
+      for (final entry in source.entries)
+        entry.key: Map<String, int>.of(entry.value),
+    };
+    for (final entry in entries) {
+      final values = next.putIfAbsent(entry.key, () => <String, int>{});
+      values[entry.value] = (values[entry.value] ?? 0) + 1;
+    }
+    return next;
   }
 
   @override
@@ -317,16 +357,32 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                   (menu) => Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Expanded(
-                                          child: Text(
-                                            menu.menuName,
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w700,
-                                            ),
+                                          child: Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            children: [
+                                              Text(
+                                                menu.menuName,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              for (final attribute
+                                                  in menu.topAttributes)
+                                                _AttributeBadge(
+                                                  label: attribute.label,
+                                                ),
+                                            ],
                                           ),
                                         ),
+                                        const SizedBox(width: 10),
                                         Text(
                                           menu.averageScore.toStringAsFixed(1),
                                           style: const TextStyle(
@@ -480,7 +536,7 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                             ),
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(999),
+                                                  BorderRadius.circular(8),
                                             ),
                                           ),
                                           const SizedBox(width: 8),
@@ -514,7 +570,7 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                             ),
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(999),
+                                                  BorderRadius.circular(8),
                                             ),
                                           ),
                                         ],
@@ -560,7 +616,7 @@ class _StoreDetailPageState extends ConsumerState<StoreDetailPage> {
                                               ),
                                               shape: RoundedRectangleBorder(
                                                 borderRadius:
-                                                    BorderRadius.circular(999),
+                                                    BorderRadius.circular(8),
                                               ),
                                             );
                                           },
@@ -724,8 +780,9 @@ class _SimilarStoreTile extends StatelessWidget {
           analyticsService.trackEvent('similar_store_click', <String, Object?>{
             'store_id': store.storeId,
             'rating_schema_version': store.ratingSchemaVersion,
-            'similarity_percent':
-                (store.similarityScore * 100).clamp(0, 100).round(),
+            'similarity_percent': (store.similarityScore * 100)
+                .clamp(0, 100)
+                .round(),
           });
           context.push('/cafes/${store.storeId}');
         },
@@ -965,7 +1022,7 @@ class _InfoChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
@@ -1026,20 +1083,87 @@ class _RecommendedMenuStat {
   final String menuName;
   final double totalScore;
   final int count;
+  final Map<String, Map<String, int>> attributeCounts;
 
   const _RecommendedMenuStat({
     required this.menuName,
     required this.totalScore,
     required this.count,
+    required this.attributeCounts,
   });
 
   double get averageScore => count <= 0 ? 0 : totalScore / count;
 
-  _RecommendedMenuStat copyWith({double? totalScore, int? count}) {
+  List<_MenuAttributeBadgeData> get topAttributes {
+    final attributes = <_MenuAttributeBadgeData>[];
+    for (final entry in attributeCounts.entries) {
+      if (entry.value.isEmpty) continue;
+      final values = entry.value.entries.toList()
+        ..sort((a, b) {
+          final byCount = b.value.compareTo(a.value);
+          if (byCount != 0) return byCount;
+          return a.key.compareTo(b.key);
+        });
+      final value = values.first.key;
+      final valueLabel = attributeValueLabel(entry.key, value);
+      if (valueLabel == '잘 모르겠음' || valueLabel == '미선택') continue;
+      attributes.add(
+        _MenuAttributeBadgeData(_attributeBadgeLabel(entry.key, valueLabel)),
+      );
+    }
+    return attributes.take(2).toList();
+  }
+
+  _RecommendedMenuStat copyWith({
+    double? totalScore,
+    int? count,
+    Map<String, Map<String, int>>? attributeCounts,
+  }) {
     return _RecommendedMenuStat(
       menuName: menuName,
       totalScore: totalScore ?? this.totalScore,
       count: count ?? this.count,
+      attributeCounts: attributeCounts ?? this.attributeCounts,
     );
   }
+}
+
+class _MenuAttributeBadgeData {
+  final String label;
+
+  const _MenuAttributeBadgeData(this.label);
+}
+
+class _AttributeBadge extends StatelessWidget {
+  final String label;
+
+  const _AttributeBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundLight,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+String _attributeBadgeLabel(String key, String valueLabel) {
+  final label = attributeLabel(key);
+  final normalizedValue = valueLabel.startsWith(label)
+      ? valueLabel.substring(label.length).trim()
+      : valueLabel;
+  return '$label: $normalizedValue';
 }

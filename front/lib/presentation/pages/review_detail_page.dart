@@ -50,7 +50,8 @@ class ReviewDetailPage extends ConsumerWidget {
         context.go('/map');
         break;
       case 3:
-        final user = ref.read(authStateProvider).asData?.value ??
+        final user =
+            ref.read(authStateProvider).asData?.value ??
             ref.read(authControllerProvider).currentUser;
         if (user == null) {
           await _showTopToast(context, '내기록은 로그인 후에 확인할 수 있어요.');
@@ -64,7 +65,8 @@ class ReviewDetailPage extends ConsumerWidget {
 
   bool _canEditReview(WidgetRef ref, Review review) {
     // 현재 로그인 사용자와 리뷰 작성자가 같을 때만 수정 버튼을 노출한다.
-    final user = ref.read(authStateProvider).asData?.value ??
+    final user =
+        ref.read(authStateProvider).asData?.value ??
         ref.read(authControllerProvider).currentUser;
     final currentEmail = user?.email?.trim().toLowerCase() ?? '';
     final reviewEmail = review.userEmail.trim().toLowerCase();
@@ -336,7 +338,7 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                             : AppColors.cardBorder,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -362,7 +364,7 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                             : AppColors.cardBorder,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ],
@@ -396,8 +398,8 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    for (final label in _visibleAttributes())
-                      _AttributeChip(label: label),
+                    for (final attribute in _visibleAttributes())
+                      _AttributeChip(label: attribute),
                   ],
                 ),
               ],
@@ -491,9 +493,17 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
       if (entry.key == 'temperature_option') continue;
       final valueLabel = attributeValueLabel(entry.key, entry.value);
       if (valueLabel == '잘 모르겠음' || valueLabel == '미선택') continue;
-      labels.add(valueLabel);
+      labels.add(_attributeBadgeLabel(entry.key, valueLabel));
     }
     return labels;
+  }
+
+  String _attributeBadgeLabel(String key, String valueLabel) {
+    final label = attributeLabel(key);
+    final normalizedValue = valueLabel.startsWith(label)
+        ? valueLabel.substring(label.length).trim()
+        : valueLabel;
+    return '$label: $normalizedValue';
   }
 }
 
@@ -508,7 +518,7 @@ class _AttributeChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.backgroundLight,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Text(

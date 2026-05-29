@@ -5,10 +5,7 @@ import 'package:front/core/constants/app_colors.dart';
 class ReviewTemperatureBadge extends StatelessWidget {
   final String temperatureOption;
 
-  const ReviewTemperatureBadge({
-    super.key,
-    required this.temperatureOption,
-  });
+  const ReviewTemperatureBadge({super.key, required this.temperatureOption});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +16,7 @@ class ReviewTemperatureBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Text(
