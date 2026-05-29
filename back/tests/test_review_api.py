@@ -77,7 +77,9 @@ def test_review_create_and_read_lifecycle(client, db_session, auth_header):
         stores_response = client.get("/api/cafemap/stores")
         assert stores_response.status_code == 200
         stores = stores_response.json()
-        matched_store = next((item for item in stores if item["name"] == store_name), None)
+        matched_store = next(
+            (item for item in stores if item["name"] == store_name), None
+        )
         assert matched_store is not None
 
         store_reviews_response = client.get(

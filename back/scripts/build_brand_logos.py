@@ -24,7 +24,11 @@ def _asset_name(brand_id: str) -> str:
 
 def _looks_like_blocked_response(payload: bytes) -> bool:
     head = payload[:256].strip().lower()
-    return head.startswith(b"code:") or head.startswith(b"<!doctype html") or head.startswith(b"<html")
+    return (
+        head.startswith(b"code:")
+        or head.startswith(b"<!doctype html")
+        or head.startswith(b"<html")
+    )
 
 
 def _fetch_logo(url: str) -> bytes | None:

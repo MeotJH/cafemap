@@ -5,17 +5,9 @@ from sqlalchemy import String, Float, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
-
 from cafemap.db.session import Base
 
-
-
-
-
 # ??? ??? ORM ??? ???? ????.
-
-
-
 
 
 class Brand(Base):
@@ -24,22 +16,15 @@ class Brand(Base):
 
     __tablename__ = "brand"
 
-
-
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
 
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
 
     logo_url: Mapped[str] = mapped_column(String(1000))
 
-
-
     menus = relationship("Menu", back_populates="brand")
 
     stores = relationship("Store", back_populates="brand")
-
-
-
 
 
 class User(Base):
@@ -47,8 +32,6 @@ class User(Base):
     # Firebase ??? ???? ???? ?????.
 
     __tablename__ = "user"
-
-
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
 
@@ -65,16 +48,11 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime)
 
 
-
-
-
 class Menu(Base):
 
     # ???? ?? ??? ???? ?????.
 
     __tablename__ = "menu"
-
-
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
 
@@ -86,12 +64,7 @@ class Menu(Base):
 
     category: Mapped[str] = mapped_column(String(40))
 
-
-
     brand = relationship("Brand", back_populates="menus")
-
-
-
 
 
 class Store(Base):
@@ -99,8 +72,6 @@ class Store(Base):
     # ?? ?? ??? ???? ?????.
 
     __tablename__ = "store"
-
-
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
 
@@ -122,12 +93,7 @@ class Store(Base):
 
     lng: Mapped[float] = mapped_column(Float, default=0.0)
 
-
-
     brand = relationship("Brand", back_populates="stores")
-
-
-
 
 
 class BrandMenuAggregate(Base):
@@ -135,8 +101,6 @@ class BrandMenuAggregate(Base):
     # ??? ?? ?? ?? ???? ???? ?????.
 
     __tablename__ = "brand_menu_aggregate"
-
-
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
 
@@ -159,16 +123,11 @@ class BrandMenuAggregate(Base):
     scores_json: Mapped[str] = mapped_column(String, default="{}")
 
 
-
-
-
 class StoreAggregate(Base):
 
     # ?? ?? ?? ???? ???? ?????.
 
     __tablename__ = "store_aggregate"
-
-
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
 
@@ -183,16 +142,11 @@ class StoreAggregate(Base):
     counts_json: Mapped[str] = mapped_column(String, default="{}")
 
 
-
-
-
 class Review(Base):
 
     # ?? ?? ???? ???? ?????.
 
     __tablename__ = "review"
-
-
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
 
@@ -221,4 +175,3 @@ class Review(Base):
     comment: Mapped[str] = mapped_column(String(500))
 
     created_at: Mapped[datetime] = mapped_column(DateTime)
-

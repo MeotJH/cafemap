@@ -3,7 +3,6 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from cafemap.core.config import DB_URL
 
-
 # SQLAlchemy ?몄뀡怨?Base瑜??쒓났?섎뒗 紐⑤뱢?대떎.
 
 
@@ -28,4 +27,3 @@ def get_db():
         yield db
     finally:
         db.close()
-

@@ -37,7 +37,6 @@ from cafemap.models.entities import (
     User,
 )
 
-
 # DB ???? ?? ?? ??? ???? ????.
 
 CSV_PATH = Path(__file__).resolve().parents[2] / "korea_cafe_menus.csv"
@@ -214,10 +213,7 @@ def _migrate_scores_json_columns(db: Session):
                 "WHERE LOWER(COALESCE((SELECT email FROM user WHERE user.id = review.user_id), '')) "
                 f"IN ({','.join(f':husband_{index}' for index, _ in enumerate(husband_emails))})"
             ),
-            {
-                f"husband_{index}": email
-                for index, email in enumerate(husband_emails)
-            },
+            {f"husband_{index}": email for index, email in enumerate(husband_emails)},
         )
     db.execute(
         text(
@@ -269,9 +265,7 @@ def _backfill_brand_menu_highlights(db: Session):
     ).all()
     for aggregate, menu_category in rows:
         scores = scores_json_loads(aggregate.scores_json)
-        highlights = top_highlights(
-            visible_scores_for_category(menu_category, scores)
-        )
+        highlights = top_highlights(visible_scores_for_category(menu_category, scores))
         aggregate.highlight_label_a = highlights[0][0]
         aggregate.highlight_score_a = highlights[0][1]
         aggregate.highlight_label_b = highlights[1][0]
@@ -664,7 +658,9 @@ def seed_if_empty(db: Session):
                 existing_review.rating_schema_version = (
                     existing_review.rating_schema_version or 1
                 )
-                existing_review.attributes_json = existing_review.attributes_json or "{}"
+                existing_review.attributes_json = (
+                    existing_review.attributes_json or "{}"
+                )
                 existing_review.scores_json = scores_json_dumps(scores)
                 existing_review.image_urls_json = "[]"
                 existing_review.temperature_option = (

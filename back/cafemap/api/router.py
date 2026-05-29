@@ -1,21 +1,11 @@
 import json
 from urllib.parse import quote
-
 import logging
-
-
-
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
-
 from sqlalchemy.orm import Session
-
-
-
 from cafemap.db.session import get_db
-
 from cafemap.models.entities import Menu
-
 from cafemap.core.rating_dimensions import (
     attributes_json_loads,
     compute_overall,
@@ -25,71 +15,41 @@ from cafemap.core.rating_dimensions import (
 )
 
 from cafemap.services.auth_service import (
-
     resolve_auth_user,
-
     upsert_user,
-
     get_user,
-
     AuthUser,
-
 )
 
 from cafemap.schemas.cafemap import (
-
-  AuthOut,
-
-  BrandMenuRankingOut,
-
-  BrandOut,
-
-  HomeRecommendedMenuOut,
-  HomeSummaryOut,
-
-  MenuOut,
-
-  RatingBreakdownOut,
-
-  ReviewImagePresignIn,
-
-  ReviewImagePresignOut,
-
-  ReviewOut,
-
-  ReviewCreateIn,
-  SimilarStoreOut,
-
-  StoreSummaryOut,
-  StoreRankingOut,
-
-  PlaceSearchOut,
-
+    AuthOut,
+    BrandMenuRankingOut,
+    BrandOut,
+    HomeRecommendedMenuOut,
+    HomeSummaryOut,
+    MenuOut,
+    RatingBreakdownOut,
+    ReviewImagePresignIn,
+    ReviewImagePresignOut,
+    ReviewOut,
+    ReviewCreateIn,
+    SimilarStoreOut,
+    StoreSummaryOut,
+    StoreRankingOut,
+    PlaceSearchOut,
 )
 
 from cafemap.services import (
-
     brand_menu_service,
-
     store_service,
-
     review_service,
-
     place_search_service,
-
     brand_service,
-
     upload_service,
     thumbnail_service,
-
 )
 
-
-
-
-
-# ??? API ????.
-
+# API Router for CafeMap related endpoints.
 
 
 router = APIRouter(prefix="/api/cafemap", tags=["cafemap"])
@@ -97,13 +57,14 @@ router = APIRouter(prefix="/api/cafemap", tags=["cafemap"])
 logger = logging.getLogger(__name__)
 
 
-
-
-
 def _public_base_url(request: Request) -> str:
 
-    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
-    forwarded_host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    forwarded_proto = (
+        (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    )
+    forwarded_host = (
+        (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    )
     request_base_url = str(request.base_url).rstrip("/")
     if forwarded_proto and forwarded_host:
         return f"{forwarded_proto}://{forwarded_host}"
@@ -113,7 +74,9 @@ def _public_base_url(request: Request) -> str:
 def _resolve_asset_url(request: Request, raw_url: str | None) -> str:
 
     value = (raw_url or "").strip()
-    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    forwarded_proto = (
+        (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    )
     base_url = _public_base_url(request)
     if not value:
         return ""
@@ -190,25 +153,36 @@ def _display_score_for_store(aggregate) -> float:
     )
 
 
-
-
-
 def _scores_from_snapshot(
-
     scores_json: str | None,
-
 ) -> dict[str, float]:
 
-    # `scores_json` ???? ???? ??????.
+    # `scores_json` 필드에서 점수 정보를 파싱하여 딕셔너리 형태로 반환한다. 점수 정보는 카테고리에 따라 다르게 노출될 수 있으므로, 원본 JSON을 그대로 파싱하여 반환한다. 필요한 경우, 호출하는 쪽에서 카테고리에 맞게 점수를 필터링하여 사용할 수 있다.
 
     return scores_json_loads(scores_json)
 
 
-def _menu_highlights(category: str | None, raw_scores: str | None) -> list[tuple[str, float]]:
+def _menu_highlights(
+    category: str | None, raw_scores: str | None
+) -> list[tuple[str, float]]:
 
     scores = _scores_from_snapshot(raw_scores)
     visible_scores = visible_scores_for_category(category, scores)
     return top_highlights(visible_scores)
+
+
+def _score_schema_version(scores: dict[str, float]) -> int:
+    if any(
+        key in scores
+        for key in ("taste_satisfaction", "coffee_presence", "restroom_cleanliness")
+    ):
+        return 2
+    return 1
+
+
+def _store_highlights(raw_scores: str | None) -> list[tuple[str, float]]:
+    scores = _scores_from_snapshot(raw_scores)
+    return top_highlights(scores, _score_schema_version(scores))
 
 
 def _ranking_out(
@@ -239,9 +213,6 @@ def _ranking_out(
         imageUrl=menu_image_url,
         brandLogoUrl=_resolve_asset_url(request, brand_logo_url),
     )
-
-
-
 
 
 def _store_ranking_out(request: Request, item: dict) -> StoreRankingOut:
@@ -334,94 +305,51 @@ def _review_out(
 
 
 def _image_urls_from_snapshot(
-
     image_urls_json: str | None,
-
 ) -> list[str]:
-
     if not image_urls_json:
-
         return []
-
     try:
-
         parsed = json.loads(image_urls_json)
-
     except (TypeError, ValueError):
-
         return []
-
     if not isinstance(parsed, list):
-
         return []
-
     return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
 
 
-
-
-
 def _require_auth_user(
-
     authorization: str | None = Header(default=None),
-
 ) -> AuthUser:
-
     auth_user = resolve_auth_user(
-
         authorization=authorization,
-
     )
-
     if auth_user is None:
-
         raise HTTPException(status_code=401, detail="Login required")
-
     return auth_user
 
 
-
-
-
 @router.post("/auth", response_model=AuthOut)
-
 def sync_user(
-
     auth_user: AuthUser = Depends(_require_auth_user),
-
     db: Session = Depends(get_db),
-
 ):
-
-    # ??? ???? ????? ????.
-
+    # 사용자 정보를 동기화한다.
     user = upsert_user(db, auth_user)
-
     db.commit()
-
     return AuthOut(
-
         uid=user.id,
-
         email=user.email,
-
         name=user.display_name,
-
         picture=user.photo_url,
-
         provider=user.provider,
-
     )
 
 
-
-
-
 @router.get("/rankings", response_model=list[BrandMenuRankingOut])
-
 def list_rankings(request: Request, db: Session = Depends(get_db)):
 
-    # ??? ?? ?? ???? ????.
+    # 랭킹 목록을 조회한다.
 
     rows = brand_menu_service.get_rankings(db)
 
@@ -435,25 +363,17 @@ def list_rankings(request: Request, db: Session = Depends(get_db)):
             menu_category=menu_category,
             menu_image_url=menu_image_url,
         )
-
         for aggregate, brand_name, brand_logo_url, menu_name, menu_category, menu_image_url in rows
-
     ]
 
 
-
-
-
 @router.get("/rankings/{ranking_id}/breakdown", response_model=RatingBreakdownOut)
-
 def get_ranking_breakdown(ranking_id: str, db: Session = Depends(get_db)):
 
-    # ?? ?? ?? ?? ??? ????.
-
+    # 랭킹의 상세 정보를 조회한다.
     aggregate = brand_menu_service.get_ranking_breakdown(db, ranking_id)
 
     if aggregate is None:
-
         raise HTTPException(status_code=404, detail="Ranking not found")
 
     menu = db.get(Menu, aggregate.menu_id)
@@ -462,30 +382,18 @@ def get_ranking_breakdown(ranking_id: str, db: Session = Depends(get_db)):
         _scores_from_snapshot(aggregate.scores_json),
     )
 
-
-
     return RatingBreakdownOut(
-
         scores=scores,
-
         overall=aggregate.rating,
-
     )
 
 
-
-
-
 @router.get("/rankings/{ranking_id}/reviews", response_model=list[ReviewOut])
-
 def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
 
-    # ?? ?? ?? ??? ????.
-
+    # 랭킹에 대한 리뷰 목록을 조회한다.
     rows = brand_menu_service.get_ranking_reviews(db, ranking_id)
-
     return [
-
         _review_out(
             review=review,
             store_name=store_name,
@@ -495,75 +403,49 @@ def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
             menu_category=menu_category,
             user_email=user_email,
         )
-
         for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
-
     ]
 
 
-
-
-
 @router.get("/stores", response_model=list[StoreSummaryOut])
-
 def list_stores(request: Request, db: Session = Depends(get_db)):
 
-    # ?? ?? ???? ????.
+    # 근처의 스토어 목록을 조회한다.
 
     rows = store_service.get_nearby_stores(db)
 
     return [
-
         StoreSummaryOut(
-
             id=store.id,
-
             name=store.name,
-
             brandName=brand_name,
-
             storeType=_store_type_for_response(store),
-
             isLocal=_is_local_store(store),
-
             address=store.address,
-
             link=store.link,
-
             rating=aggregate.rating,
-
             displayScore=_display_score_for_store(aggregate),
-
             reviewCount=aggregate.review_count,
-
             distanceKm=store.distance_km,
-
             imageUrl=_resolve_store_image_url(request, brand_logo_url),
-
             lat=store.lat,
-
             lng=store.lng,
-
-            coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
-
-            workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
-
-            quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
-
+            coffeeQualityScore=_store_signal(
+                _scores_from_snapshot(aggregate.scores_json), "coffee_quality"
+            ),
+            workFriendlyScore=_store_signal(
+                _scores_from_snapshot(aggregate.scores_json), "work_friendly"
+            ),
+            quietnessScore=_store_signal(
+                _scores_from_snapshot(aggregate.scores_json), "quietness"
+            ),
             dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
-
-            topLabelA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][0],
-
-            topScoreA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][1],
-
-            topLabelB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][0],
-
-            topScoreB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][1],
-
+            topLabelA=_store_highlights(aggregate.scores_json)[0][0],
+            topScoreA=_store_highlights(aggregate.scores_json)[0][1],
+            topLabelB=_store_highlights(aggregate.scores_json)[1][0],
+            topScoreB=_store_highlights(aggregate.scores_json)[1][1],
         )
-
         for store, aggregate, brand_name, brand_logo_url in rows
-
     ]
 
 
@@ -571,9 +453,11 @@ def list_stores(request: Request, db: Session = Depends(get_db)):
 def get_home_summary(request: Request, db: Session = Depends(get_db)):
     payload = store_service.get_home_summary(db)
     return HomeSummaryOut(
-        featuredCafe=_store_ranking_out(request, payload["featuredCafe"])
-        if payload["featuredCafe"] is not None
-        else None,
+        featuredCafe=(
+            _store_ranking_out(request, payload["featuredCafe"])
+            if payload["featuredCafe"] is not None
+            else None
+        ),
         wifeTop=[_store_ranking_out(request, item) for item in payload["wifeTop"]],
         husbandTop=[
             _store_ranking_out(request, item) for item in payload["husbandTop"]
@@ -593,7 +477,6 @@ def get_home_summary(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/store-rankings", response_model=list[StoreRankingOut])
-
 def list_store_rankings(
     request: Request,
     type: str = "couple",
@@ -608,11 +491,8 @@ def list_store_rankings(
     )
 
     return [
-
         _store_ranking_out(request, segmented_item)
-
         for _, _, _, _, _, _, _, _, _, _, _, segmented_item in rows
-
     ]
 
 
@@ -641,97 +521,61 @@ def get_thumbnail_asset(
     )
 
 
-
-
-
 @router.get("/stores/{store_id}", response_model=StoreSummaryOut)
-
 def get_store_detail(store_id: str, request: Request, db: Session = Depends(get_db)):
 
-    # ?? ?? ??? ????.
+    # 스토어의 상세 정보를 조회한다.
 
     row = store_service.get_store_detail(db, store_id)
-
     if row is None:
-
         raise HTTPException(status_code=404, detail="Store not found")
 
     store, aggregate, brand_name, brand_logo_url = row
-
     return StoreSummaryOut(
-
         id=store.id,
-
         name=store.name,
-
         brandName=brand_name,
-
         storeType=_store_type_for_response(store),
-
         isLocal=_is_local_store(store),
-
         address=store.address,
-
         link=store.link,
-
         rating=aggregate.rating,
-
         displayScore=_display_score_for_store(aggregate),
-
         reviewCount=aggregate.review_count,
-
         distanceKm=store.distance_km,
-
         imageUrl=_resolve_store_image_url(request, brand_logo_url),
-
         lat=store.lat,
-
         lng=store.lng,
-
-        coffeeQualityScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "coffee_quality"),
-
-        workFriendlyScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "work_friendly"),
-
-        quietnessScore=_store_signal(_scores_from_snapshot(aggregate.scores_json), "quietness"),
-
+        coffeeQualityScore=_store_signal(
+            _scores_from_snapshot(aggregate.scores_json), "coffee_quality"
+        ),
+        workFriendlyScore=_store_signal(
+            _scores_from_snapshot(aggregate.scores_json), "work_friendly"
+        ),
+        quietnessScore=_store_signal(
+            _scores_from_snapshot(aggregate.scores_json), "quietness"
+        ),
         dessertScore=_dessert_signal(_scores_from_snapshot(aggregate.scores_json)),
-
-        topLabelA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][0],
-
-        topScoreA=top_highlights(_scores_from_snapshot(aggregate.scores_json))[0][1],
-
-        topLabelB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][0],
-
-        topScoreB=top_highlights(_scores_from_snapshot(aggregate.scores_json))[1][1],
-
+        topLabelA=_store_highlights(aggregate.scores_json)[0][0],
+        topScoreA=_store_highlights(aggregate.scores_json)[0][1],
+        topLabelB=_store_highlights(aggregate.scores_json)[1][0],
+        topScoreB=_store_highlights(aggregate.scores_json)[1][1],
     )
 
 
-
-
-
 @router.get("/stores/{store_id}/breakdown", response_model=RatingBreakdownOut)
-
 def get_store_breakdown(store_id: str, db: Session = Depends(get_db)):
 
-    # ?? ?? ?? ??? ????.
-
+    # 스토어의 평점 분포를 조회한다 .
     aggregate = store_service.get_store_breakdown(db, store_id)
-
     if aggregate is None:
-
         raise HTTPException(status_code=404, detail="Store not found")
 
-
-
     return RatingBreakdownOut(
-
         scores=aggregate.scores,
-
         overall=aggregate.overall,
         ratingSchemaVersion=aggregate.rating_schema_version,
         reviewCount=aggregate.review_count,
-
     )
 
 
@@ -759,19 +603,12 @@ def get_similar_stores(store_id: str, db: Session = Depends(get_db)):
     ]
 
 
-
-
-
 @router.get("/stores/{store_id}/reviews", response_model=list[ReviewOut])
-
 def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
 
-    # ?? ?? ??? ????.
-
+    # 스토어의 리뷰 목록을 조회한다.
     rows = store_service.get_store_reviews(db, store_id)
-
     return [
-
         _review_out(
             review=review,
             store_name=store_name,
@@ -781,31 +618,21 @@ def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
             menu_category=menu_category,
             user_email=user_email,
         )
-
         for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
-
     ]
 
 
-
-
-
 @router.get("/reviews/me", response_model=list[ReviewOut])
-
 def get_my_reviews(
-
     auth_user: AuthUser = Depends(_require_auth_user),
-
     db: Session = Depends(get_db),
-
 ):
 
-    # ? ?? ??? ????.
+    # 사용자의 리뷰 목록을 조회한다.
 
     rows = review_service.get_my_reviews(db, auth_user.uid)
 
     return [
-
         _review_out(
             review=review,
             store_name=store_name,
@@ -815,20 +642,14 @@ def get_my_reviews(
             menu_category=menu_category,
             user_email=user_email,
         )
-
         for review, store_name, store_link, brand_name, menu_name, menu_category, user_email in rows
-
     ]
 
 
-
-
-
 @router.get("/reviews/{review_id}", response_model=ReviewOut)
-
 def get_review(review_id: str, db: Session = Depends(get_db)):
 
-    # ?? ?? ??? ????.
+    # 리뷰를 가져온다.
 
     row = review_service.get_review(db, review_id)
 
@@ -854,23 +675,14 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
     )
 
 
-
-
-
 @router.post("/reviews", response_model=ReviewOut)
-
 def create_review(
-
     payload: ReviewCreateIn,
-
     auth_user: AuthUser = Depends(_require_auth_user),
-
     db: Session = Depends(get_db),
-
 ):
 
-    # ??? ???? ????.
-
+    # 리뷰를 생성한다.
     user = get_user(db, auth_user.uid)
     if user is None:
         user = upsert_user(db, auth_user)
@@ -878,25 +690,18 @@ def create_review(
 
     try:
 
-        review, store_name, store_link, brand_name, menu_name = review_service.create_review(
-
-            db,
-
-            payload,
-
-            auth_user.uid,
-
+        review, store_name, store_link, brand_name, menu_name = (
+            review_service.create_review(
+                db,
+                payload,
+                auth_user.uid,
+            )
         )
 
     except ValueError as exc:
-
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     menu = db.get(Menu, review.menu_id)
-
     menu_category = menu.category if menu is not None else "?ë¼?´ë"
-
-
 
     return _review_out(
         review=review,
@@ -917,7 +722,6 @@ def update_review(
     db: Session = Depends(get_db),
 ):
     # 저장은 서비스에 위임하고, 응답은 수정 후 최신 상세 형태로 다시 조립해 내려준다.
-
     user = get_user(db, auth_user.uid)
     if user is None:
         user = upsert_user(db, auth_user)
@@ -959,97 +763,56 @@ def update_review(
     )
 
 
-
-
-
 @router.post("/uploads/review-images/presign", response_model=ReviewImagePresignOut)
-
 def presign_review_image_upload(
-
     payload: ReviewImagePresignIn,
-
     auth_user: AuthUser = Depends(_require_auth_user),
-
 ):
 
-    # ?? ??? ???? presigned URL? ????.
-
+    #  presigned URL을 발급한다. 클라이언트는 이 URL로 직접 이미지를 업로드할 수 있다. 발급 과정에서 파일 이름과 콘텐츠 유형을 검증하여 허용되지 않는 파일이 업로드되는 것을 방지한다.
     logger.info(
-
         "Presign request: user_id=%s file_name=%s content_type=%s",
-
         auth_user.uid,
-
         payload.fileName,
-
         payload.contentType,
-
     )
-
     try:
-
         upload_url, file_url = upload_service.issue_review_image_upload_url(
-
             user_id=auth_user.uid,
-
             file_name=payload.fileName,
-
             content_type=payload.contentType,
-
         )
 
     except ValueError as exc:
-
         logger.warning(
-
             "Presign rejected: user_id=%s file_name=%s content_type=%s error=%s",
-
             auth_user.uid,
-
             payload.fileName,
-
             payload.contentType,
-
             str(exc),
-
         )
 
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     except Exception as exc:
-
         logger.exception(
-
             "Presign failed: user_id=%s file_name=%s content_type=%s error=%s",
-
             auth_user.uid,
-
             payload.fileName,
-
             payload.contentType,
-
             str(exc),
-
         )
-
-        raise HTTPException(status_code=500, detail="Failed to issue upload URL") from exc
+        raise HTTPException(
+            status_code=500, detail="Failed to issue upload URL"
+        ) from exc
 
     logger.info(
-
         "Presign success: user_id=%s file_name=%s file_url=%s",
-
         auth_user.uid,
-
         payload.fileName,
-
         file_url,
-
     )
 
     return ReviewImagePresignOut(uploadUrl=upload_url, fileUrl=file_url)
-
-
-
 
 
 @router.get("/places/search", response_model=list[PlaceSearchOut])
@@ -1066,8 +829,7 @@ def search_places(
     eastLng: float | None = None,
 ):
 
-    # ??? ?? ?? API? ?? ??? ????.
-
+    # 장소 검색 API. `query`를 기반으로 장소를 검색하여 결과를 반환한다. 위치 정보(`lat`, `lng`, `radiusKm`)가 제공되면 해당 위치를 중심으로 반경 내에서 검색한다. 또한, `southLat`, `westLng`, `northLat`, `eastLng`가 제공되면 해당 경계 내에서 검색한다.
     return place_search_service.search_places(
         query=query,
         display=display,
@@ -1082,57 +844,35 @@ def search_places(
     )
 
 
-
-
-
 @router.get("/brands", response_model=list[BrandOut])
-
 def list_brands(request: Request, db: Session = Depends(get_db)):
 
-    # ??? ??? ????.
-
+    # 브랜드 목록을 조회한다.
     brands = brand_service.get_brands(db)
-
     return [
-
         BrandOut(
             id=brand.id,
             name=brand.name,
             logoUrl=_resolve_asset_url(request, brand.logo_url),
         )
-
         for brand in brands
-
     ]
 
 
-
-
-
 @router.get("/brands/{brand_id}/menus", response_model=list[MenuOut])
+def list_brand_menus(
+    brand_id: str, query: str | None = None, db: Session = Depends(get_db)
+):
 
-def list_brand_menus(brand_id: str, query: str | None = None, db: Session = Depends(get_db)):
-
-    # ???? ?? ??? ????.
-
+    # 브랜드에 속한 메뉴 목록을 조회한다.
     menus = brand_menu_service.get_menus_by_brand(db, brand_id, query)
-
     return [
-
         MenuOut(
-
             id=menu.id,
-
             brandId=menu.brand_id,
-
             name=menu.name,
-
             imageUrl=menu.image_url,
-
             category=menu.category,
-
         )
-
         for menu in menus
-
     ]

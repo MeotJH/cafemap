@@ -2,7 +2,6 @@ import os
 
 import requests
 
-
 REVERSE_GEOCODE_ENDPOINT = "https://maps.apigw.ntruss.com/map-reversegeocode/v2/gc"
 
 

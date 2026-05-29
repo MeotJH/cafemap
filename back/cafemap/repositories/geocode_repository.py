@@ -2,7 +2,6 @@ import os
 
 import requests
 
-
 GEOCODE_ENDPOINT = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode"
 
 
@@ -27,4 +26,3 @@ def geocode_address(address: str):
     )
     response.raise_for_status()
     return response.json()
-

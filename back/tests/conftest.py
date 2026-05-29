@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-
 _TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="cafemap-pytest-"))
 _TEST_DB_PATH = _TEST_DB_DIR / "cafemap-test.db"
 

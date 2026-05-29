@@ -21,7 +21,6 @@ from cafemap.core.rating_dimensions import (
 from cafemap.models.entities import Store, StoreAggregate
 from cafemap.repositories import store_repository
 
-
 REVIEWER_WIFE = "WIFE"
 REVIEWER_HUSBAND = "HUSBAND"
 REVIEWER_USER = "USER"
@@ -148,30 +147,24 @@ def get_store_rankings(
 
 def get_home_summary(db: Session) -> dict[str, object]:
     rankings = _build_segmented_rankings(db)
-    wife_top = [
-        item for item in rankings if item["wifeScore"] > 0
-    ]
-    wife_top.sort(key=lambda item: (item["wifeScore"], item["revisitScore"]), reverse=True)
+    wife_top = [item for item in rankings if item["wifeScore"] > 0]
+    wife_top.sort(
+        key=lambda item: (item["wifeScore"], item["revisitScore"]), reverse=True
+    )
 
-    husband_top = [
-        item for item in rankings if item["husbandScore"] > 0
-    ]
+    husband_top = [item for item in rankings if item["husbandScore"] > 0]
     husband_top.sort(
         key=lambda item: (item["husbandScore"], item["revisitScore"]),
         reverse=True,
     )
 
-    couple_top = [
-        item for item in rankings if item["coupleScore"] > 0
-    ]
+    couple_top = [item for item in rankings if item["coupleScore"] > 0]
     couple_top.sort(
         key=lambda item: (item["coupleScore"], item["revisitScore"]),
         reverse=True,
     )
 
-    recent = [
-        item for item in rankings if item["latestVisitedAt"] is not None
-    ]
+    recent = [item for item in rankings if item["latestVisitedAt"] is not None]
     recent.sort(key=lambda item: item["latestVisitedAt"], reverse=True)
 
     menu_map = _build_recommended_menus(db)
@@ -249,7 +242,9 @@ def get_similar_stores(
             continue
 
         candidate_schema_payload = payload["schemas"].get(current_schema, {})
-        candidate_scores = _comparable_scores(candidate_schema_payload.get("scores", {}))
+        candidate_scores = _comparable_scores(
+            candidate_schema_payload.get("scores", {})
+        )
         common_dimensions = sorted(set(current_scores) & set(candidate_scores))
         if len(common_dimensions) < MIN_SIMILAR_COMMON_DIMENSIONS:
             continue
@@ -261,7 +256,8 @@ def get_similar_stores(
         distance = sum(diff for _, diff in differences) / len(differences)
         similarity_score = max(0.0, 1.0 - (distance / MAX_RATING_SCORE))
         matched_dimensions = [
-            key for key, _ in sorted(differences, key=lambda item: (item[1], item[0]))[:3]
+            key
+            for key, _ in sorted(differences, key=lambda item: (item[1], item[0]))[:3]
         ]
         candidates.append(
             SimilarStoreResult(
@@ -342,7 +338,9 @@ def _visible_review_scores(review, category: str | None) -> dict[str, float]:
     }
 
 
-def _average_review_rows(rows, *, schema_version: int) -> tuple[dict[str, float], float, int]:
+def _average_review_rows(
+    rows, *, schema_version: int
+) -> tuple[dict[str, float], float, int]:
     score_sums: dict[str, float] = {}
     score_counts: dict[str, int] = {}
     overall_sum = 0.0
@@ -511,17 +509,26 @@ def _build_segmented_rankings(
         schema_version = _review_schema_version(review)
         schema_counts = payload["_schemaCounts"]
         schema_counts[schema_version] = int(schema_counts.get(schema_version, 0)) + 1
-        payload["_reviewScoreSum"] = float(payload["_reviewScoreSum"]) + float(review.overall)
+        payload["_reviewScoreSum"] = float(payload["_reviewScoreSum"]) + float(
+            review.overall
+        )
         payload["_reviewCount"] = int(payload["_reviewCount"]) + 1
-        if payload["latestVisitedAt"] is None or review.created_at > payload["latestVisitedAt"]:
+        if (
+            payload["latestVisitedAt"] is None
+            or review.created_at > payload["latestVisitedAt"]
+        ):
             payload["latestVisitedAt"] = review.created_at
 
-        reviewer_type = (getattr(review, "reviewer_type", None) or REVIEWER_USER).upper()
+        reviewer_type = (
+            getattr(review, "reviewer_type", None) or REVIEWER_USER
+        ).upper()
         if reviewer_type == REVIEWER_WIFE:
             payload["_wifeTotal"] = float(payload["_wifeTotal"]) + float(review.overall)
             payload["_wifeCount"] = int(payload["_wifeCount"]) + 1
         elif reviewer_type == REVIEWER_HUSBAND:
-            payload["_husbandTotal"] = float(payload["_husbandTotal"]) + float(review.overall)
+            payload["_husbandTotal"] = float(payload["_husbandTotal"]) + float(
+                review.overall
+            )
             payload["_husbandCount"] = int(payload["_husbandCount"]) + 1
         else:
             payload["_userTotal"] = float(payload["_userTotal"]) + float(review.overall)
@@ -585,7 +592,9 @@ def _build_segmented_rankings(
         }
         highlights = top_highlights(avg_scores, schema_version)
         wife_score = _safe_average(payload["_wifeTotal"], payload["_wifeCount"])
-        husband_score = _safe_average(payload["_husbandTotal"], payload["_husbandCount"])
+        husband_score = _safe_average(
+            payload["_husbandTotal"], payload["_husbandCount"]
+        )
         user_score = _safe_average(payload["_userTotal"], payload["_userCount"])
         couple_score = 0.0
         if wife_score > 0 and husband_score > 0:
@@ -622,11 +631,9 @@ def _build_segmented_rankings(
         )
         if include_private:
             payload["_avgScores"] = avg_scores
-        payload["tags"] = [
-            label
-            for label, score in highlights
-            if label and score > 0
-        ][:3]
+        payload["tags"] = [label for label, score in highlights if label and score > 0][
+            :3
+        ]
         payload["summary"] = _build_summary(payload)
         if not include_private:
             _strip_private_fields(payload)
@@ -690,9 +697,8 @@ def _accumulate_attribute_signal(
     totals[key] = int(totals.get(key, 0)) + 1
 
     normalized = value.strip().lower()
-    is_positive = (
-        (key == "outlet_available" and normalized == "yes")
-        or (key == "wifi_usable" and normalized == "good")
+    is_positive = (key == "outlet_available" and normalized == "yes") or (
+        key == "wifi_usable" and normalized == "good"
     )
     if is_positive:
         positive_totals = payload["_attributePositiveTotals"]
@@ -804,11 +810,7 @@ def _image_urls_from_snapshot(image_urls_json: str | None) -> list[str]:
         return []
     if not isinstance(parsed, list):
         return []
-    return [
-        item.strip()
-        for item in parsed
-        if isinstance(item, str) and item.strip()
-    ]
+    return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
 
 
 def _build_summary(payload: dict[str, object]) -> str:

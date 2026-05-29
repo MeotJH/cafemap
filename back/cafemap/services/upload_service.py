@@ -15,7 +15,6 @@ from cafemap.core.config import (
     S3_REVIEW_IMAGE_PREFIX,
 )
 
-
 _EXT_BY_CONTENT_TYPE = {
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
