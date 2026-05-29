@@ -176,36 +176,31 @@ class _PurposeExplorerSection extends StatelessWidget {
         const SizedBox(height: 16),
         SizedBox(
           height: 186,
-          child: Stack(
-            children: [
-              ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(right: 48),
-                itemCount: _purposes.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final purpose = _purposes[index];
-                  return _PurposeCard(purpose: purpose);
-                },
-              ),
-              Positioned(
-                top: 0,
-                right: 0,
-                bottom: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 44,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [Color(0x00F6F0E8), AppColors.backgroundLight],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (bounds) {
+              return const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.transparent,
+                  Colors.black,
+                  Colors.black,
+                  Colors.transparent,
+                ],
+                stops: [0.0, 0.04, 0.88, 1.0],
+              ).createShader(bounds);
+            },
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(right: 48),
+              itemCount: _purposes.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final purpose = _purposes[index];
+                return _PurposeCard(purpose: purpose);
+              },
+            ),
           ),
         ),
       ],
