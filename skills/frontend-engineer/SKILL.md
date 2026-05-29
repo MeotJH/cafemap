@@ -24,6 +24,7 @@ Work inside `front/` unless the task explicitly crosses the frontend/backend bou
 3. Preserve existing visual language unless the task explicitly asks for redesign.
 4. Keep domain naming aligned with backend payloads.
 5. If the task touches duplicated concepts such as rating dimensions, check backend parity.
+6. Keep badge/chip corner radii modest and rectangular by default, and add edge fade to horizontally scrollable UI when overflow can clip content.
 
 ## Validation
 

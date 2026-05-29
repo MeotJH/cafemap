@@ -97,6 +97,7 @@ class GalleryImageStrip extends StatelessWidget {
   final double spacing;
   final BorderRadius borderRadius;
   final Widget? placeholder;
+  final bool fadeOverflowEdges;
 
   const GalleryImageStrip({
     super.key,
@@ -106,6 +107,7 @@ class GalleryImageStrip extends StatelessWidget {
     this.spacing = 10,
     this.borderRadius = const BorderRadius.all(Radius.circular(12)),
     this.placeholder,
+    this.fadeOverflowEdges = true,
   });
 
   @override
@@ -114,26 +116,66 @@ class GalleryImageStrip extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return SizedBox(
-      height: imageHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: images.length,
-        separatorBuilder: (_, _) => SizedBox(width: spacing),
-        itemBuilder: (context, index) => _GalleryStripItem(
-          image: images[index],
-          width: imageWidth,
-          height: imageHeight,
-          borderRadius: borderRadius,
-          placeholder: placeholder,
-          onTap: () => showGalleryViewer(
-            context,
-            images: images,
-            initialIndex: index,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth =
+            (images.length * imageWidth) + ((images.length - 1) * spacing);
+        final shouldFade =
+            fadeOverflowEdges &&
+            constraints.hasBoundedWidth &&
+            contentWidth > constraints.maxWidth;
+
+        final strip = ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: images.length,
+          separatorBuilder: (_, _) => SizedBox(width: spacing),
+          itemBuilder: (context, index) => _GalleryStripItem(
+            image: images[index],
+            width: imageWidth,
+            height: imageHeight,
+            borderRadius: borderRadius,
             placeholder: placeholder,
+            onTap: () => showGalleryViewer(
+              context,
+              images: images,
+              initialIndex: index,
+              placeholder: placeholder,
+            ),
           ),
-        ),
-      ),
+        );
+
+        return SizedBox(
+          height: imageHeight,
+          child: shouldFade ? _HorizontalEdgeFade(child: strip) : strip,
+        );
+      },
+    );
+  }
+}
+
+class _HorizontalEdgeFade extends StatelessWidget {
+  final Widget child;
+
+  const _HorizontalEdgeFade({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) {
+        return const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Colors.transparent,
+            Colors.black,
+            Colors.black,
+            Colors.transparent,
+          ],
+          stops: [0.0, 0.08, 0.92, 1.0],
+        ).createShader(bounds);
+      },
+      child: child,
     );
   }
 }

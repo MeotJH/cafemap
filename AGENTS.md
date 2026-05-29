@@ -44,6 +44,11 @@ Key rules:
 - Prefer per-route page files plus shared widgets/helpers over a single container page that branches by mode.
 - Use container pages only when one route owns multiple local sections or tabs that genuinely share lifecycle and state.
 
+## Frontend UI Rules
+
+- Keep badges, chips, and pill-like metadata controls close to rectangular unless the existing component explicitly requires a fully rounded capsule. Prefer small corner radii around 6-8px for badges such as rating attributes, coffee/store categories, and hot/ice labels.
+- Any horizontally draggable or scrollable UI that can clip content at the container edge should use left/right edge fade when overflowing, rather than ending with a hard vertical cut.
+
 ## Project-Specific Notes
 
 - Rating dimension logic exists in both frontend and backend:
