@@ -119,6 +119,9 @@ deploy_backend() {
   # 1) Sync code (do not overwrite remote .env and data dir)
   rsync -az --delete \
     --omit-dir-times \
+    --no-perms \
+    --no-owner \
+    --no-group \
     -e "ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no" \
     --exclude '.env' \
     --exclude '.venv' \
