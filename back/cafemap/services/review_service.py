@@ -44,7 +44,7 @@ from cafemap.repositories import review_repository
 
 from cafemap.services import geocode_service
 
-# ?? ???? ?? ????.
+# Review creation, validation, and aggregate update logic.
 
 LOCAL_BRAND_ID = "brand-local"
 STORE_TYPE_LOCAL = "local"
@@ -55,22 +55,17 @@ REVIEWER_USER = "USER"
 
 
 def get_my_reviews(db: Session, user_id: str):
-
-    # ? ?? ??? ????.
-
+    # Return reviews authored by the current user.
     return review_repository.fetch_my_reviews(db, user_id)
 
 
 def get_review(db: Session, review_id: str):
-
-    # ?? ??? ????.
-
+    # Return a single review detail row.
     return review_repository.fetch_review(db, review_id)
 
 
 def create_review(db: Session, payload, user_id: str):
-
-    # ??? ???? ????.
+    # Validate input, persist the review, and refresh aggregates.
     (
         brand,
         menu,

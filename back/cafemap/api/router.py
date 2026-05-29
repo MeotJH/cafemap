@@ -91,9 +91,7 @@ def _resolve_asset_url(request: Request, raw_url: str | None) -> str:
 
 
 def _resolve_store_image_url(request: Request, brand_logo_url: str | None) -> str:
-
-    # ??? ??? ??? ??? ?? ???? ??? ? ???? ????.
-
+    # Store cards currently use the brand logo as the primary image.
     return _resolve_asset_url(request, brand_logo_url)
 
 
