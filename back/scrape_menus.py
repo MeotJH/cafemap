@@ -25,7 +25,6 @@ except Exception:  # pylint: disable=broad-except
     unidecode = None
 
 
-
 INIT_DB_PATH = Path("chickenmap/db/init_db.py")
 OUTPUT_CSV = Path("korea_chicken_menus.csv")
 
@@ -34,9 +33,7 @@ def slug(value: str) -> str:
     if unidecode is not None:
         normalized = unidecode(value).lower()
     else:
-        normalized = (
-            value.encode("ascii", errors="ignore").decode("ascii").lower()
-        )
+        normalized = value.encode("ascii", errors="ignore").decode("ascii").lower()
     normalized = re.sub(r"[^\w\s-]", " ", normalized)
     normalized = re.sub(r"[\s_-]+", "-", normalized).strip("-")
     normalized = re.sub(r"[^a-z0-9-]", "", normalized)
@@ -282,7 +279,14 @@ def write_csv(path: Path, rows: List[List[str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(
-            ["menu_id", "brand_id", "menu_name", "description", "category", "source_url"]
+            [
+                "menu_id",
+                "brand_id",
+                "menu_name",
+                "description",
+                "category",
+                "source_url",
+            ]
         )
         writer.writerows(rows)
 

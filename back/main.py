@@ -11,6 +11,7 @@ load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 from cafemap.api.router import router as cafemap_router
 from cafemap.db.init_db import init_db
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 앱 시작 시 카페맵 SQLite와 목업 데이터를 초기화한다.
@@ -24,7 +25,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["POST","GET","OPTIONS","PATCH","DELETE","PUT"],
+    allow_methods=["POST", "GET", "OPTIONS", "PATCH", "DELETE", "PUT"],
     allow_headers=["*"],
 )
 

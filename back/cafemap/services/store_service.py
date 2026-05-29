@@ -1,24 +1,24 @@
 from __future__ import annotations
 
 import json
-
 from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from cafemap.core.config import REVIEW_IMAGE_LIMIT
 from cafemap.core.rating_dimensions import (
     CURRENT_RATING_SCHEMA_VERSION,
     LEGACY_HIGHLIGHT_DIMENSIONS,
+    attributes_json_loads,
     category_dimensions_for_schema,
     normalize_rating_schema_version,
     scores_json_loads,
     store_dimensions_for_schema,
     top_highlights,
 )
-from cafemap.models.entities import Store, StoreAggregate
+from cafemap.models.entities import Store
 from cafemap.repositories import store_repository
-
 
 REVIEWER_WIFE = "WIFE"
 REVIEWER_HUSBAND = "HUSBAND"
@@ -27,6 +27,18 @@ RANKING_COUPLE = "couple"
 RANKING_WIFE = "wife"
 RANKING_HUSBAND = "husband"
 RANKING_USER = "user"
+RANKING_PURPOSE_DATE = "date"
+RANKING_PURPOSE_CONVERSATION = "conversation"
+RANKING_PURPOSE_PHOTO = "photo"
+RANKING_PURPOSE_COFFEE = "coffee"
+RANKING_PURPOSE_LONG_STAY = "long_stay"
+SUPPORTED_RANKING_PURPOSES = {
+    RANKING_PURPOSE_DATE,
+    RANKING_PURPOSE_CONVERSATION,
+    RANKING_PURPOSE_PHOTO,
+    RANKING_PURPOSE_COFFEE,
+    RANKING_PURPOSE_LONG_STAY,
+}
 MIN_SIMILAR_COMMON_DIMENSIONS = 3
 MAX_RATING_SCORE = 5.0
 
@@ -68,10 +80,18 @@ def get_nearby_stores(db: Session):
     return store_repository.fetch_nearby_stores(db)
 
 
-def get_store_rankings(db: Session, ranking_type: str = RANKING_COUPLE):
+def get_store_rankings(
+    db: Session,
+    ranking_type: str = RANKING_COUPLE,
+    purpose: str | None = None,
+):
     rows = store_repository.fetch_store_rankings(db)
     ranked = []
-    segmented = {item["storeId"]: item for item in _build_segmented_rankings(db)}
+    normalized_purpose = normalize_ranking_purpose(purpose)
+    segmented = {
+        item["storeId"]: item
+        for item in _build_segmented_rankings(db, include_private=True)
+    }
 
     for store, aggregate, brand_name, brand_logo_url in rows:
         display_score = confidence_weighted_score(
@@ -85,8 +105,12 @@ def get_store_rankings(db: Session, ranking_type: str = RANKING_COUPLE):
         audience_score = _score_for_ranking_type(segmented_item, ranking_type)
         if audience_score <= 0:
             continue
+        purpose_score = _purpose_score(segmented_item, normalized_purpose)
+        if normalized_purpose is not None and purpose_score <= 0:
+            continue
         ranked.append(
             (
+                purpose_score,
                 audience_score,
                 segmented_item["latestVisitedAt"] or datetime.min,
                 segmented_item["revisitScore"],
@@ -101,36 +125,45 @@ def get_store_rankings(db: Session, ranking_type: str = RANKING_COUPLE):
             )
         )
 
-    ranked.sort(key=lambda row: (row[0], row[2], row[1], row[4]), reverse=True)
-    return ranked
+    if normalized_purpose is None:
+        ranked.sort(
+            key=lambda row: (row[1], row[3], row[2], row[5]),
+            reverse=True,
+        )
+    else:
+        ranked.sort(
+            key=lambda row: (row[0], row[1], row[3], row[2], row[5]),
+            reverse=True,
+        )
+
+    sanitized = []
+    for row in ranked:
+        item = dict(row[11])
+        _strip_private_fields(item)
+        sanitized.append((*row[:11], item))
+    return sanitized
 
 
 def get_home_summary(db: Session) -> dict[str, object]:
     rankings = _build_segmented_rankings(db)
-    wife_top = [
-        item for item in rankings if item["wifeScore"] > 0
-    ]
-    wife_top.sort(key=lambda item: (item["wifeScore"], item["revisitScore"]), reverse=True)
+    wife_top = [item for item in rankings if item["wifeScore"] > 0]
+    wife_top.sort(
+        key=lambda item: (item["wifeScore"], item["revisitScore"]), reverse=True
+    )
 
-    husband_top = [
-        item for item in rankings if item["husbandScore"] > 0
-    ]
+    husband_top = [item for item in rankings if item["husbandScore"] > 0]
     husband_top.sort(
         key=lambda item: (item["husbandScore"], item["revisitScore"]),
         reverse=True,
     )
 
-    couple_top = [
-        item for item in rankings if item["coupleScore"] > 0
-    ]
+    couple_top = [item for item in rankings if item["coupleScore"] > 0]
     couple_top.sort(
         key=lambda item: (item["coupleScore"], item["revisitScore"]),
         reverse=True,
     )
 
-    recent = [
-        item for item in rankings if item["latestVisitedAt"] is not None
-    ]
+    recent = [item for item in rankings if item["latestVisitedAt"] is not None]
     recent.sort(key=lambda item: item["latestVisitedAt"], reverse=True)
 
     menu_map = _build_recommended_menus(db)
@@ -208,7 +241,9 @@ def get_similar_stores(
             continue
 
         candidate_schema_payload = payload["schemas"].get(current_schema, {})
-        candidate_scores = _comparable_scores(candidate_schema_payload.get("scores", {}))
+        candidate_scores = _comparable_scores(
+            candidate_schema_payload.get("scores", {})
+        )
         common_dimensions = sorted(set(current_scores) & set(candidate_scores))
         if len(common_dimensions) < MIN_SIMILAR_COMMON_DIMENSIONS:
             continue
@@ -220,7 +255,8 @@ def get_similar_stores(
         distance = sum(diff for _, diff in differences) / len(differences)
         similarity_score = max(0.0, 1.0 - (distance / MAX_RATING_SCORE))
         matched_dimensions = [
-            key for key, _ in sorted(differences, key=lambda item: (item[1], item[0]))[:3]
+            key
+            for key, _ in sorted(differences, key=lambda item: (item[1], item[0]))[:3]
         ]
         candidates.append(
             SimilarStoreResult(
@@ -301,7 +337,9 @@ def _visible_review_scores(review, category: str | None) -> dict[str, float]:
     }
 
 
-def _average_review_rows(rows, *, schema_version: int) -> tuple[dict[str, float], float, int]:
+def _average_review_rows(
+    rows, *, schema_version: int
+) -> tuple[dict[str, float], float, int]:
     score_sums: dict[str, float] = {}
     score_counts: dict[str, int] = {}
     overall_sum = 0.0
@@ -404,7 +442,11 @@ def _build_recommended_menus(db: Session) -> dict[tuple[str, str], AggregatedMen
     return menu_map
 
 
-def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
+def _build_segmented_rankings(
+    db: Session,
+    *,
+    include_private: bool = False,
+) -> list[dict[str, object]]:
     rows = store_repository.fetch_all_store_review_rows(db)
     store_map: dict[str, dict[str, object]] = {}
 
@@ -458,23 +500,34 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
                 "_scoreTotalsBySchema": {},
                 "_scoreCountsBySchema": {},
                 "_schemaCounts": {},
+                "_attributeTotals": {},
+                "_attributePositiveTotals": {},
             }
             store_map[store.id] = payload
 
         schema_version = _review_schema_version(review)
         schema_counts = payload["_schemaCounts"]
         schema_counts[schema_version] = int(schema_counts.get(schema_version, 0)) + 1
-        payload["_reviewScoreSum"] = float(payload["_reviewScoreSum"]) + float(review.overall)
+        payload["_reviewScoreSum"] = float(payload["_reviewScoreSum"]) + float(
+            review.overall
+        )
         payload["_reviewCount"] = int(payload["_reviewCount"]) + 1
-        if payload["latestVisitedAt"] is None or review.created_at > payload["latestVisitedAt"]:
+        if (
+            payload["latestVisitedAt"] is None
+            or review.created_at > payload["latestVisitedAt"]
+        ):
             payload["latestVisitedAt"] = review.created_at
 
-        reviewer_type = (getattr(review, "reviewer_type", None) or REVIEWER_USER).upper()
+        reviewer_type = (
+            getattr(review, "reviewer_type", None) or REVIEWER_USER
+        ).upper()
         if reviewer_type == REVIEWER_WIFE:
             payload["_wifeTotal"] = float(payload["_wifeTotal"]) + float(review.overall)
             payload["_wifeCount"] = int(payload["_wifeCount"]) + 1
         elif reviewer_type == REVIEWER_HUSBAND:
-            payload["_husbandTotal"] = float(payload["_husbandTotal"]) + float(review.overall)
+            payload["_husbandTotal"] = float(payload["_husbandTotal"]) + float(
+                review.overall
+            )
             payload["_husbandCount"] = int(payload["_husbandCount"]) + 1
         else:
             payload["_userTotal"] = float(payload["_userTotal"]) + float(review.overall)
@@ -486,22 +539,36 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             payload["_revisitTotal"] = float(payload["_revisitTotal"]) + float(revisit)
             payload["_revisitCount"] = int(payload["_revisitCount"]) + 1
 
+        if schema_version == CURRENT_RATING_SCHEMA_VERSION:
+            attributes = attributes_json_loads(getattr(review, "attributes_json", None))
+            _accumulate_attribute_signal(
+                payload,
+                "outlet_available",
+                attributes.get("outlet_available"),
+            )
+            _accumulate_attribute_signal(
+                payload,
+                "wifi_usable",
+                attributes.get("wifi_usable"),
+            )
+
         for image_url in _image_urls_from_snapshot(review.image_urls_json):
             image_urls = payload["imageUrls"]
             if (
                 isinstance(image_urls, list)
-                and len(image_urls) < 2
+                and len(image_urls) < REVIEW_IMAGE_LIMIT
                 and image_url not in image_urls
             ):
                 image_urls.append(image_url)
 
-        totals_by_schema = payload["_scoreTotalsBySchema"]
-        counts_by_schema = payload["_scoreCountsBySchema"]
-        totals = totals_by_schema.setdefault(schema_version, {})
-        counts = counts_by_schema.setdefault(schema_version, {})
-        for key, value in scores.items():
-            totals[key] = totals.get(key, 0.0) + float(value)
-            counts[key] = counts.get(key, 0) + 1
+        if schema_version == CURRENT_RATING_SCHEMA_VERSION:
+            totals_by_schema = payload["_scoreTotalsBySchema"]
+            counts_by_schema = payload["_scoreCountsBySchema"]
+            totals = totals_by_schema.setdefault(schema_version, {})
+            counts = counts_by_schema.setdefault(schema_version, {})
+            for key, value in scores.items():
+                totals[key] = totals.get(key, 0.0) + float(value)
+                counts[key] = counts.get(key, 0) + 1
 
     results: list[dict[str, object]] = []
     for payload in store_map.values():
@@ -524,7 +591,9 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
         }
         highlights = top_highlights(avg_scores, schema_version)
         wife_score = _safe_average(payload["_wifeTotal"], payload["_wifeCount"])
-        husband_score = _safe_average(payload["_husbandTotal"], payload["_husbandCount"])
+        husband_score = _safe_average(
+            payload["_husbandTotal"], payload["_husbandCount"]
+        )
         user_score = _safe_average(payload["_userTotal"], payload["_userCount"])
         couple_score = 0.0
         if wife_score > 0 and husband_score > 0:
@@ -559,16 +628,24 @@ def _build_segmented_rankings(db: Session) -> list[dict[str, object]]:
             payload["_revisitTotal"],
             payload["_revisitCount"],
         )
-        payload["tags"] = [
-            label
-            for label, score in highlights
-            if label and score > 0
-        ][:3]
+        if include_private:
+            payload["_avgScores"] = avg_scores
+        payload["tags"] = [label for label, score in highlights if label and score > 0][
+            :3
+        ]
         payload["summary"] = _build_summary(payload)
-        _strip_private_fields(payload)
+        if not include_private:
+            _strip_private_fields(payload)
         results.append(payload)
 
     return results
+
+
+def normalize_ranking_purpose(value: str | None) -> str | None:
+    normalized = (value or "").strip().lower()
+    if normalized in SUPPORTED_RANKING_PURPOSES:
+        return normalized
+    return None
 
 
 def _extract_district(address: str | None) -> str:
@@ -608,6 +685,121 @@ def _safe_average(total: object, count: object) -> float:
     return float(total) / parsed_count
 
 
+def _accumulate_attribute_signal(
+    payload: dict[str, object],
+    key: str,
+    value: str | None,
+) -> None:
+    if not value:
+        return
+    totals = payload["_attributeTotals"]
+    totals[key] = int(totals.get(key, 0)) + 1
+
+    normalized = value.strip().lower()
+    is_positive = (key == "outlet_available" and normalized == "yes") or (
+        key == "wifi_usable" and normalized == "good"
+    )
+    if is_positive:
+        positive_totals = payload["_attributePositiveTotals"]
+        positive_totals[key] = int(positive_totals.get(key, 0)) + 1
+
+
+def _purpose_score(item: dict[str, object], purpose: str | None) -> float:
+    if purpose is None:
+        return 0.0
+
+    scores = item.get("_avgScores", {})
+    if not isinstance(scores, dict):
+        scores = {}
+
+    taste_score = _first_positive_score(
+        scores,
+        "taste_satisfaction",
+        "coffee_quality",
+        "coffee_presence",
+    )
+    outlet_score = max(
+        _score_value(scores, "outlet_access"),
+        _attribute_ratio_score(item, "outlet_available"),
+    )
+    wifi_score = max(
+        _score_value(scores, "wifi_quality"),
+        _attribute_ratio_score(item, "wifi_usable"),
+    )
+    image_bonus = 5.0 if item.get("imageUrls") else 0.0
+
+    if purpose == RANKING_PURPOSE_DATE:
+        return _average_scores(
+            _score_value(scores, "atmosphere"),
+            taste_score,
+            _score_value(scores, "revisit_intent"),
+        )
+    if purpose == RANKING_PURPOSE_CONVERSATION:
+        return _average_scores(
+            _score_value(scores, "quietness"),
+            _score_value(scores, "seat_comfort"),
+            _score_value(scores, "service"),
+            fallback=_score_value(scores, "atmosphere"),
+        )
+    if purpose == RANKING_PURPOSE_PHOTO:
+        return _average_scores(
+            _score_value(scores, "atmosphere"),
+            _score_value(scores, "visuals"),
+            _score_value(scores, "restroom_cleanliness"),
+            fallback=image_bonus,
+        )
+    if purpose == RANKING_PURPOSE_COFFEE:
+        return _average_scores(
+            taste_score,
+            _score_value(scores, "aroma"),
+            _score_value(scores, "clean_finish"),
+            fallback=_score_value(scores, "aftertaste"),
+        )
+    if purpose == RANKING_PURPOSE_LONG_STAY:
+        return _average_scores(
+            _score_value(scores, "seat_comfort"),
+            _score_value(scores, "work_friendly"),
+            outlet_score,
+            wifi_score,
+            _score_value(scores, "service"),
+        )
+    return 0.0
+
+
+def _average_scores(*values: float, fallback: float = 0.0) -> float:
+    parsed = [float(value) for value in values if float(value) > 0]
+    if parsed:
+        return sum(parsed) / len(parsed)
+    return fallback
+
+
+def _score_value(scores: dict[str, object], key: str) -> float:
+    try:
+        return max(0.0, float(scores.get(key, 0.0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _first_positive_score(scores: dict[str, object], *keys: str) -> float:
+    for key in keys:
+        value = _score_value(scores, key)
+        if value > 0:
+            return value
+    return 0.0
+
+
+def _attribute_ratio_score(item: dict[str, object], key: str) -> float:
+    totals = item.get("_attributeTotals", {})
+    positive_totals = item.get("_attributePositiveTotals", {})
+    if not isinstance(totals, dict) or not isinstance(positive_totals, dict):
+        return 0.0
+    total = int(totals.get(key, 0))
+    if total <= 0:
+        return 0.0
+    positive = int(positive_totals.get(key, 0))
+    return (positive / total) * 5.0
+
+
 def _image_urls_from_snapshot(image_urls_json: str | None) -> list[str]:
     if not image_urls_json:
         return []
@@ -617,11 +809,7 @@ def _image_urls_from_snapshot(image_urls_json: str | None) -> list[str]:
         return []
     if not isinstance(parsed, list):
         return []
-    return [
-        item.strip()
-        for item in parsed
-        if isinstance(item, str) and item.strip()
-    ]
+    return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
 
 
 def _build_summary(payload: dict[str, object]) -> str:

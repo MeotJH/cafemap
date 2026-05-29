@@ -3,8 +3,8 @@ import uuid
 from urllib.parse import urlparse
 
 import boto3
-from botocore.config import Config
 from botocore.client import BaseClient
+from botocore.config import Config
 
 from cafemap.core.config import (
     AWS_REGION,
@@ -14,7 +14,6 @@ from cafemap.core.config import (
     S3_PUBLIC_BASE_URL,
     S3_REVIEW_IMAGE_PREFIX,
 )
-
 
 _EXT_BY_CONTENT_TYPE = {
     "image/jpeg": "jpg",

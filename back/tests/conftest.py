@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-
 _TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="cafemap-pytest-"))
 _TEST_DB_PATH = _TEST_DB_DIR / "cafemap-test.db"
 
@@ -14,8 +13,8 @@ os.environ["cafemap_DB_URL"] = f"sqlite:///{_TEST_DB_PATH}"
 os.environ["CAFEMAP_SEED_CATALOG_ON_STARTUP"] = "1"
 os.environ["CAFEMAP_SEED_SAMPLE_DATA"] = "1"
 
-from main import app
 from cafemap.db.session import SessionLocal
+from main import app
 
 
 @pytest.fixture(scope="session")

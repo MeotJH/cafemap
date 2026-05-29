@@ -23,11 +23,15 @@ class RankingApi {
   }
 
   Future<List<StoreRanking>> fetchStoreRankings(
-    RankingAudience audience,
-  ) async {
+    RankingAudience audience, {
+    RankingPurpose? purpose,
+  }) async {
     final response = await _dio.get(
       '$_baseUrl/api/cafemap/store-rankings',
-      queryParameters: {'type': audience.name},
+      queryParameters: {
+        'type': audience.name,
+        if (purpose != null) 'purpose': purpose.queryValue,
+      },
     );
     final data = response.data as List<dynamic>;
     return data

@@ -13,12 +13,15 @@ final rankingListProvider = FutureProvider<List<BrandMenuRanking>>((ref) async {
 });
 
 final storeRankingListProvider =
-    FutureProvider.family<List<StoreRanking>, RankingAudience>((
+    FutureProvider.family<List<StoreRanking>, StoreRankingQuery>((
       ref,
-      audience,
+      query,
     ) async {
       final repository = ref.watch(rankingRepositoryProvider);
-      return repository.fetchStoreRankings(audience);
+      return repository.fetchStoreRankings(
+        query.audience,
+        purpose: query.purpose,
+      );
     });
 
 final homeSummaryProvider = FutureProvider<HomeSummary>((ref) async {

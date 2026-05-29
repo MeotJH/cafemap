@@ -1,6 +1,5 @@
-from pathlib import Path
 import os
-
+from pathlib import Path
 
 BACK_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BACK_DIR / "data"
@@ -37,6 +36,7 @@ S3_REVIEW_IMAGE_PREFIX = os.getenv("S3_REVIEW_IMAGE_PREFIX", "review-images")
 S3_PRESIGNED_EXPIRES_SECONDS = int(os.getenv("S3_PRESIGNED_EXPIRES_SECONDS", "600"))
 S3_PUBLIC_BASE_URL = os.getenv("S3_PUBLIC_BASE_URL", "")
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", f"https://s3.{AWS_REGION}.amazonaws.com")
+REVIEW_IMAGE_LIMIT = 5
 
 OFFICIAL_WIFE_EMAILS = _env_csv(
     "CAFEMAP_OFFICIAL_WIFE_EMAILS",

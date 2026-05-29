@@ -1,6 +1,6 @@
+import logging
 import math
 import re
-import logging
 
 import requests
 
@@ -40,9 +40,13 @@ def search_places(
     requested_display = max(1, min(display, 45))
     per_page = 15 if provider.provider_name == "kakao" else 5
     max_pages = 3 if provider.provider_name == "kakao" else 5
-    page_count = max(1, min(pages or math.ceil(requested_display / per_page), max_pages))
+    page_count = max(
+        1, min(pages or math.ceil(requested_display / per_page), max_pages)
+    )
     queries = _search_queries(query, lat=lat, lng=lng)
-    radius_m = min(20000, int(round(radius_km * 1000))) if radius_km is not None else None
+    radius_m = (
+        min(20000, int(round(radius_km * 1000))) if radius_km is not None else None
+    )
     rect = _rect_string(
         south_lat=south_lat,
         west_lng=west_lng,
@@ -329,7 +333,9 @@ def _has_bounds(
     north_lat: float | None,
     east_lng: float | None,
 ) -> bool:
-    return all(value is not None for value in (south_lat, west_lng, north_lat, east_lng))
+    return all(
+        value is not None for value in (south_lat, west_lng, north_lat, east_lng)
+    )
 
 
 def _is_in_bounds(

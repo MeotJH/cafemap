@@ -6,7 +6,6 @@ from typing import Any
 
 import requests
 
-
 NAVER_LOCAL_ENDPOINT = "https://openapi.naver.com/v1/search/local.json"
 KAKAO_LOCAL_KEYWORD_ENDPOINT = "https://dapi.kakao.com/v2/local/search/keyword.json"
 KAKAO_LOCAL_CATEGORY_ENDPOINT = "https://dapi.kakao.com/v2/local/search/category.json"
@@ -136,7 +135,11 @@ class KakaoPlaceSearchProvider(PlaceSearchProvider):
             params["sort"] = query.sort
 
         response = requests.get(
-            KAKAO_LOCAL_CATEGORY_ENDPOINT if use_category_search else KAKAO_LOCAL_KEYWORD_ENDPOINT,
+            (
+                KAKAO_LOCAL_CATEGORY_ENDPOINT
+                if use_category_search
+                else KAKAO_LOCAL_KEYWORD_ENDPOINT
+            ),
             headers={"Authorization": f"KakaoAK {self._rest_api_key}"},
             params=params,
             timeout=5,
@@ -172,7 +175,9 @@ def get_place_search_provider() -> PlaceSearchProvider:
         return KakaoPlaceSearchProvider(rest_api_key=kakao_key)
     if provider_name == "naver":
         if not naver_id or not naver_secret:
-            raise RuntimeError("NAVER_LOCAL_CLIENT_ID or NAVER_LOCAL_CLIENT_SECRET is missing")
+            raise RuntimeError(
+                "NAVER_LOCAL_CLIENT_ID or NAVER_LOCAL_CLIENT_SECRET is missing"
+            )
         return NaverPlaceSearchProvider(client_id=naver_id, client_secret=naver_secret)
     if kakao_key:
         return KakaoPlaceSearchProvider(rest_api_key=kakao_key)
@@ -229,4 +234,4 @@ def _should_use_kakao_category_search(query: PlaceSearchQuery) -> bool:
     if query.category_group_code != "CE7":
         return False
     normalized = "".join(query.query.strip().lower().split())
-    return normalized in {"", "\uCE74\uD398", "cafe", "coffee"}
+    return normalized in {"", "\uce74\ud398", "cafe", "coffee"}

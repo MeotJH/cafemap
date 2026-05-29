@@ -1,54 +1,42 @@
-from datetime import datetime
-
 import json
-
-import uuid
-
 import re
-
+import uuid
+from datetime import datetime
 from difflib import SequenceMatcher
 
 from sqlalchemy.orm import Session
-from cafemap.core.config import OFFICIAL_HUSBAND_EMAILS, OFFICIAL_WIFE_EMAILS
 
-
-
-from cafemap.models.entities import Brand, Menu, Store, Review, BrandMenuAggregate, StoreAggregate, User
-
+from cafemap.core.config import (
+    OFFICIAL_HUSBAND_EMAILS,
+    OFFICIAL_WIFE_EMAILS,
+    REVIEW_IMAGE_LIMIT,
+)
 from cafemap.core.rating_dimensions import (
     CURRENT_RATING_SCHEMA_VERSION,
-
     attributes_json_dumps,
-
     compute_overall,
-
-    normalize_category,
-
     normalize_attributes,
-
+    normalize_category,
     normalize_rating_schema_version,
-
     normalize_scores,
-
     normalize_store_scores,
-
     scores_json_dumps,
-
     scores_json_loads,
-
     top_highlights,
-
 )
-
+from cafemap.models.entities import (
+    Brand,
+    BrandMenuAggregate,
+    Menu,
+    Review,
+    Store,
+    StoreAggregate,
+    User,
+)
 from cafemap.repositories import review_repository
-
 from cafemap.services import geocode_service
 
-
-
-
-
-# ?? ???? ?? ????.
+# Review creation, validation, and aggregate update logic.
 
 LOCAL_BRAND_ID = "brand-local"
 STORE_TYPE_LOCAL = "local"
@@ -58,32 +46,18 @@ REVIEWER_HUSBAND = "HUSBAND"
 REVIEWER_USER = "USER"
 
 
-
-
-
 def get_my_reviews(db: Session, user_id: str):
-
-    # ? ?? ??? ????.
-
+    # Return reviews authored by the current user.
     return review_repository.fetch_my_reviews(db, user_id)
 
 
-
-
-
 def get_review(db: Session, review_id: str):
-
-    # ?? ??? ????.
-
+    # Return a single review detail row.
     return review_repository.fetch_review(db, review_id)
 
 
-
-
-
 def create_review(db: Session, payload, user_id: str):
-
-    # ??? ???? ????.
+    # Validate input, persist the review, and refresh aggregates.
     (
         brand,
         menu,
@@ -98,35 +72,20 @@ def create_review(db: Session, payload, user_id: str):
     ) = _prepare_review_payload(db, payload)
 
     review = Review(
-
         id=f"review-{uuid.uuid4().hex}",
-
         user_id=user_id,
-
         store_id=store.id,
-
         brand_id=brand.id,
-
         menu_id=menu.id,
-
         rating_schema_version=rating_schema_version,
-
         scores_json=scores_json_dumps(aggregate_scores),
-
         attributes_json=attributes_json_dumps(attributes),
-
         image_urls_json=json.dumps(image_urls, ensure_ascii=False),
-
         temperature_option=temperature_option,
-
         reviewer_type=_reviewer_type_for_user_id(db, user_id),
-
         overall=resolved_overall,
-
         comment=payload.comment,
-
         created_at=datetime.now(),
-
     )
 
     db.add(review)
@@ -137,29 +96,18 @@ def create_review(db: Session, payload, user_id: str):
     ):
 
         _update_brand_menu_aggregate(
-
             db,
-
             brand_id=brand.id,
-
             menu=menu,
-
             scores=menu_scores,
-
             overall=resolved_overall,
-
         )
 
     _update_store_aggregate(
-
         db,
-
         store=store,
-
         scores=aggregate_scores,
-
         overall=resolved_overall,
-
     )
 
     db.commit()
@@ -350,35 +298,21 @@ def _reviewer_type_for_user_id(db: Session, user_id: str) -> str:
     return REVIEWER_USER
 
 
-
-
-
 def _update_brand_menu_aggregate(
-
     db: Session,
-
     brand_id: str,
-
     menu: Menu,
-
     scores: dict[str, float],
-
     overall: float,
-
 ):
 
     # ???-?? ??? ?? ??????.
 
     aggregate = (
-
         db.query(BrandMenuAggregate)
-
         .filter(BrandMenuAggregate.brand_id == brand_id)
-
         .filter(BrandMenuAggregate.menu_id == menu.id)
-
         .first()
-
     )
 
     if aggregate is None:
@@ -386,34 +320,21 @@ def _update_brand_menu_aggregate(
         highlights = top_highlights(scores)
 
         aggregate = BrandMenuAggregate(
-
             id=f"rank-{uuid.uuid4().hex}",
-
             brand_id=brand_id,
-
             menu_id=menu.id,
-
             rating=overall,
-
             review_count=1,
-
             highlight_score_a=highlights[0][1],
-
             highlight_label_a=highlights[0][0],
-
             highlight_score_b=highlights[1][1],
-
             highlight_label_b=highlights[1][0],
-
             scores_json=scores_json_dumps(scores),
-
         )
 
         db.add(aggregate)
 
         return
-
-
 
     count = aggregate.review_count
 
@@ -423,15 +344,11 @@ def _update_brand_menu_aggregate(
 
     merged_scores = _merge_average_scores(current_scores, scores, count, new_count)
 
-
-
     aggregate.scores_json = scores_json_dumps(merged_scores)
 
     aggregate.rating = (aggregate.rating * count + overall) / new_count
 
     aggregate.review_count = new_count
-
-
 
     highlights = top_highlights(merged_scores)
 
@@ -506,31 +423,17 @@ def _rebuild_brand_menu_aggregate(db: Session, *, brand_id: str, menu_id: str):
     aggregate.scores_json = scores_json_dumps(averaged_scores)
 
 
-
-
-
 def _update_store_aggregate(
-
     db: Session,
-
     store: Store,
-
     scores: dict[str, float],
-
     overall: float,
-
 ):
 
     # ?? ??? ?? ??????.
 
     aggregate = (
-
-        db.query(StoreAggregate)
-
-        .filter(StoreAggregate.store_id == store.id)
-
-        .first()
-
+        db.query(StoreAggregate).filter(StoreAggregate.store_id == store.id).first()
     )
 
     if aggregate is None:
@@ -538,26 +441,17 @@ def _update_store_aggregate(
         initial_counts = {key: 1 for key in scores}
 
         aggregate = StoreAggregate(
-
             id=store.id,
-
             store_id=store.id,
-
             rating=overall,
-
             review_count=1,
-
             scores_json=scores_json_dumps(scores),
-
             counts_json=scores_json_dumps(initial_counts),
-
         )
 
         db.add(aggregate)
 
         return
-
-
 
     count = aggregate.review_count
 
@@ -568,16 +462,10 @@ def _update_store_aggregate(
     current_counts = _counts_json_loads(aggregate.counts_json)
 
     merged_scores, merged_counts = _merge_store_scores_with_counts(
-
         current_scores=current_scores,
-
         current_counts=current_counts,
-
         incoming_scores=scores,
-
     )
-
-
 
     aggregate.scores_json = scores_json_dumps(merged_scores)
 
@@ -592,9 +480,7 @@ def _rebuild_store_aggregate(db: Session, *, store_id: str):
     # 매장 집계는 항목별 참여 수가 다를 수 있어 평균과 counts_json을 함께 다시 만든다.
 
     aggregate = (
-        db.query(StoreAggregate)
-        .filter(StoreAggregate.store_id == store_id)
-        .first()
+        db.query(StoreAggregate).filter(StoreAggregate.store_id == store_id).first()
     )
     reviews = db.query(Review).filter(Review.store_id == store_id).all()
 
@@ -654,19 +540,11 @@ def _average_score_maps(score_maps: list[dict[str, float]]) -> dict[str, float]:
     }
 
 
-
-
-
 def _merge_average_scores(
-
     current: dict[str, float],
-
     incoming: dict[str, float],
-
     current_count: int,
-
     new_count: int,
-
 ) -> dict[str, float]:
 
     keys = set(current) | set(incoming)
@@ -680,9 +558,6 @@ def _merge_average_scores(
         merged[key] = (base * current_count + incoming.get(key, base)) / new_count
 
     return merged
-
-
-
 
 
 def _counts_json_loads(raw: str | None) -> dict[str, int]:
@@ -703,8 +578,6 @@ def _counts_json_loads(raw: str | None) -> dict[str, int]:
 
         return {}
 
-
-
     counts: dict[str, int] = {}
 
     for key, value in data.items():
@@ -724,26 +597,16 @@ def _counts_json_loads(raw: str | None) -> dict[str, int]:
     return counts
 
 
-
-
-
 def _merge_store_scores_with_counts(
-
     *,
-
     current_scores: dict[str, float],
-
     current_counts: dict[str, int],
-
     incoming_scores: dict[str, float],
-
 ) -> tuple[dict[str, float], dict[str, int]]:
 
     merged_scores = dict(current_scores)
 
     merged_counts = dict(current_counts)
-
-
 
     for key, incoming_value in incoming_scores.items():
 
@@ -757,12 +620,7 @@ def _merge_store_scores_with_counts(
 
         merged_counts[key] = next_count
 
-
-
     return merged_scores, merged_counts
-
-
-
 
 
 def _normalize_menu_name(name: str) -> str:
@@ -858,9 +716,6 @@ def _coords_from_payload(payload) -> tuple[float, float] | None:
     return lat, lng
 
 
-
-
-
 def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu | None:
 
     # ?? ??? ??? ?? ???? ?? ????.
@@ -871,8 +726,6 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
 
         return None
 
-
-
     stripped = raw_name.strip()
 
     for existing in menus:
@@ -881,15 +734,11 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
 
             return existing
 
-
-
     target_keys = _menu_match_keys(stripped)
 
     if not target_keys:
 
         return None
-
-
 
     # 1) ??? ??? ?? ?? ??? ?? ????.
 
@@ -898,8 +747,6 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
         if target_keys & _menu_match_keys(existing.name):
 
             return existing
-
-
 
     # 2) ?? ??? ??? ??? ???? ? ??? ????.
 
@@ -924,8 +771,6 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
 
             best_menu = existing
 
-
-
     if best_menu is not None and best_score >= 0.80:
 
         return best_menu
@@ -939,11 +784,13 @@ def _sanitize_image_urls(image_urls: list[str]) -> list[str]:
 
         return []
 
-    cleaned = [url.strip() for url in image_urls if isinstance(url, str) and url.strip()]
+    cleaned = [
+        url.strip() for url in image_urls if isinstance(url, str) and url.strip()
+    ]
 
-    if len(cleaned) > 2:
+    if len(cleaned) > REVIEW_IMAGE_LIMIT:
 
-        raise ValueError("At most 2 images can be attached")
+        raise ValueError(f"At most {REVIEW_IMAGE_LIMIT} images can be attached")
 
     for url in cleaned:
 

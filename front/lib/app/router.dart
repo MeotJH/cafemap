@@ -7,6 +7,7 @@ import 'package:front/presentation/pages/map_home_page.dart';
 import 'package:front/presentation/pages/my_record_page.dart';
 import 'package:front/presentation/pages/ranking_detail_page.dart';
 import 'package:front/presentation/pages/ranking_home/ranking_home_cafe.dart';
+import 'package:front/presentation/pages/ranking_home/ranking_home_types.dart';
 import 'package:front/presentation/pages/review_detail_page.dart';
 import 'package:front/presentation/pages/review_write_page.dart';
 import 'package:front/presentation/pages/store_select_page.dart';
@@ -48,7 +49,11 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/rankings',
           builder: (BuildContext context, GoRouterState state) {
-            return const RankingHomeCafe();
+            return RankingHomeCafe(
+              initialPurpose: rankingPurposeFromQuery(
+                state.uri.queryParameters['purpose'],
+              ),
+            );
           },
           routes: <RouteBase>[
             GoRoute(

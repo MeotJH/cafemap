@@ -1,14 +1,13 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from cafemap.core.config import DB_URL
 
-
-# SQLAlchemy ?몄뀡怨?Base瑜??쒓났?섎뒗 紐⑤뱢?대떎.
+# Shared SQLAlchemy engine and declarative base.
 
 
 class Base(DeclarativeBase):
-    # ORM 紐⑤뜽??怨듯넻 Base ?대옒?ㅻ떎.
+    # Base class for all ORM models.
     pass
 
 
@@ -22,10 +21,9 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def get_db():
-    # FastAPI ?섏〈?깆쑝濡??ъ슜??DB ?몄뀡 ?앹꽦湲곕떎.
+    # Yield a request-scoped database session for FastAPI dependencies.
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-

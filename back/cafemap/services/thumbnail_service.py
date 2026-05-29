@@ -5,10 +5,18 @@ import io
 from pathlib import Path
 
 import requests
-from PIL import Image, ImageOps, UnidentifiedImageError
+
+try:
+    from PIL import Image, ImageOps, UnidentifiedImageError
+except ModuleNotFoundError as exc:
+    Image = None
+    ImageOps = None
+    UnidentifiedImageError = OSError
+    _PIL_IMPORT_ERROR = exc
+else:
+    _PIL_IMPORT_ERROR = None
 
 from cafemap.core.config import DATA_DIR
-
 
 THUMBNAIL_CACHE_DIR = DATA_DIR / "thumbnail_cache"
 THUMBNAIL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -27,6 +35,12 @@ def get_or_create_thumbnail(
     width: int,
     height: int,
 ) -> Path:
+    if _PIL_IMPORT_ERROR is not None:
+        raise ThumbnailError(
+            "Pillow is not installed. Run `python -m pip install -r requirements.txt` "
+            "from the back directory."
+        ) from _PIL_IMPORT_ERROR
+
     normalized_url = source_url.strip()
     if not normalized_url:
         raise ThumbnailError("Thumbnail source URL is empty")

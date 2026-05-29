@@ -1,6 +1,5 @@
 import json
 
-
 LEGACY_RATING_SCHEMA_VERSION = 1
 CURRENT_RATING_SCHEMA_VERSION = 2
 
@@ -331,11 +330,7 @@ def visible_scores_for_category(
 ) -> dict[str, float]:
     source = scores or {}
     allowed = category_dimensions_for_schema(category, schema_version)
-    filtered = {
-        key: float(source[key])
-        for key in allowed
-        if key in source
-    }
+    filtered = {key: float(source[key]) for key in allowed if key in source}
     if filtered:
         return filtered
     without_legacy = {
@@ -407,9 +402,7 @@ def top_highlights(
     if not scores:
         return [("평가 없음", 0.0), ("평가 없음", 0.0)]
     visible_scores = [
-        item
-        for item in scores.items()
-        if item[0] not in LEGACY_HIGHLIGHT_DIMENSIONS
+        item for item in scores.items() if item[0] not in LEGACY_HIGHLIGHT_DIMENSIONS
     ]
     source = visible_scores or list(scores.items())
     ordered = sorted(source, key=lambda item: item[1], reverse=True)
