@@ -300,6 +300,17 @@ def test_store_rankings_supports_purpose_sorting(client, db_session, auth_header
         assert low_name in names
         assert legacy_name not in names
         assert names.index(high_name) < names.index(low_name)
+
+        all_ranking_response = client.get("/api/cafemap/store-rankings?type=user")
+        assert all_ranking_response.status_code == 200
+        all_rankings = all_ranking_response.json()
+        legacy_ranking = next(
+            (item for item in all_rankings if item["storeName"] == legacy_name),
+            None,
+        )
+        assert legacy_ranking is not None
+        assert legacy_ranking["topLabelA"] != "평가 없음"
+        assert legacy_ranking["topScoreA"] > 0
     finally:
         for review_id in created_review_ids:
             review = db_session.get(Review, review_id)

@@ -561,14 +561,13 @@ def _build_segmented_rankings(
             ):
                 image_urls.append(image_url)
 
-        if schema_version == CURRENT_RATING_SCHEMA_VERSION:
-            totals_by_schema = payload["_scoreTotalsBySchema"]
-            counts_by_schema = payload["_scoreCountsBySchema"]
-            totals = totals_by_schema.setdefault(schema_version, {})
-            counts = counts_by_schema.setdefault(schema_version, {})
-            for key, value in scores.items():
-                totals[key] = totals.get(key, 0.0) + float(value)
-                counts[key] = counts.get(key, 0) + 1
+        totals_by_schema = payload["_scoreTotalsBySchema"]
+        counts_by_schema = payload["_scoreCountsBySchema"]
+        totals = totals_by_schema.setdefault(schema_version, {})
+        counts = counts_by_schema.setdefault(schema_version, {})
+        for key, value in scores.items():
+            totals[key] = totals.get(key, 0.0) + float(value)
+            counts[key] = counts.get(key, 0) + 1
 
     results: list[dict[str, object]] = []
     for payload in store_map.values():
@@ -629,7 +628,9 @@ def _build_segmented_rankings(
             payload["_revisitCount"],
         )
         if include_private:
-            payload["_avgScores"] = avg_scores
+            payload["_avgScores"] = (
+                avg_scores if schema_version == CURRENT_RATING_SCHEMA_VERSION else {}
+            )
         payload["tags"] = [label for label, score in highlights if label and score > 0][
             :3
         ]
