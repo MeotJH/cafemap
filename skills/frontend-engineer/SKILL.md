@@ -26,6 +26,26 @@ Work inside `front/` unless the task explicitly crosses the frontend/backend bou
 5. If the task touches duplicated concepts such as rating dimensions, check backend parity.
 6. Keep badge/chip corner radii modest and rectangular by default, and add edge fade to horizontally scrollable UI when overflow can clip content.
 
+## Route-Scoped Form Architecture
+
+For complex route-scoped forms in this repo, prefer the following split:
+
+- route page file:
+  - route entry
+  - `BuildContext`-bound shell behavior
+  - ephemeral UI objects such as `TextEditingController`, focus, picker invocation, dialogs, toasts, and navigation
+- Riverpod provider/controller:
+  - immutable view state
+  - bootstrap and hydration
+  - derived form state
+  - validation and policy rules
+  - submit orchestration and repository calls
+- page-local widgets/helpers:
+  - widgets and painters used only by that route
+  - render-only helpers that consume explicit state and callbacks
+
+Avoid using page-owned mutable state as the long-term home for business rules when the screen already depends on Riverpod. Also avoid using Dart `extension` splits as the final architecture for core screen logic; they may be acceptable as a temporary refactor step, but the steady-state target should be `page shell + provider/controller + page-local widgets`.
+
 ## Validation
 
 - Run `flutter analyze` from `front/` for any Dart or Flutter change.

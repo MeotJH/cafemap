@@ -43,6 +43,7 @@ Key rules:
 - If two screens already have separate routes, do not keep them under one page widget with internal mode switching unless there is a clear lifecycle or shared-state reason.
 - Prefer per-route page files plus shared widgets/helpers over a single container page that branches by mode.
 - Use container pages only when one route owns multiple local sections or tabs that genuinely share lifecycle and state.
+- For complex route-scoped forms, keep the route page as a shell for `BuildContext`-bound behavior and ephemeral UI objects, move business state and async orchestration into Riverpod providers/controllers, and place route-only render helpers in page-local widget files rather than extension-based logic splits.
 
 ## Frontend UI Rules
 
