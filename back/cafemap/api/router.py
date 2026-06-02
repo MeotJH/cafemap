@@ -3,7 +3,7 @@ import logging
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from cafemap.core.rating_dimensions import (
@@ -26,10 +26,12 @@ from cafemap.schemas.cafemap import (
     ReviewCreateIn,
     ReviewImagePresignIn,
     ReviewImagePresignOut,
+    ReviewMediaItem,
     ReviewOut,
     SimilarStoreOut,
     StoreRankingOut,
     StoreSummaryOut,
+    StoreVisitMediaPageOut,
 )
 from cafemap.services import (
     brand_menu_service,
@@ -93,6 +95,15 @@ def _resolve_store_image_url(request: Request, brand_logo_url: str | None) -> st
     return _resolve_asset_url(request, brand_logo_url)
 
 
+def _is_video_media_url(raw_url: str | None) -> bool:
+    lowered = (raw_url or "").strip().lower()
+    return (
+        lowered.endswith(".mp4")
+        or lowered.endswith(".mov")
+        or lowered.endswith(".webm")
+    )
+
+
 def _resolve_thumbnail_url(
     request: Request,
     raw_url: str | None,
@@ -114,6 +125,33 @@ def _resolve_thumbnail_url(
         f"{_public_base_url(request)}/api/cafemap/assets/thumbnail"
         f"?src={encoded_src}&w={width}&h={height}"
     )
+
+
+def _resolve_media_gallery_url(
+    request: Request,
+    raw_url: str | None,
+    *,
+    width: int = 160,
+    height: int = 160,
+) -> str:
+    if _is_video_media_url(raw_url):
+        return _resolve_thumbnail_url(request, raw_url, width=width, height=height)
+    return _resolve_asset_url(request, raw_url)
+
+
+def _resolve_video_thumbnail_url(
+    request: Request,
+    raw_url: str | None,
+    *,
+    width: int = 160,
+    height: int = 160,
+) -> str:
+    resolved = _resolve_asset_url(request, raw_url)
+    if not resolved or not _is_video_media_url(resolved):
+        return ""
+    if not upload_service.is_review_image_public_url(resolved):
+        return ""
+    return _resolve_thumbnail_url(request, resolved, width=width, height=height)
 
 
 def _store_type_for_response(store) -> str:
@@ -214,7 +252,7 @@ def _ranking_out(
 def _store_ranking_out(request: Request, item: dict) -> StoreRankingOut:
     image_url = _resolve_store_image_url(request, item["imageUrl"])
     image_urls = [
-        _resolve_asset_url(request, url)
+        _resolve_media_gallery_url(request, url)
         for url in item.get("imageUrls", [])
         if isinstance(url, str) and url.strip()
     ]
@@ -262,6 +300,7 @@ def _store_ranking_out(request: Request, item: dict) -> StoreRankingOut:
 
 def _review_out(
     *,
+    request: Request,
     review,
     store_name: str,
     store_address: str = "",
@@ -296,6 +335,11 @@ def _review_out(
         comment=review.comment,
         userEmail=user_email or "",
         imageUrls=_image_urls_from_snapshot(review.image_urls_json),
+        mediaItems=_media_items_from_snapshot(
+            review.media_items_json,
+            review.image_urls_json,
+            request,
+        ),
         createdAt=review.created_at,
     )
 
@@ -312,6 +356,59 @@ def _image_urls_from_snapshot(
     if not isinstance(parsed, list):
         return []
     return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
+
+
+def _media_items_from_snapshot(
+    media_items_json: str | None,
+    image_urls_json: str | None,
+    request: Request,
+) -> list[ReviewMediaItem]:
+    parsed_items: list[dict[str, object]] = []
+    if media_items_json:
+        try:
+            parsed = json.loads(media_items_json)
+        except (TypeError, ValueError):
+            parsed = []
+        if isinstance(parsed, list):
+            parsed_items = [item for item in parsed if isinstance(item, dict)]
+
+    if not parsed_items:
+        parsed_items = [
+            {"type": "image", "url": url}
+            for url in _image_urls_from_snapshot(image_urls_json)
+        ]
+
+    media_items: list[ReviewMediaItem] = []
+    for item in parsed_items:
+        media_item = _review_media_item_from_snapshot(item, request)
+        if media_item is not None:
+            media_items.append(media_item)
+    return media_items
+
+
+def _review_media_item_from_snapshot(
+    item: dict[str, object],
+    request: Request,
+) -> ReviewMediaItem | None:
+    raw_url = str(item.get("url", "")).strip()
+    if not raw_url:
+        return None
+    raw_thumbnail_url = str(item.get("thumbnailUrl", "") or "").strip()
+    duration_ms = item.get("durationMs")
+    return ReviewMediaItem(
+        type=str(item.get("type", "image")).strip().lower() or "image",
+        url=_resolve_asset_url(request, raw_url),
+        thumbnailUrl=(
+            _resolve_asset_url(request, raw_thumbnail_url)
+            if raw_thumbnail_url
+            else _resolve_video_thumbnail_url(request, raw_url)
+        ),
+        durationMs=(
+            int(duration_ms)
+            if isinstance(duration_ms, (int, float)) and duration_ms >= 0
+            else None
+        ),
+    )
 
 
 def _require_auth_user(
@@ -385,12 +482,17 @@ def get_ranking_breakdown(ranking_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/rankings/{ranking_id}/reviews", response_model=list[ReviewOut])
-def get_ranking_reviews(ranking_id: str, db: Session = Depends(get_db)):
+def get_ranking_reviews(
+    ranking_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
 
     # 랭킹에 대한 리뷰 목록을 조회한다.
     rows = brand_menu_service.get_ranking_reviews(db, ranking_id)
     return [
         _review_out(
+            request=request,
             review=review,
             store_name=store_name,
             store_link=store_link,
@@ -502,7 +604,7 @@ def get_thumbnail_asset(
         raise HTTPException(status_code=400, detail="Unsupported thumbnail source")
 
     try:
-        thumbnail_path = thumbnail_service.get_or_create_thumbnail(
+        thumbnail_asset = thumbnail_service.get_or_create_thumbnail(
             source_url=src,
             width=w,
             height=h,
@@ -510,8 +612,21 @@ def get_thumbnail_asset(
     except thumbnail_service.ThumbnailError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    if thumbnail_asset.storage_key:
+        try:
+            download_url = upload_service.issue_public_download_url(
+                key=thumbnail_asset.storage_key
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        return RedirectResponse(
+            download_url,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
     return FileResponse(
-        thumbnail_path,
+        thumbnail_asset.local_path,
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
@@ -526,11 +641,12 @@ def get_store_detail(store_id: str, request: Request, db: Session = Depends(get_
     if row is None:
         raise HTTPException(status_code=404, detail="Store not found")
 
-    store, aggregate, brand_name, brand_logo_url = row
+    store = row.store
+    aggregate = row.aggregate
     return StoreSummaryOut(
         id=store.id,
         name=store.name,
-        brandName=brand_name,
+        brandName=row.brand_name,
         storeType=_store_type_for_response(store),
         isLocal=_is_local_store(store),
         address=store.address,
@@ -539,7 +655,7 @@ def get_store_detail(store_id: str, request: Request, db: Session = Depends(get_
         displayScore=_display_score_for_store(aggregate),
         reviewCount=aggregate.review_count,
         distanceKm=store.distance_km,
-        imageUrl=_resolve_store_image_url(request, brand_logo_url),
+        imageUrl=_resolve_store_image_url(request, row.brand_logo_url),
         lat=store.lat,
         lng=store.lng,
         coffeeQualityScore=_store_signal(
@@ -556,6 +672,14 @@ def get_store_detail(store_id: str, request: Request, db: Session = Depends(get_
         topScoreA=_store_highlights(aggregate.scores_json)[0][1],
         topLabelB=_store_highlights(aggregate.scores_json)[1][0],
         topScoreB=_store_highlights(aggregate.scores_json)[1][1],
+        visitMediaItems=[
+            media_item
+            for raw_item in row.visit_media_items
+            if (media_item := _review_media_item_from_snapshot(raw_item, request))
+            is not None
+        ],
+        hasVisitMediaMore=row.has_visit_media_more,
+        visitMediaNextCursor=row.visit_media_next_cursor,
     )
 
 
@@ -572,6 +696,32 @@ def get_store_breakdown(store_id: str, db: Session = Depends(get_db)):
         overall=aggregate.overall,
         ratingSchemaVersion=aggregate.rating_schema_version,
         reviewCount=aggregate.review_count,
+    )
+
+
+@router.get("/stores/{store_id}/visit-media", response_model=StoreVisitMediaPageOut)
+def get_store_visit_media(
+    store_id: str,
+    request: Request,
+    cursor: str | None = Query(default=None),
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    page = store_service.get_store_visit_media_page(
+        db,
+        store_id,
+        limit=limit,
+        cursor=cursor,
+    )
+    return StoreVisitMediaPageOut(
+        items=[
+            media_item
+            for raw_item in page.items
+            if (media_item := _review_media_item_from_snapshot(raw_item, request))
+            is not None
+        ],
+        nextCursor=page.next_cursor,
+        hasMore=page.has_more,
     )
 
 
@@ -600,12 +750,13 @@ def get_similar_stores(store_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/stores/{store_id}/reviews", response_model=list[ReviewOut])
-def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
+def get_store_reviews(store_id: str, request: Request, db: Session = Depends(get_db)):
 
     # 스토어의 리뷰 목록을 조회한다.
     rows = store_service.get_store_reviews(db, store_id)
     return [
         _review_out(
+            request=request,
             review=review,
             store_name=store_name,
             store_link=store_link,
@@ -620,6 +771,7 @@ def get_store_reviews(store_id: str, db: Session = Depends(get_db)):
 
 @router.get("/reviews/me", response_model=list[ReviewOut])
 def get_my_reviews(
+    request: Request,
     auth_user: AuthUser = Depends(_require_auth_user),
     db: Session = Depends(get_db),
 ):
@@ -630,6 +782,7 @@ def get_my_reviews(
 
     return [
         _review_out(
+            request=request,
             review=review,
             store_name=store_name,
             store_link=store_link,
@@ -643,7 +796,7 @@ def get_my_reviews(
 
 
 @router.get("/reviews/{review_id}", response_model=ReviewOut)
-def get_review(review_id: str, db: Session = Depends(get_db)):
+def get_review(review_id: str, request: Request, db: Session = Depends(get_db)):
 
     # 리뷰를 가져온다.
 
@@ -656,6 +809,7 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
     review, store, brand_name, menu_name, menu_category, user_email = row
 
     return _review_out(
+        request=request,
         review=review,
         store_name=store.name,
         store_address=store.address,
@@ -673,6 +827,7 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
 
 @router.post("/reviews", response_model=ReviewOut)
 def create_review(
+    request: Request,
     payload: ReviewCreateIn,
     auth_user: AuthUser = Depends(_require_auth_user),
     db: Session = Depends(get_db),
@@ -700,6 +855,7 @@ def create_review(
     menu_category = menu.category if menu is not None else "?ë¼?´ë"
 
     return _review_out(
+        request=request,
         review=review,
         store_name=store_name,
         store_link=store_link,
@@ -713,6 +869,7 @@ def create_review(
 @router.put("/reviews/{review_id}", response_model=ReviewOut)
 def update_review(
     review_id: str,
+    request: Request,
     payload: ReviewCreateIn,
     auth_user: AuthUser = Depends(_require_auth_user),
     db: Session = Depends(get_db),
@@ -744,6 +901,7 @@ def update_review(
 
     review, store, brand_name, menu_name, menu_category, user_email = row
     return _review_out(
+        request=request,
         review=review,
         store_name=store.name,
         store_address=store.address,

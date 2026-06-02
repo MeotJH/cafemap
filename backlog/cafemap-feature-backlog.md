@@ -3,6 +3,4 @@
 카페맵 기능 백로그 인덱스.
 
 목록
-- [3-map-search-history.md](/Users/eldorado/WorkSpace/cafemap/backlog/3-map-search-history.md)
-- [4-my-activity-region-grouping.md](/Users/eldorado/WorkSpace/cafemap/backlog/4-my-activity-region-grouping.md)
-- [6-ios-safari-map-render-instability.md](/Users/eldorado/WorkSpace/cafemap/backlog/6-ios-safari-map-render-instability.md)
+- 현재 남은 기능 백로그가 없습니다.

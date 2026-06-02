@@ -268,6 +268,7 @@ class MockDataSource {
           overall: 4.6,
           comment: '조용하고 작업하기 좋아서 다시 방문하고 싶은 카페예요.',
           imageUrls: const [],
+          mediaItems: const [],
           createdAt: DateTime.now().subtract(const Duration(days: 2)),
         ),
         Review(
@@ -310,6 +311,7 @@ class MockDataSource {
           overall: 4.4,
           comment: '고소한 맛이 좋고 마무리가 깔끔했어요.',
           imageUrls: const [],
+          mediaItems: const [],
           createdAt: DateTime.now().subtract(const Duration(days: 1)),
         ),
       ];

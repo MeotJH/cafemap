@@ -99,6 +99,7 @@ def _migrate_scores_json_columns(db: Session):
             "overall",
             "user_id",
             "image_urls_json",
+            "media_items_json",
             "temperature_option",
             "reviewer_type",
             "rating_schema_version",
@@ -136,6 +137,13 @@ def _migrate_scores_json_columns(db: Session):
                     table_name,
                     f"ALTER TABLE {table_name} "
                     "ADD COLUMN image_urls_json VARCHAR NOT NULL DEFAULT '[]'",
+                )
+            elif column_name == "media_items_json":
+                _safe_add_sqlite_column(
+                    db,
+                    table_name,
+                    f"ALTER TABLE {table_name} "
+                    "ADD COLUMN media_items_json VARCHAR NOT NULL DEFAULT '[]'",
                 )
             elif column_name == "temperature_option":
                 _safe_add_sqlite_column(
@@ -642,6 +650,7 @@ def seed_if_empty(db: Session):
                     scores_json=scores_json_dumps(scores),
                     attributes_json="{}",
                     image_urls_json="[]",
+                    media_items_json="[]",
                     temperature_option=_default_temperature_option(menu.category),
                     overall=overall,
                     comment=f"{seed['store_name']}의 대표 메뉴를 기준으로 만든 샘플 리뷰입니다.",
@@ -663,6 +672,7 @@ def seed_if_empty(db: Session):
                 )
                 existing_review.scores_json = scores_json_dumps(scores)
                 existing_review.image_urls_json = "[]"
+                existing_review.media_items_json = "[]"
                 existing_review.temperature_option = (
                     existing_review.temperature_option
                     or _default_temperature_option(menu.category)

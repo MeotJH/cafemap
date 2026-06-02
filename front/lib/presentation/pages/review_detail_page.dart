@@ -1,7 +1,6 @@
 import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
@@ -9,8 +8,8 @@ import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
+import 'package:front/presentation/widgets/review_media_gallery.dart';
 import 'package:front/presentation/widgets/review_temperature_badge.dart';
-import 'package:front/presentation/widgets/stacked_image_gallery.dart';
 import 'package:go_router/go_router.dart';
 
 class ReviewDetailPage extends ConsumerWidget {
@@ -151,16 +150,9 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
     final entries = _selectedSection == _coffeeSection
         ? _orderedCoffeeEntries()
         : _orderedStoreEntries();
-    final reviewImages = widget.review.imageUrls
-        .where((url) => url.trim().isNotEmpty)
-        .map((url) {
-          final sourceUrl = url.trim();
-          return GalleryImageItem.url(
-            _thumbnailUrlFor(sourceUrl, width: 320, height: 320),
-            viewerUrl: sourceUrl,
-          );
-        })
-        .toList(growable: false);
+    final reviewMediaItems = reviewGalleryImagesFromMediaItems(
+      widget.review.mediaItems,
+    );
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -277,30 +269,12 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
           ),
         ),
         const Divider(height: 1, thickness: 1, color: Color(0xFFE8EDF3)),
-        if (reviewImages.isNotEmpty)
-          Container(
-            color: Colors.white,
+        if (reviewMediaItems.isNotEmpty)
+          ReviewMediaSection(
+            images: reviewMediaItems,
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '사진',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                GalleryImageStrip(
-                  images: reviewImages,
-                  placeholder: const _ReviewImagePlaceholder(),
-                ),
-              ],
-            ),
           ),
-        if (reviewImages.isNotEmpty)
+        if (reviewMediaItems.isNotEmpty)
           const Divider(height: 1, thickness: 1, color: Color(0xFFE8EDF3)),
         Container(
           color: Colors.white,
@@ -505,26 +479,6 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
     return labels;
   }
 
-  String _thumbnailUrlFor(
-    String sourceUrl, {
-    required int width,
-    required int height,
-  }) {
-    final baseUrl = (dotenv.env['API_BASE_URL'] ?? '').trim();
-    if (baseUrl.isEmpty) return sourceUrl;
-    final baseUri = Uri.parse(baseUrl);
-    return baseUri
-        .replace(
-          path: '/api/cafemap/assets/thumbnail',
-          queryParameters: {
-            'src': sourceUrl,
-            'w': width.toString(),
-            'h': height.toString(),
-          },
-        )
-        .toString();
-  }
-
   String _attributeBadgeLabel(String key, String valueLabel) {
     final label = attributeLabel(key);
     final normalizedValue = valueLabel.startsWith(label)
@@ -604,19 +558,6 @@ class _ScoreRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ReviewImagePlaceholder extends StatelessWidget {
-  const _ReviewImagePlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFF3F4F6),
-      alignment: Alignment.center,
-      child: const Icon(Icons.broken_image_outlined),
     );
   }
 }

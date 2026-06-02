@@ -1,11 +1,29 @@
-from uuid import uuid4
+﻿from uuid import uuid4
 
-from cafemap.core.config import REVIEW_IMAGE_LIMIT
+from cafemap.core.config import REVIEW_IMAGE_LIMIT, REVIEW_VIDEO_MAX_DURATION_MS
 from cafemap.models.entities import Review, Store, StoreAggregate, User
 
 
+def _image_media(url: str) -> dict[str, object]:
+    return {
+        "type": "image",
+        "url": url,
+        "thumbnailUrl": "",
+        "durationMs": None,
+    }
+
+
+def _video_media(url: str, *, duration_ms: int = 12000) -> dict[str, object]:
+    return {
+        "type": "video",
+        "url": url,
+        "thumbnailUrl": "",
+        "durationMs": duration_ms,
+    }
+
+
 def test_review_create_and_read_lifecycle(client, db_session, auth_header):
-    # 리뷰 생성 -> 상세 조회 -> 내 리뷰 조회 -> 지점 리뷰 노출까지 핵심 쓰기 흐름을 검증한다.
+    # 리뷰 생성부터 상세 조회, 내 리뷰 조회, 지도 리뷰 호출까지 흐름을 검증한다.
     suffix = uuid4().hex[:8]
     payload = {
         "storeName": f"Pytest 리뷰 카페 {suffix}",
@@ -38,6 +56,7 @@ def test_review_create_and_read_lifecycle(client, db_session, auth_header):
         "overall": 4.2,
         "comment": f"pytest lifecycle {suffix}",
         "imageUrls": ["https://example.com/test-image.png"],
+        "mediaItems": [_image_media("https://example.com/test-image.png")],
     }
 
     create_response = client.post(
@@ -55,6 +74,7 @@ def test_review_create_and_read_lifecycle(client, db_session, auth_header):
         assert created["comment"] == payload["comment"]
         assert created["temperatureOption"] == "ice"
         assert created["imageUrls"] == payload["imageUrls"]
+        assert created["mediaItems"] == payload["mediaItems"]
 
         detail_response = client.get(f"/api/cafemap/reviews/{review_id}")
         assert detail_response.status_code == 200
@@ -95,6 +115,10 @@ def test_review_create_and_read_lifecycle(client, db_session, auth_header):
             "overall": 3.4,
             "comment": f"pytest edited {suffix}",
             "imageUrls": ["https://example.com/test-image-2.png"],
+            "mediaItems": [
+                _image_media("https://example.com/test-image-2.png"),
+                _video_media("https://example.com/test-video.mp4"),
+            ],
         }
         update_response = client.put(
             f"/api/cafemap/reviews/{review_id}",
@@ -106,6 +130,7 @@ def test_review_create_and_read_lifecycle(client, db_session, auth_header):
         assert updated["comment"] == updated_payload["comment"]
         assert updated["temperatureOption"] == "hot"
         assert updated["imageUrls"] == updated_payload["imageUrls"]
+        assert updated["mediaItems"] == updated_payload["mediaItems"]
         assert updated["address"] == payload["address"]
 
         updated_detail_response = client.get(f"/api/cafemap/reviews/{review_id}")
@@ -183,6 +208,7 @@ def test_store_rankings_supports_purpose_sorting(client, db_session, auth_header
             "overall": 4.7,
             "comment": f"purpose high {suffix}",
             "imageUrls": ["https://example.com/date-high.png"],
+            "mediaItems": [_image_media("https://example.com/date-high.png")],
         },
         {
             "storeName": f"Pytest 데이트 카페 하 {suffix}",
@@ -221,6 +247,7 @@ def test_store_rankings_supports_purpose_sorting(client, db_session, auth_header
             "overall": 3.1,
             "comment": f"purpose low {suffix}",
             "imageUrls": ["https://example.com/date-low.png"],
+            "mediaItems": [_image_media("https://example.com/date-low.png")],
         },
         {
             "storeName": f"Pytest 데이트 카페 구버전 {suffix}",
@@ -253,6 +280,7 @@ def test_store_rankings_supports_purpose_sorting(client, db_session, auth_header
             "overall": 4.9,
             "comment": f"purpose legacy {suffix}",
             "imageUrls": ["https://example.com/date-legacy.png"],
+            "mediaItems": [_image_media("https://example.com/date-legacy.png")],
         },
     ]
 
@@ -381,6 +409,10 @@ def test_review_image_limit_allows_five_and_rejects_more(
             f"https://example.com/review-image-{index}.png"
             for index in range(REVIEW_IMAGE_LIMIT)
         ],
+        "mediaItems": [
+            _image_media(f"https://example.com/review-image-{index}.png")
+            for index in range(REVIEW_IMAGE_LIMIT)
+        ],
     }
     created_review_id: str | None = None
     created_store_id: str | None = None
@@ -396,6 +428,7 @@ def test_review_image_limit_allows_five_and_rejects_more(
         assert allowed_response.status_code == 200
         created = allowed_response.json()
         assert created["imageUrls"] == allowed_payload["imageUrls"]
+        assert created["mediaItems"] == allowed_payload["mediaItems"]
 
         created_review_id = created["id"]
         review = db_session.get(Review, created_review_id)
@@ -411,6 +444,10 @@ def test_review_image_limit_allows_five_and_rejects_more(
                 f"https://example.com/review-image-{index}.png"
                 for index in range(REVIEW_IMAGE_LIMIT + 1)
             ],
+            "mediaItems": [
+                _image_media(f"https://example.com/review-image-{index}.png")
+                for index in range(REVIEW_IMAGE_LIMIT + 1)
+            ],
         }
         rejected_response = client.post(
             "/api/cafemap/reviews",
@@ -421,8 +458,258 @@ def test_review_image_limit_allows_five_and_rejects_more(
         assert rejected_response.status_code == 400
         assert (
             rejected_response.json()["detail"]
-            == f"At most {REVIEW_IMAGE_LIMIT} images can be attached"
+            == f"At most {REVIEW_IMAGE_LIMIT} media items can be attached"
         )
+    finally:
+        if created_review_id is not None:
+            review = db_session.get(Review, created_review_id)
+            if review is not None:
+                db_session.delete(review)
+        if created_store_id is not None:
+            aggregate = (
+                db_session.query(StoreAggregate)
+                .filter(StoreAggregate.store_id == created_store_id)
+                .one_or_none()
+            )
+            if aggregate is not None:
+                db_session.delete(aggregate)
+            store = db_session.get(Store, created_store_id)
+            if store is not None:
+                db_session.delete(store)
+        if created_user_id is not None:
+            user = db_session.get(User, created_user_id)
+            if user is not None:
+                db_session.delete(user)
+        db_session.commit()
+
+
+def test_review_create_accepts_mixed_media_items(client, db_session, auth_header):
+    suffix = uuid4().hex[:8]
+    payload = {
+        "storeName": f"Pytest mixed media cafe {suffix}",
+        "address": "서울시 중구 테스트로 6",
+        "placeId": "",
+        "link": "",
+        "temperatureOption": "ice",
+        "lat": 37.5665,
+        "lng": 126.9780,
+        "brandId": "brand-local",
+        "menuName": "아메리카노",
+        "scores": {
+            "coffee_quality": 4.1,
+            "acidity_balance": 4.0,
+            "body": 4.1,
+            "aftertaste": 4.0,
+            "temperature": 4.2,
+            "value": 4.0,
+        },
+        "storeScores": {
+            "atmosphere": 4.2,
+            "work_friendly": 4.0,
+            "quietness": 4.1,
+            "seat_comfort": 4.0,
+            "outlet_access": 4.0,
+            "wifi_quality": 4.1,
+            "service": 4.0,
+            "revisit_intent": 4.2,
+        },
+        "overall": 4.1,
+        "comment": f"pytest mixed media {suffix}",
+        "mediaItems": [
+            _image_media("https://example.com/mixed-image.png"),
+            _video_media("https://example.com/mixed-video.mp4", duration_ms=9000),
+        ],
+    }
+    created_review_id: str | None = None
+    created_store_id: str | None = None
+    created_user_id: str | None = None
+
+    try:
+        response = client.post(
+            "/api/cafemap/reviews",
+            json=payload,
+            headers=auth_header,
+        )
+
+        assert response.status_code == 200
+        created = response.json()
+        assert created["mediaItems"] == payload["mediaItems"]
+        assert created["imageUrls"] == ["https://example.com/mixed-image.png"]
+
+        created_review_id = created["id"]
+        review = db_session.get(Review, created_review_id)
+        assert review is not None
+        created_store_id = review.store_id
+        created_user_id = review.user_id
+    finally:
+        if created_review_id is not None:
+            review = db_session.get(Review, created_review_id)
+            if review is not None:
+                db_session.delete(review)
+        if created_store_id is not None:
+            aggregate = (
+                db_session.query(StoreAggregate)
+                .filter(StoreAggregate.store_id == created_store_id)
+                .one_or_none()
+            )
+            if aggregate is not None:
+                db_session.delete(aggregate)
+            store = db_session.get(Store, created_store_id)
+            if store is not None:
+                db_session.delete(store)
+        if created_user_id is not None:
+            user = db_session.get(User, created_user_id)
+            if user is not None:
+                db_session.delete(user)
+        db_session.commit()
+
+
+def test_review_rejects_video_longer_than_thirty_seconds(
+    client,
+    auth_header,
+):
+    suffix = uuid4().hex[:8]
+    payload = {
+        "storeName": f"Pytest long video cafe {suffix}",
+        "address": "Seoul Jung-gu Test-ro 7",
+        "placeId": "",
+        "link": "",
+        "temperatureOption": "ice",
+        "lat": 37.5665,
+        "lng": 126.9780,
+        "brandId": "brand-local",
+        "menuName": "아메리카노",
+        "scores": {
+            "coffee_quality": 4.1,
+            "acidity_balance": 4.0,
+            "body": 4.1,
+            "aftertaste": 4.0,
+            "temperature": 4.2,
+            "value": 4.0,
+        },
+        "storeScores": {
+            "atmosphere": 4.2,
+            "work_friendly": 4.0,
+            "quietness": 4.1,
+            "seat_comfort": 4.0,
+            "outlet_access": 4.0,
+            "wifi_quality": 4.1,
+            "service": 4.0,
+            "revisit_intent": 4.2,
+        },
+        "overall": 4.1,
+        "comment": f"pytest long video {suffix}",
+        "mediaItems": [
+            _video_media(
+                "https://example.com/too-long-video.mp4",
+                duration_ms=REVIEW_VIDEO_MAX_DURATION_MS + 1,
+            ),
+        ],
+    }
+
+    response = client.post(
+        "/api/cafemap/reviews",
+        json=payload,
+        headers=auth_header,
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == f"Video duration must be {REVIEW_VIDEO_MAX_DURATION_MS // 1000} seconds or less"
+    )
+
+
+def test_review_video_thumbnail_url_is_derived_for_public_media(
+    client,
+    db_session,
+    auth_header,
+    monkeypatch,
+):
+    from cafemap.api import router
+
+    monkeypatch.setattr(
+        router.upload_service,
+        "is_review_image_public_url",
+        lambda raw_url: True,
+    )
+
+    suffix = uuid4().hex[:8]
+    payload = {
+        "storeName": f"Pytest thumbnail media cafe {suffix}",
+        "address": "Seoul Jung-gu Test-ro 8",
+        "placeId": "",
+        "link": "",
+        "temperatureOption": "ice",
+        "lat": 37.5665,
+        "lng": 126.9780,
+        "brandId": "brand-local",
+        "menuName": "아메리카노",
+        "scores": {
+            "coffee_quality": 4.1,
+            "acidity_balance": 4.0,
+            "body": 4.1,
+            "aftertaste": 4.0,
+            "temperature": 4.2,
+            "value": 4.0,
+        },
+        "storeScores": {
+            "atmosphere": 4.2,
+            "work_friendly": 4.0,
+            "quietness": 4.1,
+            "seat_comfort": 4.0,
+            "outlet_access": 4.0,
+            "wifi_quality": 4.1,
+            "service": 4.0,
+            "revisit_intent": 4.2,
+        },
+        "overall": 4.1,
+        "comment": f"pytest thumbnail media {suffix}",
+        "mediaItems": [
+            _video_media(
+                "https://cdn.example.com/review-images/test-video.mp4",
+                duration_ms=9000,
+            ),
+        ],
+    }
+    created_review_id: str | None = None
+    created_store_id: str | None = None
+    created_user_id: str | None = None
+
+    try:
+        response = client.post(
+            "/api/cafemap/reviews",
+            json=payload,
+            headers=auth_header,
+        )
+
+        assert response.status_code == 200
+        created = response.json()
+        assert created["mediaItems"][0]["type"] == "video"
+        assert (
+            "/api/cafemap/assets/thumbnail?src="
+            in created["mediaItems"][0]["thumbnailUrl"]
+        )
+        rankings_response = client.get("/api/cafemap/store-rankings?type=user")
+        assert rankings_response.status_code == 200
+        rankings = rankings_response.json()
+        matched_store = next(
+            (item for item in rankings if item["storeName"] == payload["storeName"]),
+            None,
+        )
+        assert matched_store is not None
+        assert matched_store["imageUrls"]
+        assert matched_store["thumbnailImageUrls"]
+        assert (
+            "/api/cafemap/assets/thumbnail?src="
+            in matched_store["thumbnailImageUrls"][0]
+        )
+
+        created_review_id = created["id"]
+        review = db_session.get(Review, created_review_id)
+        assert review is not None
+        created_store_id = review.store_id
+        created_user_id = review.user_id
     finally:
         if created_review_id is not None:
             review = db_session.get(Review, created_review_id)

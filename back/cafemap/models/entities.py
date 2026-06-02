@@ -112,6 +112,7 @@ class Review(Base):
     scores_json: Mapped[str] = mapped_column(String, default="{}")
     attributes_json: Mapped[str] = mapped_column(String, default="{}")
     image_urls_json: Mapped[str] = mapped_column(String, default="[]")
+    media_items_json: Mapped[str] = mapped_column(String, default="[]")
     temperature_option: Mapped[str] = mapped_column(String(20), default="")
     reviewer_type: Mapped[str] = mapped_column(String(20), default="USER")
     overall: Mapped[float] = mapped_column(Float)

@@ -1,8 +1,8 @@
 ﻿import 'package:front/domain/entities/place_search_result.dart';
 
-// ?μ냼 寃???곗씠?곕? ?쒓났?섎뒗 ??μ냼 ?명꽣?섏씠?ㅻ떎.
+// 장소 검색 저장소 객체이다.
 abstract class PlaceSearchRepository {
-  // ?ㅼ썙?쒕줈 ?μ냼瑜?寃?됲븳??
+  // 주어진 쿼리로 장소를 검색한다.
   Future<List<PlaceSearchResult>> searchPlaces(
     String query, {
     int display = 5,

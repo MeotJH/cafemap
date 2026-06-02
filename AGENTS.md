@@ -56,6 +56,7 @@ Key rules:
   - `back/cafemap/core/rating_dimensions.py`
 - Backend currently mixes application code with local scripts and data files. Avoid broad cleanup unless requested.
 - Production backend deploys to AWS Lightsail over SSH and Docker, not serverless.
+- S3-backed media retrieval should be mediated by the backend with presigned URLs rather than exposing raw S3 object paths directly.
 - The Lightsail SSH key in this workspace is `LightsailDefaultKey-ap-northeast-2.pem`; treat `.pem` files, `.env` files, local databases, deployment config, and serverless artifacts as sensitive surfaces.
 
 ## Commands

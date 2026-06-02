@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:video_player/video_player.dart';
 
 class GalleryImageItem {
   final String? url;
@@ -24,10 +26,12 @@ class GalleryImageItem {
   bool get isSvgUrl => (url ?? '').toLowerCase().endsWith('.svg');
   bool get isViewerSvgUrl =>
       (viewerUrl ?? url ?? '').toLowerCase().endsWith('.svg');
+  bool get isVideoUrl => _isVideoUrl(viewerUrl ?? url ?? '');
 }
 
 class StackedImageGallery extends StatelessWidget {
   final List<GalleryImageItem> images;
+  final ValueChanged<int>? onImageTap;
   final int maxVisible;
   final double imageWidth;
   final double imageHeight;
@@ -39,6 +43,7 @@ class StackedImageGallery extends StatelessWidget {
   const StackedImageGallery({
     super.key,
     required this.images,
+    this.onImageTap,
     this.maxVisible = 2,
     this.imageWidth = 50,
     this.imageHeight = 48,
@@ -76,12 +81,19 @@ class StackedImageGallery extends StatelessWidget {
                 height: imageHeight,
                 borderRadius: borderRadius,
                 placeholder: placeholder,
-                onTap: () => showGalleryViewer(
-                  context,
-                  images: visibleImages,
-                  initialIndex: index,
-                  placeholder: placeholder,
-                ),
+                onTap: () {
+                  final customTap = onImageTap;
+                  if (customTap != null) {
+                    customTap(index);
+                    return;
+                  }
+                  showGalleryViewer(
+                    context,
+                    images: visibleImages,
+                    initialIndex: index,
+                    placeholder: placeholder,
+                  );
+                },
               ),
             ),
         ],
@@ -98,6 +110,8 @@ class GalleryImageStrip extends StatelessWidget {
   final BorderRadius borderRadius;
   final Widget? placeholder;
   final bool fadeOverflowEdges;
+  final ScrollController? controller;
+  final ValueChanged<int>? onImageTap;
 
   const GalleryImageStrip({
     super.key,
@@ -108,6 +122,8 @@ class GalleryImageStrip extends StatelessWidget {
     this.borderRadius = const BorderRadius.all(Radius.circular(12)),
     this.placeholder,
     this.fadeOverflowEdges = true,
+    this.controller,
+    this.onImageTap,
   });
 
   @override
@@ -125,21 +141,33 @@ class GalleryImageStrip extends StatelessWidget {
             constraints.hasBoundedWidth &&
             contentWidth > constraints.maxWidth;
 
-        final strip = ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: images.length,
-          separatorBuilder: (_, _) => SizedBox(width: spacing),
-          itemBuilder: (context, index) => _GalleryStripItem(
-            image: images[index],
-            width: imageWidth,
-            height: imageHeight,
-            borderRadius: borderRadius,
-            placeholder: placeholder,
-            onTap: () => showGalleryViewer(
-              context,
-              images: images,
-              initialIndex: index,
+        final strip = ScrollConfiguration(
+          behavior: const _GalleryScrollerBehavior(),
+          child: ListView.separated(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: images.length,
+            separatorBuilder: (_, _) => SizedBox(width: spacing),
+            itemBuilder: (context, index) => _GalleryStripItem(
+              image: images[index],
+              width: imageWidth,
+              height: imageHeight,
+              borderRadius: borderRadius,
               placeholder: placeholder,
+              onTap: () {
+                final customTap = onImageTap;
+                if (customTap != null) {
+                  customTap(index);
+                  return;
+                }
+                showGalleryViewer(
+                  context,
+                  images: images,
+                  initialIndex: index,
+                  placeholder: placeholder,
+                );
+              },
             ),
           ),
         );
@@ -178,6 +206,19 @@ class _HorizontalEdgeFade extends StatelessWidget {
       child: child,
     );
   }
+}
+
+class _GalleryScrollerBehavior extends MaterialScrollBehavior {
+  const _GalleryScrollerBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.unknown,
+  };
 }
 
 void showGalleryViewer(
@@ -373,18 +414,21 @@ class _GalleryViewerDialogState extends State<_GalleryViewerDialog> {
               });
             },
             itemBuilder: (context, index) {
+              final image = widget.images[index];
               return Center(
-                child: InteractiveViewer(
-                  minScale: 1,
-                  maxScale: 4,
-                  panEnabled: false,
-                  child: _GalleryImageContent(
-                    image: widget.images[index],
-                    fit: BoxFit.contain,
-                    placeholder: widget.placeholder,
-                    useViewerSource: true,
-                  ),
-                ),
+                child: image.isVideoUrl
+                    ? _GalleryVideoPlayer(image: image)
+                    : InteractiveViewer(
+                        minScale: 1,
+                        maxScale: 4,
+                        panEnabled: false,
+                        child: _GalleryImageContent(
+                          image: image,
+                          fit: BoxFit.contain,
+                          placeholder: widget.placeholder,
+                          useViewerSource: true,
+                        ),
+                      ),
               );
             },
           ),
@@ -524,6 +568,165 @@ class _GalleryImageContent extends StatelessWidget {
       },
     );
   }
+}
+
+class GalleryImageContent extends StatelessWidget {
+  final GalleryImageItem image;
+  final BoxFit fit;
+  final Widget? placeholder;
+  final bool useViewerSource;
+
+  const GalleryImageContent({
+    super.key,
+    required this.image,
+    required this.fit,
+    this.placeholder,
+    this.useViewerSource = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GalleryImageContent(
+      image: image,
+      fit: fit,
+      placeholder: placeholder,
+      useViewerSource: useViewerSource,
+    );
+  }
+}
+
+class _GalleryVideoPlayer extends StatefulWidget {
+  final GalleryImageItem image;
+
+  const _GalleryVideoPlayer({required this.image});
+
+  @override
+  State<_GalleryVideoPlayer> createState() => _GalleryVideoPlayerState();
+}
+
+class GalleryVideoPlayer extends StatelessWidget {
+  final GalleryImageItem image;
+
+  const GalleryVideoPlayer({super.key, required this.image});
+
+  @override
+  Widget build(BuildContext context) {
+    return _GalleryVideoPlayer(image: image);
+  }
+}
+
+class _GalleryVideoPlayerState extends State<_GalleryVideoPlayer> {
+  VideoPlayerController? _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initialize() async {
+    final url = (widget.image.viewerUrl ?? widget.image.url ?? '').trim();
+    if (url.isEmpty) {
+      setState(() {
+        _error = '영상을 재생할 수 없어요.';
+      });
+      return;
+    }
+
+    try {
+      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      await controller.initialize();
+      await controller.setLooping(true);
+      await controller.play();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = '영상을 재생할 수 없어요.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (_error != null) {
+      return Text(_error!, style: const TextStyle(color: Colors.white));
+    }
+    if (controller == null || !controller.value.isInitialized) {
+      return const CircularProgressIndicator(color: Colors.white);
+    }
+
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          Center(
+            child: AspectRatio(
+              aspectRatio: controller.value.aspectRatio == 0
+                  ? 16 / 9
+                  : controller.value.aspectRatio,
+              child: VideoPlayer(controller),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 70,
+            child: Center(
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF6B4D35),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  setState(() {
+                    controller.value.isPlaying
+                        ? controller.pause()
+                        : controller.play();
+                  });
+                },
+                icon: Icon(
+                  controller.value.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                ),
+                label: Text(controller.value.isPlaying ? '일시정지' : '재생'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+bool _isVideoUrl(String rawUrl) {
+  final url = rawUrl.trim().toLowerCase();
+  if (url.isEmpty) return false;
+  final path = Uri.tryParse(url)?.path.toLowerCase() ?? url;
+  return path.endsWith('.mp4') ||
+      path.endsWith('.mov') ||
+      path.endsWith('.webm');
 }
 
 class _DefaultGalleryPlaceholder extends StatelessWidget {

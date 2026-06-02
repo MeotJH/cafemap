@@ -3,6 +3,7 @@ import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/domain/entities/store_summary.dart';
+import 'package:front/domain/entities/store_visit_media_page.dart';
 import 'package:front/domain/repositories/store_repository.dart';
 
 // 목업 지점 저장소 구현체다.
@@ -39,5 +40,23 @@ class MockStoreRepository implements StoreRepository {
   // 지점 리뷰 목록을 목업 데이터로 반환한다.
   Future<List<Review>> fetchStoreReviews(String storeId) async {
     return _dataSource.reviews();
+  }
+
+  @override
+  Future<StoreVisitMediaPage> fetchStoreVisitMediaPage(
+    String storeId, {
+    String? cursor,
+    int limit = 10,
+  }) async {
+    final items = _dataSource
+        .reviews()
+        .expand((review) => review.mediaItems)
+        .where((item) => item.url.trim().isNotEmpty)
+        .toList();
+    return StoreVisitMediaPage(
+      items: items.take(limit).toList(),
+      hasMore: items.length > limit,
+      nextCursor: null,
+    );
   }
 }

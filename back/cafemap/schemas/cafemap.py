@@ -43,6 +43,9 @@ class StoreSummaryOut(BaseModel):
     topScoreA: float = 0.0
     topLabelB: str = ""
     topScoreB: float = 0.0
+    visitMediaItems: list["ReviewMediaItem"] = Field(default_factory=list)
+    hasVisitMediaMore: bool = False
+    visitMediaNextCursor: str | None = None
 
 
 class StoreRankingOut(BaseModel):
@@ -117,6 +120,13 @@ class SimilarStoreOut(BaseModel):
     matchedDimensions: list[str] = Field(default_factory=list)
 
 
+class ReviewMediaItem(BaseModel):
+    type: str
+    url: str
+    thumbnailUrl: str = ""
+    durationMs: int | None = None
+
+
 class ReviewOut(BaseModel):
     id: str
     storeName: str
@@ -138,7 +148,14 @@ class ReviewOut(BaseModel):
     comment: str
     userEmail: str = ""
     imageUrls: list[str] = Field(default_factory=list)
+    mediaItems: list[ReviewMediaItem] = Field(default_factory=list)
     createdAt: datetime
+
+
+class StoreVisitMediaPageOut(BaseModel):
+    items: list[ReviewMediaItem] = Field(default_factory=list)
+    nextCursor: str | None = None
+    hasMore: bool = False
 
 
 class PlaceSearchOut(BaseModel):
@@ -189,6 +206,7 @@ class ReviewCreateIn(BaseModel):
     overall: float = 0.0
     comment: str
     imageUrls: list[str] = Field(default_factory=list)
+    mediaItems: list[ReviewMediaItem] = Field(default_factory=list)
 
 
 class ReviewImagePresignIn(BaseModel):

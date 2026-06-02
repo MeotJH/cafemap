@@ -33,14 +33,14 @@ def fetch_rankings(db: Session):
 
 def fetch_ranking_breakdown(db: Session, ranking_id: str):
 
-    # ?? ?? ?? ?? ??? DB ???.
+    # 랭킹별 상세 정보를 조회합니다.
 
     return db.get(BrandMenuAggregate, ranking_id)
 
 
 def fetch_ranking_reviews(db: Session, ranking_id: str):
 
-    # ?? ?? ?? ?? ??? DB ???.
+    # 랭킹별 리뷰를 조회합니다.
 
     aggregate = db.get(BrandMenuAggregate, ranking_id)
 
@@ -72,7 +72,7 @@ def fetch_ranking_reviews(db: Session, ranking_id: str):
 
 def fetch_menus_by_brand(db: Session, brand_id: str, query: str | None = None):
 
-    # ???? ?? ??? ????.
+    # 브랜드별 메뉴를 조회합니다.
 
     stmt = select(Menu).where(Menu.brand_id == brand_id)
     menus = db.execute(stmt).scalars().all()

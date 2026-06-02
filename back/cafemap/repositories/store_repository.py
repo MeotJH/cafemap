@@ -41,7 +41,7 @@ def fetch_store_similarity_rows(db: Session):
 
 def fetch_store_detail(db: Session, store_id: str):
 
-    # ?? ?? ?? ??? ???.
+    # 가게 상세 정보를 조회합니다.
 
     stmt = (
         select(Store, StoreAggregate, Brand.name, Brand.logo_url)
@@ -53,16 +53,34 @@ def fetch_store_detail(db: Session, store_id: str):
     return db.execute(stmt).first()
 
 
+def fetch_store_review_media_preview(db: Session, store_id: str):
+
+    # Store detail preview media rows ordered by latest review first.
+
+    stmt = (
+        select(
+            Review.id,
+            Review.media_items_json,
+            Review.image_urls_json,
+            Review.created_at,
+        )
+        .where(Review.store_id == store_id)
+        .order_by(Review.created_at.desc())
+    )
+
+    return db.execute(stmt).all()
+
+
 def fetch_store_breakdown(db: Session, store_id: str):
 
-    # ?? ?? ?? ??? ???.
+    # 가게별 상세 정보를 조회합니다.
 
     return db.get(StoreAggregate, store_id)
 
 
 def fetch_store_reviews(db: Session, store_id: str):
 
-    # ?? ?? ?? ??? ???.
+    # 가게 리뷰를 가져온다.
 
     stmt = (
         select(

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
+import 'package:front/data/remote/review_api.dart' show reviewFromJson;
 import 'package:front/domain/entities/brand_menu_ranking.dart';
 import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
@@ -166,32 +166,7 @@ RatingBreakdown _breakdownFromJson(Map<String, dynamic> json) {
 }
 
 Review _reviewFromJson(Map<String, dynamic> json) {
-  final scores = _scoresFromJson(json['scores']);
-  return Review(
-    id: json['id'] as String? ?? '',
-    storeName: json['storeName'] as String? ?? '',
-    address: json['address'] as String? ?? '',
-    placeId: json['placeId'] as String? ?? '',
-    link: json['link'] as String? ?? '',
-    lat: (json['lat'] as num?)?.toDouble(),
-    lng: (json['lng'] as num?)?.toDouble(),
-    brandId: json['brandId'] as String? ?? '',
-    temperatureOption: json['temperatureOption'] as String? ?? '',
-    brandName: json['brandName'] as String? ?? '',
-    menuName: json['menuName'] as String? ?? '',
-    menuCategory: json['menuCategory'] as String? ?? '',
-    userEmail: json['userEmail'] as String? ?? '',
-    reviewerType: json['reviewerType'] as String? ?? 'USER',
-    ratingSchemaVersion: (json['ratingSchemaVersion'] as num?)?.toInt() ?? 1,
-    scores: scores,
-    attributes: _attributesFromJson(json['attributes']),
-    overall: (json['overall'] as num?)?.toDouble() ?? 0,
-    comment: json['comment'] as String? ?? '',
-    imageUrls: _imageUrlsFromJson(json['imageUrls']),
-    createdAt: DateTime.parse(
-      json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
-    ),
-  );
+  return reviewFromJson(json);
 }
 
 DateTime? _parseDateTime(dynamic raw) {
@@ -204,14 +179,6 @@ Map<String, double> _scoresFromJson(dynamic raw) {
   return {
     for (final entry in raw.entries)
       entry.key: (entry.value as num?)?.toDouble() ?? 0,
-  };
-}
-
-Map<String, String> _attributesFromJson(dynamic raw) {
-  if (raw is! Map<String, dynamic>) return const {};
-  return {
-    for (final entry in raw.entries)
-      if (entry.value != null) entry.key: entry.value.toString(),
   };
 }
 

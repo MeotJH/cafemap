@@ -36,4 +36,5 @@ Work inside `back/` unless the task explicitly crosses the frontend/backend boun
 
 - `back/cafemap/api/router.py` is the main API surface.
 - Rating dimensions also exist in `back/cafemap/core/rating_dimensions.py`.
+- For S3-backed media, the backend should issue or mediate presigned URLs for retrieval instead of returning raw S3 object paths directly.
 - `.alyac` files appear to be backups or alternate copies; do not edit them unless explicitly asked.

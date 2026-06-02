@@ -1,3 +1,7 @@
+from pathlib import Path
+from types import SimpleNamespace
+
+
 def test_review_image_presign_returns_upload_contract(client, auth_header, monkeypatch):
     # S3를 실제로 치지 않고도 presign route 계약과 인증 wiring이 유지되는지 본다.
     from cafemap.api import router
@@ -20,6 +24,37 @@ def test_review_image_presign_returns_upload_contract(client, auth_header, monke
     response = client.post(
         "/api/cafemap/uploads/review-images/presign",
         json={"fileName": "test.png", "contentType": "image/png"},
+        headers=auth_header,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "uploadUrl": expected_upload_url,
+        "fileUrl": expected_file_url,
+    }
+
+
+def test_review_video_presign_returns_upload_contract(client, auth_header, monkeypatch):
+    from cafemap.api import router
+
+    expected_upload_url = "https://upload.example.com/presigned-video"
+    expected_file_url = "https://cdn.example.com/review-images/test.mp4"
+
+    def fake_issue_review_image_upload_url(*, user_id, file_name, content_type):
+        assert user_id == "test-user"
+        assert file_name == "test.mp4"
+        assert content_type == "video/mp4"
+        return expected_upload_url, expected_file_url
+
+    monkeypatch.setattr(
+        router.upload_service,
+        "issue_review_image_upload_url",
+        fake_issue_review_image_upload_url,
+    )
+
+    response = client.post(
+        "/api/cafemap/uploads/review-images/presign",
+        json={"fileName": "test.mp4", "contentType": "video/mp4"},
         headers=auth_header,
     )
 
@@ -63,3 +98,176 @@ def test_place_search_returns_mocked_results(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == expected
+
+
+def test_store_detail_includes_visit_media_items(client, monkeypatch):
+    from cafemap.api import router
+
+    fake_row = SimpleNamespace(
+        store=SimpleNamespace(
+            id="store-1",
+            name="Test Store",
+            store_type="local",
+            brand_id="brand-local",
+            address="Seoul",
+            link="https://example.com/store",
+            distance_km=0.1,
+            lat=37.5,
+            lng=127.0,
+        ),
+        aggregate=SimpleNamespace(
+            rating=4.3,
+            review_count=2,
+            scores_json='{"coffee_quality": 4.2, "work_friendly": 4.1, "quietness": 3.9, "dessert": 3.7}',
+        ),
+        brand_name="Local Brand",
+        brand_logo_url="https://cdn.example.com/logo.png",
+        visit_media_items=[
+            {"type": "image", "url": "https://cdn.example.com/review-images/a.jpg"},
+            {"type": "video", "url": "https://cdn.example.com/review-images/b.mp4"},
+        ],
+        has_visit_media_more=True,
+        visit_media_next_cursor="cursor-1",
+    )
+
+    monkeypatch.setattr(
+        router.store_service,
+        "get_store_detail",
+        lambda db, store_id: fake_row,
+    )
+    monkeypatch.setattr(
+        router.upload_service,
+        "is_review_image_public_url",
+        lambda raw_url: True,
+    )
+
+    response = client.get("/api/cafemap/stores/store-1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["name"] == "Test Store"
+    assert len(payload["visitMediaItems"]) == 2
+    assert payload["hasVisitMediaMore"] is True
+    assert payload["visitMediaNextCursor"] == "cursor-1"
+    assert (
+        payload["visitMediaItems"][0]["url"]
+        == "https://cdn.example.com/review-images/a.jpg"
+    )
+    assert (
+        "/api/cafemap/assets/thumbnail?src="
+        in payload["visitMediaItems"][1]["thumbnailUrl"]
+    )
+
+
+def test_store_visit_media_page_returns_cursor_page(client, monkeypatch):
+    from cafemap.api import router
+
+    monkeypatch.setattr(
+        router.store_service,
+        "get_store_visit_media_page",
+        lambda db, store_id, limit, cursor: SimpleNamespace(
+            items=[
+                {
+                    "type": "image",
+                    "url": "https://cdn.example.com/review-images/a.jpg",
+                    "thumbnailUrl": "",
+                    "durationMs": None,
+                },
+                {
+                    "type": "video",
+                    "url": "https://cdn.example.com/review-images/b.mp4",
+                },
+            ],
+            has_more=True,
+            next_cursor="cursor-2",
+        ),
+    )
+    monkeypatch.setattr(
+        router.upload_service,
+        "is_review_image_public_url",
+        lambda raw_url: True,
+    )
+
+    response = client.get(
+        "/api/cafemap/stores/store-1/visit-media",
+        params={"limit": 10, "cursor": "cursor-1"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["hasMore"] is True
+    assert payload["nextCursor"] == "cursor-2"
+    assert len(payload["items"]) == 2
+
+
+def test_thumbnail_asset_endpoint_supports_review_media(
+    client,
+    monkeypatch,
+    tmp_path,
+):
+    from cafemap.api import router
+    from PIL import Image
+
+    thumbnail_path = tmp_path / "thumb.jpg"
+    Image.new("RGB", (24, 24), (120, 80, 40)).save(thumbnail_path, format="JPEG")
+
+    monkeypatch.setattr(
+        router.upload_service,
+        "is_review_image_public_url",
+        lambda raw_url: True,
+    )
+    monkeypatch.setattr(
+        router.thumbnail_service,
+        "get_or_create_thumbnail",
+        lambda **_: router.thumbnail_service.ThumbnailAsset(
+            local_path=Path(thumbnail_path)
+        ),
+    )
+
+    response = client.get(
+        "/api/cafemap/assets/thumbnail",
+        params={
+            "src": "https://cdn.example.com/review-images/test.mp4",
+            "w": 160,
+            "h": 160,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/jpeg")
+
+
+def test_thumbnail_asset_endpoint_redirects_to_presigned_thumbnail(client, monkeypatch):
+    from cafemap.api import router
+
+    download_url = "https://download.example.com/presigned-thumb"
+    storage_key = "review-thumbnails/test.jpg"
+
+    monkeypatch.setattr(
+        router.upload_service,
+        "is_review_image_public_url",
+        lambda raw_url: True,
+    )
+    monkeypatch.setattr(
+        router.upload_service,
+        "issue_public_download_url",
+        lambda *, key: download_url if key == storage_key else "",
+    )
+    monkeypatch.setattr(
+        router.thumbnail_service,
+        "get_or_create_thumbnail",
+        lambda **_: router.thumbnail_service.ThumbnailAsset(storage_key=storage_key),
+    )
+
+    response = client.get(
+        "/api/cafemap/assets/thumbnail",
+        params={
+            "src": "https://cdn.example.com/review-images/test.mp4",
+            "w": 160,
+            "h": 160,
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code in {302, 307}
+    assert response.headers["location"] == download_url

@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,9 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/core/utils/formatters.dart';
+import 'package:front/domain/entities/review.dart';
 import 'package:front/domain/entities/store_ranking.dart';
 import 'package:front/presentation/pages/ranking_home/ranking_home_types.dart';
 import 'package:front/presentation/providers/ranking_providers.dart';
+import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/widgets/stacked_image_gallery.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -143,6 +146,9 @@ class _HomePageState extends ConsumerState<HomePage> {
 class _PurposeExplorerSection extends StatelessWidget {
   const _PurposeExplorerSection();
 
+  static const double _scrollerHeight = 168;
+  static const double _edgeFadeWidth = 24;
+
   static const List<RankingPurpose> _purposes = [
     RankingPurpose.date,
     RankingPurpose.conversation,
@@ -175,32 +181,42 @@ class _PurposeExplorerSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: 186,
-          child: ShaderMask(
-            blendMode: BlendMode.dstIn,
-            shaderCallback: (bounds) {
-              return const LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  Colors.transparent,
-                  Colors.black,
-                  Colors.black,
-                  Colors.transparent,
-                ],
-                stops: [0.0, 0.04, 0.88, 1.0],
-              ).createShader(bounds);
-            },
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(right: 48),
-              itemCount: _purposes.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final purpose = _purposes[index];
-                return _PurposeCard(purpose: purpose);
-              },
-            ),
+          height: _scrollerHeight,
+          child: Stack(
+            children: [
+              ScrollConfiguration(
+                behavior: const _PurposeScrollerBehavior(),
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.only(right: 20),
+                  itemCount: _purposes.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final purpose = _purposes[index];
+                    return _PurposeCard(purpose: purpose);
+                  },
+                ),
+              ),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: IgnorePointer(
+                  child: _PurposeEdgeFade(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                ),
+              ),
+              const Align(
+                alignment: Alignment.centerRight,
+                child: IgnorePointer(
+                  child: _PurposeEdgeFade(
+                    begin: Alignment.centerRight,
+                    end: Alignment.centerLeft,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -243,6 +259,7 @@ class _PurposeCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: 40,
@@ -264,15 +281,18 @@ class _PurposeCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Expanded(
-                child: Text(
-                  purpose.homeDescription,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: Color(0xFF8A6B5C),
-                    fontWeight: FontWeight.w500,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Text(
+                    purpose.homeDescription,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: Color(0xFF8A6B5C),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),
@@ -311,6 +331,43 @@ class _PurposeCard extends StatelessWidget {
       RankingPurpose.longStay => Icons.chair_alt_rounded,
     };
   }
+}
+
+class _PurposeEdgeFade extends StatelessWidget {
+  final Alignment begin;
+  final Alignment end;
+
+  const _PurposeEdgeFade({required this.begin, required this.end});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _PurposeExplorerSection._edgeFadeWidth,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: begin,
+          end: end,
+          colors: [
+            AppColors.backgroundLight,
+            AppColors.backgroundLight.withValues(alpha: 0),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PurposeScrollerBehavior extends MaterialScrollBehavior {
+  const _PurposeScrollerBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.unknown,
+  };
 }
 
 class _HeroCard extends StatefulWidget {
@@ -661,7 +718,7 @@ class _SimpleHistorySection extends StatelessWidget {
   }
 }
 
-class _CafeScoreCard extends StatelessWidget {
+class _CafeScoreCard extends ConsumerWidget {
   final StoreRanking cafe;
   final double score;
   final String scoreLabel;
@@ -673,7 +730,7 @@ class _CafeScoreCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scoreStyle = _scoreTone(score);
     final galleryImages = _galleryImages(cafe);
     final metricPins = _metricPins(cafe);
@@ -751,6 +808,11 @@ class _CafeScoreCard extends StatelessWidget {
                     StackedImageGallery(
                       images: galleryImages,
                       placeholder: const _CafeThumbnailPlaceholder(),
+                      onImageTap: (index) => _openStoreMediaViewer(
+                        context,
+                        ref,
+                        clickedPreview: galleryImages[index],
+                      ),
                     ),
                   ],
                 ],
@@ -780,11 +842,10 @@ class _CafeScoreCard extends StatelessWidget {
   List<GalleryImageItem> _galleryImages(StoreRanking cafe) {
     final thumbnailUrls = _uniqueGalleryUrls(cafe.thumbnailImageUrls);
     final viewerUrls = _uniqueGalleryUrls(cafe.imageUrls);
-    final imageCount = thumbnailUrls.isNotEmpty
+    final imageCount = thumbnailUrls.length > viewerUrls.length
         ? thumbnailUrls.length
         : viewerUrls.length;
-
-    return List.generate(imageCount.clamp(0, 2), (index) {
+    final items = List.generate(imageCount, (index) {
       final thumbnailUrl = index < thumbnailUrls.length
           ? thumbnailUrls[index]
           : viewerUrls[index];
@@ -793,6 +854,7 @@ class _CafeScoreCard extends StatelessWidget {
           : thumbnailUrl;
       return GalleryImageItem.url(thumbnailUrl, viewerUrl: viewerUrl);
     }, growable: false);
+    return _videosFirst(items).take(2).toList(growable: false);
   }
 
   List<String> _uniqueGalleryUrls(List<String> rawUrls) {
@@ -804,11 +866,8 @@ class _CafeScoreCard extends StatelessWidget {
           !urls.contains(trimmed)) {
         urls.add(trimmed);
       }
-      if (urls.length >= 2) {
-        return urls;
-      }
     }
-    return urls.take(2).toList(growable: false);
+    return urls;
   }
 
   List<_MetricPinData> _metricPins(StoreRanking cafe) {
@@ -817,6 +876,79 @@ class _CafeScoreCard extends StatelessWidget {
         _MetricPinData(cafe.topLabelA.trim(), cafe.topScoreA),
       if (cafe.topLabelB.trim().isNotEmpty && cafe.topScoreB > 0)
         _MetricPinData(cafe.topLabelB.trim(), cafe.topScoreB),
+    ];
+  }
+
+  Future<void> _openStoreMediaViewer(
+    BuildContext context,
+    WidgetRef ref, {
+    required GalleryImageItem clickedPreview,
+  }) async {
+    final loadingContext = context;
+    showDialog<void>(
+      context: loadingContext,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+    );
+
+    try {
+      final reviews = await ref.read(storeReviewsProvider(cafe.storeId).future);
+      if (!loadingContext.mounted) return;
+      Navigator.of(loadingContext, rootNavigator: true).pop();
+
+      final items = _mediaItemsFromReviews(reviews);
+      if (items.isEmpty) {
+        showGalleryViewer(
+          loadingContext,
+          images: _galleryImages(cafe),
+          initialIndex: 0,
+          placeholder: const _CafeThumbnailPlaceholder(),
+        );
+        return;
+      }
+
+      final clickedUrl = (clickedPreview.viewerUrl ?? clickedPreview.url ?? '')
+          .trim();
+      final initialIndex = items.indexWhere(
+        (item) => (item.viewerUrl ?? item.url ?? '').trim() == clickedUrl,
+      );
+      showGalleryViewer(
+        loadingContext,
+        images: items,
+        initialIndex: initialIndex < 0 ? 0 : initialIndex,
+        placeholder: const _CafeThumbnailPlaceholder(),
+      );
+    } catch (_) {
+      if (!loadingContext.mounted) return;
+      Navigator.of(loadingContext, rootNavigator: true).pop();
+      ScaffoldMessenger.of(loadingContext).showSnackBar(
+        const SnackBar(content: Text('미디어를 불러오지 못했어요.')),
+      );
+    }
+  }
+
+  List<GalleryImageItem> _mediaItemsFromReviews(List<Review> reviews) {
+    final items = <GalleryImageItem>[];
+    final seenUrls = <String>{};
+    for (final review in reviews) {
+      for (final media in review.mediaItems) {
+        final viewerUrl = media.url.trim();
+        if (viewerUrl.isEmpty || !seenUrls.add(viewerUrl)) continue;
+        final thumbnailUrl = media.isVideo && media.thumbnailUrl.trim().isNotEmpty
+            ? media.thumbnailUrl.trim()
+            : viewerUrl;
+        items.add(GalleryImageItem.url(thumbnailUrl, viewerUrl: viewerUrl));
+      }
+    }
+    return _videosFirst(items);
+  }
+
+  List<GalleryImageItem> _videosFirst(List<GalleryImageItem> items) {
+    return [
+      ...items.where((item) => item.isVideoUrl),
+      ...items.where((item) => !item.isVideoUrl),
     ];
   }
 }

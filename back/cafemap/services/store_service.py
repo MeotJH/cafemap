@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -41,6 +42,8 @@ SUPPORTED_RANKING_PURPOSES = {
 }
 MIN_SIMILAR_COMMON_DIMENSIONS = 3
 MAX_RATING_SCORE = 5.0
+STORE_VISIT_MEDIA_PREVIEW_LIMIT = 10
+STORE_VISIT_MEDIA_PAGE_LIMIT = 10
 
 
 @dataclass
@@ -74,6 +77,24 @@ class RatingBreakdownResult:
     overall: float
     rating_schema_version: int
     review_count: int
+
+
+@dataclass
+class StoreDetailResult:
+    store: Store
+    aggregate: object
+    brand_name: str
+    brand_logo_url: str
+    visit_media_items: list[dict[str, object]]
+    has_visit_media_more: bool
+    visit_media_next_cursor: str | None
+
+
+@dataclass
+class StoreVisitMediaPageResult:
+    items: list[dict[str, object]]
+    has_more: bool
+    next_cursor: str | None
 
 
 def get_nearby_stores(db: Session):
@@ -183,7 +204,26 @@ def get_home_summary(db: Session) -> dict[str, object]:
 
 
 def get_store_detail(db: Session, store_id: str):
-    return store_repository.fetch_store_detail(db, store_id)
+    row = store_repository.fetch_store_detail(db, store_id)
+    if row is None:
+        return None
+
+    store, aggregate, brand_name, brand_logo_url = row
+    visit_media_page = get_store_visit_media_page(
+        db,
+        store_id,
+        limit=STORE_VISIT_MEDIA_PREVIEW_LIMIT,
+    )
+
+    return StoreDetailResult(
+        store=store,
+        aggregate=aggregate,
+        brand_name=brand_name,
+        brand_logo_url=brand_logo_url,
+        visit_media_items=visit_media_page.items,
+        has_visit_media_more=visit_media_page.has_more,
+        visit_media_next_cursor=visit_media_page.next_cursor,
+    )
 
 
 def get_store_breakdown(db: Session, store_id: str):
@@ -285,6 +325,38 @@ def get_store_reviews(db: Session, store_id: str):
     return store_repository.fetch_store_reviews(db, store_id)
 
 
+def get_store_visit_media_page(
+    db: Session,
+    store_id: str,
+    *,
+    limit: int = STORE_VISIT_MEDIA_PAGE_LIMIT,
+    cursor: str | None = None,
+) -> StoreVisitMediaPageResult:
+    media_rows = store_repository.fetch_store_review_media_preview(db, store_id)
+    flattened_items = _flatten_visit_media_rows(media_rows)
+    start_index = _cursor_start_index(flattened_items, cursor)
+    safe_limit = max(1, min(limit, 50))
+    page_items = flattened_items[start_index : start_index + safe_limit]
+    has_more = start_index + safe_limit < len(flattened_items)
+    next_cursor = (
+        _encode_visit_media_cursor(str(page_items[-1].get("url", "")).strip())
+        if has_more and page_items
+        else None
+    )
+    return StoreVisitMediaPageResult(
+        items=[
+            {
+                key: value
+                for key, value in item.items()
+                if key in {"type", "url", "thumbnailUrl", "durationMs"}
+            }
+            for item in page_items
+        ],
+        has_more=has_more,
+        next_cursor=next_cursor,
+    )
+
+
 def confidence_weighted_score(
     *,
     rating: float,
@@ -312,6 +384,135 @@ def _preferred_schema_version(reviews) -> int:
         if _review_schema_version(review) == CURRENT_RATING_SCHEMA_VERSION:
             return CURRENT_RATING_SCHEMA_VERSION
     return 1
+
+
+def _collect_visit_media_items(
+    media_rows,
+    *,
+    limit: int = REVIEW_IMAGE_LIMIT,
+) -> list[dict[str, object]]:
+    if limit <= 0:
+        return []
+
+    collected: list[dict[str, object]] = []
+    seen_urls: set[str] = set()
+
+    for media_items_json, image_urls_json, _created_at in media_rows:
+        for item in _parsed_media_items(media_items_json, image_urls_json):
+            url = str(item.get("url", "") or "").strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            collected.append(item)
+            if len(collected) >= limit:
+                return collected
+
+    return collected
+
+
+def _flatten_visit_media_rows(media_rows) -> list[dict[str, object]]:
+    video_items: list[dict[str, object]] = []
+    image_items: list[dict[str, object]] = []
+    seen_urls: set[str] = set()
+
+    for review_id, media_items_json, image_urls_json, created_at in media_rows:
+        parsed_items = _parsed_media_items(media_items_json, image_urls_json)
+        ranked_items = sorted(
+            enumerate(parsed_items),
+            key=lambda entry: (
+                (
+                    0
+                    if str(entry[1].get("type", "image")).strip().lower() == "video"
+                    else 1
+                ),
+                int(entry[1].get("sortOrder", entry[0]) or entry[0]),
+            ),
+        )
+        for fallback_index, item in ranked_items:
+            url = str(item.get("url", "") or "").strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            materialized = {
+                "type": str(item.get("type", "image")).strip().lower() or "image",
+                "url": url,
+                "thumbnailUrl": str(item.get("thumbnailUrl", "") or "").strip(),
+                "durationMs": item.get("durationMs"),
+                "_reviewId": review_id,
+                "_createdAt": created_at,
+                "_sortOrder": int(
+                    item.get("sortOrder", fallback_index) or fallback_index
+                ),
+            }
+            if materialized["type"] == "video":
+                video_items.append(materialized)
+            else:
+                image_items.append(materialized)
+
+    return video_items + image_items
+
+
+def _encode_visit_media_cursor(url: str) -> str:
+    payload = json.dumps({"url": url}, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("ascii")
+
+
+def _decode_visit_media_cursor(cursor: str | None) -> str | None:
+    if not cursor:
+        return None
+    try:
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        payload = json.loads(decoded)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    url = str(payload.get("url", "") or "").strip()
+    return url or None
+
+
+def _cursor_start_index(
+    flattened_items: list[dict[str, object]], cursor: str | None
+) -> int:
+    cursor_url = _decode_visit_media_cursor(cursor)
+    if not cursor_url:
+        return 0
+    for index, item in enumerate(flattened_items):
+        if str(item.get("url", "")).strip() == cursor_url:
+            return index + 1
+    return 0
+
+
+def _parsed_media_items(
+    media_items_json: str | None,
+    image_urls_json: str | None,
+) -> list[dict[str, object]]:
+    parsed_items: list[dict[str, object]] = []
+    if media_items_json:
+        try:
+            parsed = json.loads(media_items_json)
+        except (TypeError, ValueError):
+            parsed = []
+        if isinstance(parsed, list):
+            parsed_items = [item for item in parsed if isinstance(item, dict)]
+
+    if parsed_items:
+        return parsed_items
+
+    fallback_urls = _parsed_image_urls(image_urls_json)
+    return [{"type": "image", "url": url} for url in fallback_urls]
+
+
+def _parsed_image_urls(image_urls_json: str | None) -> list[str]:
+    if not image_urls_json:
+        return []
+    try:
+        parsed = json.loads(image_urls_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
 
 
 def _review_schema_version(review) -> int:
@@ -502,6 +703,8 @@ def _build_segmented_rankings(
                 "_schemaCounts": {},
                 "_attributeTotals": {},
                 "_attributePositiveTotals": {},
+                "_mediaVideoUrls": [],
+                "_mediaImageUrls": [],
             }
             store_map[store.id] = payload
 
@@ -552,14 +755,20 @@ def _build_segmented_rankings(
                 attributes.get("wifi_usable"),
             )
 
-        for image_url in _image_urls_from_snapshot(review.image_urls_json):
-            image_urls = payload["imageUrls"]
+        for media_type, image_url in _media_preview_sources_from_snapshot(
+            getattr(review, "media_items_json", None),
+            review.image_urls_json,
+        ):
+            target_key = (
+                "_mediaVideoUrls" if media_type == "video" else "_mediaImageUrls"
+            )
+            target_urls = payload[target_key]
             if (
-                isinstance(image_urls, list)
-                and len(image_urls) < REVIEW_IMAGE_LIMIT
-                and image_url not in image_urls
+                isinstance(target_urls, list)
+                and len(target_urls) < REVIEW_IMAGE_LIMIT
+                and image_url not in target_urls
             ):
-                image_urls.append(image_url)
+                target_urls.append(image_url)
 
         totals_by_schema = payload["_scoreTotalsBySchema"]
         counts_by_schema = payload["_scoreCountsBySchema"]
@@ -627,6 +836,10 @@ def _build_segmented_rankings(
             payload["_revisitTotal"],
             payload["_revisitCount"],
         )
+        payload["imageUrls"] = [
+            *payload.get("_mediaVideoUrls", []),
+            *payload.get("_mediaImageUrls", []),
+        ][:REVIEW_IMAGE_LIMIT]
         if include_private:
             payload["_avgScores"] = (
                 avg_scores if schema_version == CURRENT_RATING_SCHEMA_VERSION else {}
@@ -811,6 +1024,31 @@ def _image_urls_from_snapshot(image_urls_json: str | None) -> list[str]:
     if not isinstance(parsed, list):
         return []
     return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
+
+
+def _media_preview_sources_from_snapshot(
+    media_items_json: str | None,
+    image_urls_json: str | None,
+) -> list[tuple[str, str]]:
+    if media_items_json:
+        try:
+            parsed = json.loads(media_items_json)
+        except (TypeError, ValueError):
+            parsed = []
+        if isinstance(parsed, list):
+            items: list[tuple[str, str]] = []
+            for item in parsed:
+                if not isinstance(item, dict):
+                    continue
+                media_type = str(item.get("type", "")).strip().lower()
+                url = str(item.get("url", "")).strip()
+                if media_type not in {"image", "video"} or not url:
+                    continue
+                if all(existing_url != url for _, existing_url in items):
+                    items.append((media_type, url))
+            if items:
+                return items
+    return [("image", url) for url in _image_urls_from_snapshot(image_urls_json)]
 
 
 def _build_summary(payload: dict[str, object]) -> str:

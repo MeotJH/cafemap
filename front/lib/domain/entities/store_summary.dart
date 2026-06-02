@@ -1,4 +1,6 @@
 // 지점 요약 정보를 표현하는 엔티티다.
+import 'package:front/domain/entities/review.dart';
+
 class StoreSummary {
   final String id;
   final String name;
@@ -22,6 +24,9 @@ class StoreSummary {
   final double topScoreA;
   final String topLabelB;
   final double topScoreB;
+  final List<ReviewMediaItem> visitMediaItems;
+  final bool hasVisitMediaMore;
+  final String? visitMediaNextCursor;
 
   const StoreSummary({
     required this.id,
@@ -46,5 +51,8 @@ class StoreSummary {
     required this.topScoreA,
     required this.topLabelB,
     required this.topScoreB,
+    this.visitMediaItems = const [],
+    this.hasVisitMediaMore = false,
+    this.visitMediaNextCursor,
   });
 }

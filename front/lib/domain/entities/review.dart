@@ -1,4 +1,27 @@
-// 리뷰 한 건을 표현하는 엔티티다.
+class ReviewMediaItem {
+  final String type;
+  final String url;
+  final String thumbnailUrl;
+  final int? durationMs;
+
+  const ReviewMediaItem({
+    required this.type,
+    required this.url,
+    this.thumbnailUrl = '',
+    this.durationMs,
+  });
+
+  bool get isImage => type == 'image';
+  bool get isVideo => type == 'video';
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'url': url,
+        'thumbnailUrl': thumbnailUrl,
+        'durationMs': durationMs,
+      };
+}
+
 class Review {
   final String id;
   final String storeName;
@@ -20,6 +43,7 @@ class Review {
   final double overall;
   final String comment;
   final List<String> imageUrls;
+  final List<ReviewMediaItem> mediaItems;
   final DateTime createdAt;
 
   const Review({
@@ -43,6 +67,7 @@ class Review {
     required this.overall,
     required this.comment,
     required this.imageUrls,
+    required this.mediaItems,
     required this.createdAt,
   });
 }

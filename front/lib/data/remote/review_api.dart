@@ -3,7 +3,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:front/domain/entities/auth_context.dart';
 import 'package:front/domain/entities/review.dart';
 
-// 리뷰 API 호출을 담당한다.
 class ReviewApi {
   ReviewApi({Dio? dio})
       : _dio = dio ??
@@ -29,7 +28,7 @@ class ReviewApi {
       data: payload.toJson(),
       options: Options(headers: headers.isEmpty ? null : headers),
     );
-    return _reviewFromJson(response.data as Map<String, dynamic>);
+    return reviewFromJson(response.data as Map<String, dynamic>);
   }
 
   Future<Review> updateReview(
@@ -43,7 +42,7 @@ class ReviewApi {
       data: payload.toJson(),
       options: Options(headers: headers.isEmpty ? null : headers),
     );
-    return _reviewFromJson(response.data as Map<String, dynamic>);
+    return reviewFromJson(response.data as Map<String, dynamic>);
   }
 
   Future<List<Review>> fetchMyReviews({AuthContext? auth}) async {
@@ -54,13 +53,13 @@ class ReviewApi {
     );
     final data = response.data as List<dynamic>;
     return data
-        .map((item) => _reviewFromJson(item as Map<String, dynamic>))
+        .map((item) => reviewFromJson(item as Map<String, dynamic>))
         .toList();
   }
 
   Future<Review> fetchReviewDetail(String reviewId) async {
     final response = await _dio.get('$_baseUrl/api/cafemap/reviews/$reviewId');
-    return _reviewFromJson(response.data as Map<String, dynamic>);
+    return reviewFromJson(response.data as Map<String, dynamic>);
   }
 
   Future<ReviewImagePresignResponse> requestReviewImagePresign(
@@ -100,7 +99,6 @@ class ReviewApi {
   }
 }
 
-// 리뷰 생성 요청 모델이다.
 class ReviewCreateRequest {
   final String storeName;
   final String address;
@@ -118,6 +116,7 @@ class ReviewCreateRequest {
   final double overall;
   final String comment;
   final List<String> imageUrls;
+  final List<ReviewMediaItem> mediaItems;
 
   const ReviewCreateRequest({
     required this.storeName,
@@ -136,6 +135,7 @@ class ReviewCreateRequest {
     required this.overall,
     required this.comment,
     required this.imageUrls,
+    required this.mediaItems,
   });
 
   Map<String, dynamic> toJson() => {
@@ -155,6 +155,7 @@ class ReviewCreateRequest {
         'overall': overall,
         'comment': comment,
         'imageUrls': imageUrls,
+        'mediaItems': mediaItems.map((item) => item.toJson()).toList(),
       };
 }
 
@@ -183,8 +184,8 @@ class ReviewImagePresignResponse {
   });
 }
 
-Review _reviewFromJson(Map<String, dynamic> json) {
-  final scores = _scoresFromJson(json['scores']);
+Review reviewFromJson(Map<String, dynamic> json) {
+  final imageUrls = _imageUrlsFromJson(json['imageUrls']);
   return Review(
     id: json['id'] as String? ?? '',
     storeName: json['storeName'] as String? ?? '',
@@ -201,11 +202,12 @@ Review _reviewFromJson(Map<String, dynamic> json) {
     userEmail: json['userEmail'] as String? ?? '',
     reviewerType: json['reviewerType'] as String? ?? 'USER',
     ratingSchemaVersion: (json['ratingSchemaVersion'] as num?)?.toInt() ?? 1,
-    scores: scores,
+    scores: _scoresFromJson(json['scores']),
     attributes: _attributesFromJson(json['attributes']),
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',
-    imageUrls: _imageUrlsFromJson(json['imageUrls']),
+    imageUrls: imageUrls,
+    mediaItems: _mediaItemsFromJson(json['mediaItems'], fallbackImageUrls: imageUrls),
     createdAt: DateTime.parse(
       json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
     ),
@@ -235,4 +237,28 @@ List<String> _imageUrlsFromJson(dynamic raw) {
       .map((url) => url.trim())
       .where((url) => url.isNotEmpty)
       .toList();
+}
+
+List<ReviewMediaItem> _mediaItemsFromJson(
+  dynamic raw, {
+  required List<String> fallbackImageUrls,
+}) {
+  if (raw is List<dynamic>) {
+    final items = raw
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => ReviewMediaItem(
+            type: item['type'] as String? ?? 'image',
+            url: item['url'] as String? ?? '',
+            thumbnailUrl: item['thumbnailUrl'] as String? ?? '',
+            durationMs: (item['durationMs'] as num?)?.toInt(),
+          ),
+        )
+        .where((item) => item.url.trim().isNotEmpty)
+        .toList();
+    if (items.isNotEmpty) {
+      return items;
+    }
+  }
+  return fallbackImageUrls.map((url) => ReviewMediaItem(type: 'image', url: url)).toList();
 }

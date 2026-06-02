@@ -10,6 +10,8 @@ from cafemap.core.config import (
     OFFICIAL_HUSBAND_EMAILS,
     OFFICIAL_WIFE_EMAILS,
     REVIEW_IMAGE_LIMIT,
+    REVIEW_MEDIA_LIMIT,
+    REVIEW_VIDEO_MAX_DURATION_MS,
 )
 from cafemap.core.rating_dimensions import (
     CURRENT_RATING_SCHEMA_VERSION,
@@ -67,6 +69,7 @@ def create_review(db: Session, payload, user_id: str):
         resolved_overall,
         temperature_option,
         attributes,
+        media_items,
         image_urls,
         rating_schema_version,
     ) = _prepare_review_payload(db, payload)
@@ -80,6 +83,7 @@ def create_review(db: Session, payload, user_id: str):
         rating_schema_version=rating_schema_version,
         scores_json=scores_json_dumps(aggregate_scores),
         attributes_json=attributes_json_dumps(attributes),
+        media_items_json=json.dumps(media_items, ensure_ascii=False),
         image_urls_json=json.dumps(image_urls, ensure_ascii=False),
         temperature_option=temperature_option,
         reviewer_type=_reviewer_type_for_user_id(db, user_id),
@@ -139,6 +143,7 @@ def update_review(db: Session, review_id: str, payload, user_id: str):
         resolved_overall,
         temperature_option,
         attributes,
+        media_items,
         image_urls,
         rating_schema_version,
     ) = _prepare_review_payload(db, payload)
@@ -149,6 +154,7 @@ def update_review(db: Session, review_id: str, payload, user_id: str):
     review.rating_schema_version = rating_schema_version
     review.scores_json = scores_json_dumps(aggregate_scores)
     review.attributes_json = attributes_json_dumps(attributes)
+    review.media_items_json = json.dumps(media_items, ensure_ascii=False)
     review.image_urls_json = json.dumps(image_urls, ensure_ascii=False)
     review.temperature_option = temperature_option
     review.reviewer_type = _reviewer_type_for_user_id(db, user_id)
@@ -200,7 +206,11 @@ def _prepare_review_payload(db: Session, payload):
     temperature_option = _normalize_temperature_option(
         getattr(payload, "temperatureOption", "")
     )
-    image_urls = _sanitize_image_urls(getattr(payload, "imageUrls", []))
+    media_items = _sanitize_review_media_items(
+        getattr(payload, "mediaItems", []),
+        fallback_image_urls=getattr(payload, "imageUrls", []),
+    )
+    image_urls = _image_urls_from_media_items(media_items)
     menu_scores = normalize_scores(
         menu_category,
         input_scores,
@@ -232,6 +242,7 @@ def _prepare_review_payload(db: Session, payload):
         resolved_overall,
         temperature_option,
         attributes,
+        media_items,
         image_urls,
         rating_schema_version,
     )
@@ -778,24 +789,79 @@ def _find_best_matching_menu(db: Session, brand_id: str, raw_name: str) -> Menu 
     return None
 
 
-def _sanitize_image_urls(image_urls: list[str]) -> list[str]:
-
-    if not image_urls:
-
-        return []
-
-    cleaned = [
-        url.strip() for url in image_urls if isinstance(url, str) and url.strip()
+def _sanitize_review_media_items(
+    media_items: list[object],
+    *,
+    fallback_image_urls: list[str],
+) -> list[dict[str, object]]:
+    source_items = media_items or [
+        {"type": "image", "url": url}
+        for url in fallback_image_urls
+        if isinstance(url, str) and url.strip()
     ]
+    if not source_items:
+        return []
+    if len(source_items) > REVIEW_MEDIA_LIMIT:
+        raise ValueError(f"At most {REVIEW_MEDIA_LIMIT} media items can be attached")
 
-    if len(cleaned) > REVIEW_IMAGE_LIMIT:
+    cleaned: list[dict[str, object]] = []
+    for index, raw_item in enumerate(source_items):
+        item = raw_item.model_dump() if hasattr(raw_item, "model_dump") else raw_item
+        if not isinstance(item, dict):
+            raise ValueError("Invalid media item")
 
-        raise ValueError(f"At most {REVIEW_IMAGE_LIMIT} images can be attached")
+        media_type = str(item.get("type", "")).strip().lower()
+        if media_type not in {"image", "video"}:
+            raise ValueError("Unsupported media type")
 
-    for url in cleaned:
-
+        url = str(item.get("url", "")).strip()
         if not (url.startswith("http://") or url.startswith("https://")):
+            raise ValueError("Invalid media URL")
 
-            raise ValueError("Invalid image URL")
+        thumbnail_url = str(item.get("thumbnailUrl", "") or "").strip()
+        if thumbnail_url and not (
+            thumbnail_url.startswith("http://") or thumbnail_url.startswith("https://")
+        ):
+            raise ValueError("Invalid media thumbnail URL")
 
+        duration_ms = item.get("durationMs")
+        if duration_ms is not None:
+            try:
+                duration_ms = int(duration_ms)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Invalid media duration") from exc
+            if duration_ms < 0:
+                raise ValueError("Invalid media duration")
+            if media_type != "video":
+                raise ValueError("Image media cannot include duration")
+            if duration_ms > REVIEW_VIDEO_MAX_DURATION_MS:
+                raise ValueError(
+                    f"Video duration must be {REVIEW_VIDEO_MAX_DURATION_MS // 1000} seconds or less"
+                )
+        elif media_type == "video":
+            duration_ms = None
+
+        if media_type == "image":
+            thumbnail_url = ""
+
+        cleaned.append(
+            {
+                "type": media_type,
+                "url": url,
+                "thumbnailUrl": thumbnail_url,
+                "durationMs": duration_ms,
+                "sortOrder": index,
+            }
+        )
     return cleaned
+
+
+def _image_urls_from_media_items(media_items: list[dict[str, object]]) -> list[str]:
+    image_urls = [
+        str(item["url"]).strip()
+        for item in media_items
+        if item.get("type") == "image" and str(item.get("url", "")).strip()
+    ]
+    if len(image_urls) > REVIEW_IMAGE_LIMIT:
+        return image_urls[:REVIEW_IMAGE_LIMIT]
+    return image_urls

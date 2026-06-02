@@ -4,6 +4,8 @@ import 'package:front/domain/entities/rating_breakdown.dart';
 import 'package:front/domain/entities/review.dart';
 import 'package:front/domain/entities/similar_store.dart';
 import 'package:front/domain/entities/store_summary.dart';
+import 'package:front/domain/entities/store_visit_media_page.dart';
+import 'package:front/data/remote/review_api.dart' show reviewFromJson;
 
 // 지점 API 호출을 담당한다.
 class StoreApi {
@@ -53,6 +55,26 @@ class StoreApi {
         .map((item) => _reviewFromJson(item as Map<String, dynamic>))
         .toList();
   }
+
+  Future<StoreVisitMediaPage> fetchStoreVisitMediaPage(
+    String storeId, {
+    String? cursor,
+    int limit = 10,
+  }) async {
+    final response = await _dio.get(
+      '$_baseUrl/api/cafemap/stores/$storeId/visit-media',
+      queryParameters: {
+        if (cursor != null && cursor.trim().isNotEmpty) 'cursor': cursor,
+        'limit': limit,
+      },
+    );
+    final json = response.data as Map<String, dynamic>;
+    return StoreVisitMediaPage(
+      items: _storeMediaItemsFromJson(json['items']),
+      hasMore: json['hasMore'] as bool? ?? false,
+      nextCursor: json['nextCursor'] as String?,
+    );
+  }
 }
 
 StoreSummary _storeFromJson(Map<String, dynamic> json) {
@@ -79,6 +101,9 @@ StoreSummary _storeFromJson(Map<String, dynamic> json) {
     topScoreA: (json['topScoreA'] as num?)?.toDouble() ?? 0,
     topLabelB: json['topLabelB'] as String? ?? '',
     topScoreB: (json['topScoreB'] as num?)?.toDouble() ?? 0,
+    visitMediaItems: _storeMediaItemsFromJson(json['visitMediaItems']),
+    hasVisitMediaMore: json['hasVisitMediaMore'] as bool? ?? false,
+    visitMediaNextCursor: json['visitMediaNextCursor'] as String?,
   );
 }
 
@@ -109,32 +134,7 @@ SimilarStore _similarStoreFromJson(Map<String, dynamic> json) {
 }
 
 Review _reviewFromJson(Map<String, dynamic> json) {
-  final scores = _scoresFromJson(json['scores']);
-  return Review(
-    id: json['id'] as String? ?? '',
-    storeName: json['storeName'] as String? ?? '',
-    address: json['address'] as String? ?? '',
-    placeId: json['placeId'] as String? ?? '',
-    link: json['link'] as String? ?? '',
-    lat: (json['lat'] as num?)?.toDouble(),
-    lng: (json['lng'] as num?)?.toDouble(),
-    brandId: json['brandId'] as String? ?? '',
-    temperatureOption: json['temperatureOption'] as String? ?? '',
-    brandName: json['brandName'] as String? ?? '',
-    menuName: json['menuName'] as String? ?? '',
-    menuCategory: json['menuCategory'] as String? ?? '',
-    userEmail: json['userEmail'] as String? ?? '',
-    reviewerType: json['reviewerType'] as String? ?? 'USER',
-    ratingSchemaVersion: (json['ratingSchemaVersion'] as num?)?.toInt() ?? 1,
-    scores: scores,
-    attributes: _attributesFromJson(json['attributes']),
-    overall: (json['overall'] as num?)?.toDouble() ?? 0,
-    comment: json['comment'] as String? ?? '',
-    imageUrls: _imageUrlsFromJson(json['imageUrls']),
-    createdAt: DateTime.parse(
-      json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
-    ),
-  );
+  return reviewFromJson(json);
 }
 
 Map<String, double> _scoresFromJson(dynamic raw) {
@@ -145,23 +145,28 @@ Map<String, double> _scoresFromJson(dynamic raw) {
   };
 }
 
-Map<String, String> _attributesFromJson(dynamic raw) {
-  if (raw is! Map<String, dynamic>) return const {};
-  return {
-    for (final entry in raw.entries)
-      if (entry.value != null) entry.key: entry.value.toString(),
-  };
-}
-
-List<String> _imageUrlsFromJson(dynamic raw) {
-  return _stringListFromJson(raw);
-}
-
 List<String> _stringListFromJson(dynamic raw) {
   if (raw is! List<dynamic>) return const [];
   return raw
       .whereType<String>()
       .map((value) => value.trim())
       .where((value) => value.isNotEmpty)
+      .toList();
+}
+
+
+List<ReviewMediaItem> _storeMediaItemsFromJson(dynamic raw) {
+  if (raw is! List<dynamic>) return const [];
+  return raw
+      .whereType<Map<String, dynamic>>()
+      .map(
+        (item) => ReviewMediaItem(
+          type: item['type'] as String? ?? 'image',
+          url: item['url'] as String? ?? '',
+          thumbnailUrl: item['thumbnailUrl'] as String? ?? '',
+          durationMs: (item['durationMs'] as num?)?.toInt(),
+        ),
+      )
+      .where((item) => item.url.trim().isNotEmpty)
       .toList();
 }
