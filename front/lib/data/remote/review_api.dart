@@ -5,14 +5,15 @@ import 'package:front/domain/entities/review.dart';
 
 class ReviewApi {
   ReviewApi({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 8),
-                receiveTimeout: const Duration(seconds: 8),
-                sendTimeout: const Duration(seconds: 8),
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 8),
+              receiveTimeout: const Duration(seconds: 8),
+              sendTimeout: const Duration(seconds: 8),
+            ),
+          );
 
   final Dio _dio;
 
@@ -43,6 +44,14 @@ class ReviewApi {
       options: Options(headers: headers.isEmpty ? null : headers),
     );
     return reviewFromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteReview(String reviewId, {AuthContext? auth}) async {
+    final headers = _authHeaders(auth);
+    await _dio.delete(
+      '$_baseUrl/api/cafemap/reviews/$reviewId',
+      options: Options(headers: headers.isEmpty ? null : headers),
+    );
   }
 
   Future<List<Review>> fetchMyReviews({AuthContext? auth}) async {
@@ -139,24 +148,24 @@ class ReviewCreateRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'storeName': storeName,
-        'address': address,
-        'placeId': placeId,
-        'link': link,
-        'temperatureOption': temperatureOption,
-        'lat': lat,
-        'lng': lng,
-        'brandId': brandId,
-        'menuName': menuName,
-        'ratingSchemaVersion': ratingSchemaVersion,
-        'scores': scores,
-        'storeScores': storeScores,
-        'attributes': attributes,
-        'overall': overall,
-        'comment': comment,
-        'imageUrls': imageUrls,
-        'mediaItems': mediaItems.map((item) => item.toJson()).toList(),
-      };
+    'storeName': storeName,
+    'address': address,
+    'placeId': placeId,
+    'link': link,
+    'temperatureOption': temperatureOption,
+    'lat': lat,
+    'lng': lng,
+    'brandId': brandId,
+    'menuName': menuName,
+    'ratingSchemaVersion': ratingSchemaVersion,
+    'scores': scores,
+    'storeScores': storeScores,
+    'attributes': attributes,
+    'overall': overall,
+    'comment': comment,
+    'imageUrls': imageUrls,
+    'mediaItems': mediaItems.map((item) => item.toJson()).toList(),
+  };
 }
 
 class ReviewImagePresignRequest {
@@ -169,9 +178,9 @@ class ReviewImagePresignRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'fileName': fileName,
-        'contentType': contentType,
-      };
+    'fileName': fileName,
+    'contentType': contentType,
+  };
 }
 
 class ReviewImagePresignResponse {
@@ -207,7 +216,10 @@ Review reviewFromJson(Map<String, dynamic> json) {
     overall: (json['overall'] as num?)?.toDouble() ?? 0,
     comment: json['comment'] as String? ?? '',
     imageUrls: imageUrls,
-    mediaItems: _mediaItemsFromJson(json['mediaItems'], fallbackImageUrls: imageUrls),
+    mediaItems: _mediaItemsFromJson(
+      json['mediaItems'],
+      fallbackImageUrls: imageUrls,
+    ),
     createdAt: DateTime.parse(
       json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
     ),
@@ -260,5 +272,7 @@ List<ReviewMediaItem> _mediaItemsFromJson(
       return items;
     }
   }
-  return fallbackImageUrls.map((url) => ReviewMediaItem(type: 'image', url: url)).toList();
+  return fallbackImageUrls
+      .map((url) => ReviewMediaItem(type: 'image', url: url))
+      .toList();
 }

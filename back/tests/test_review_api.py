@@ -145,6 +145,28 @@ def test_review_create_and_read_lifecycle(client, db_session, auth_header):
         assert store_breakdown_response.status_code == 200
         store_breakdown = store_breakdown_response.json()
         assert store_breakdown["overall"] == updated_payload["overall"]
+
+        delete_response = client.delete(
+            f"/api/cafemap/reviews/{review_id}",
+            headers=auth_header,
+        )
+        assert delete_response.status_code == 204
+
+        deleted_detail_response = client.get(f"/api/cafemap/reviews/{review_id}")
+        assert deleted_detail_response.status_code == 404
+
+        my_reviews_after_delete_response = client.get(
+            "/api/cafemap/reviews/me",
+            headers=auth_header,
+        )
+        assert my_reviews_after_delete_response.status_code == 200
+        my_reviews_after_delete = my_reviews_after_delete_response.json()
+        assert all(item["id"] != review_id for item in my_reviews_after_delete)
+
+        deleted_store_breakdown_response = client.get(
+            f"/api/cafemap/stores/{matched_store['id']}/breakdown"
+        )
+        assert deleted_store_breakdown_response.status_code == 404
     finally:
         review = db_session.get(Review, review_id)
         if review is None:

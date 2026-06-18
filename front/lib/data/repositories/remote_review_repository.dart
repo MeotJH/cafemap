@@ -20,8 +20,10 @@ class RemoteReviewRepository implements ReviewRepository {
   }
 
   @override
-  Future<Review> createReview(ReviewCreateRequest payload,
-      {AuthContext? auth}) {
+  Future<Review> createReview(
+    ReviewCreateRequest payload, {
+    AuthContext? auth,
+  }) {
     return _api.createReview(payload, auth: auth);
   }
 
@@ -32,5 +34,10 @@ class RemoteReviewRepository implements ReviewRepository {
     AuthContext? auth,
   }) {
     return _api.updateReview(reviewId, payload, auth: auth);
+  }
+
+  @override
+  Future<void> deleteReview(String reviewId, {AuthContext? auth}) {
+    return _api.deleteReview(reviewId, auth: auth);
   }
 }

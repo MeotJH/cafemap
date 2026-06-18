@@ -179,6 +179,28 @@ def update_review(db: Session, review_id: str, payload, user_id: str):
     return review
 
 
+def delete_review(db: Session, review_id: str, user_id: str) -> bool:
+    review = db.get(Review, review_id)
+    if review is None:
+        return False
+    if review.user_id != user_id:
+        raise PermissionError("You can delete only your own review")
+
+    brand_id = review.brand_id
+    menu_id = review.menu_id
+    store_id = review.store_id
+
+    review_repository.delete_review(db, review)
+    db.flush()
+
+    if brand_id != LOCAL_BRAND_ID:
+        _rebuild_brand_menu_aggregate(db, brand_id=brand_id, menu_id=menu_id)
+    _rebuild_store_aggregate(db, store_id=store_id)
+
+    db.commit()
+    return True
+
+
 def _prepare_review_payload(db: Session, payload):
 
     brand = db.get(Brand, payload.brandId)

@@ -19,4 +19,6 @@ abstract class ReviewRepository {
     ReviewCreateRequest payload, {
     AuthContext? auth,
   });
+
+  Future<void> deleteReview(String reviewId, {AuthContext? auth});
 }
