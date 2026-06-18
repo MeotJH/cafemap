@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 def test_review_image_presign_returns_upload_contract(client, auth_header, monkeypatch):
     # S3를 실제로 치지 않고도 presign route 계약과 인증 wiring이 유지되는지 본다.
-    from cafemap.api import router
+    from cafemap.api.routes import uploads
 
     expected_upload_url = "https://upload.example.com/presigned"
     expected_file_url = "https://cdn.example.com/review-images/test.png"
@@ -16,7 +16,7 @@ def test_review_image_presign_returns_upload_contract(client, auth_header, monke
         return expected_upload_url, expected_file_url
 
     monkeypatch.setattr(
-        router.upload_service,
+        uploads.upload_service,
         "issue_review_image_upload_url",
         fake_issue_review_image_upload_url,
     )
@@ -35,7 +35,7 @@ def test_review_image_presign_returns_upload_contract(client, auth_header, monke
 
 
 def test_review_video_presign_returns_upload_contract(client, auth_header, monkeypatch):
-    from cafemap.api import router
+    from cafemap.api.routes import uploads
 
     expected_upload_url = "https://upload.example.com/presigned-video"
     expected_file_url = "https://cdn.example.com/review-images/test.mp4"
@@ -47,7 +47,7 @@ def test_review_video_presign_returns_upload_contract(client, auth_header, monke
         return expected_upload_url, expected_file_url
 
     monkeypatch.setattr(
-        router.upload_service,
+        uploads.upload_service,
         "issue_review_image_upload_url",
         fake_issue_review_image_upload_url,
     )
@@ -67,7 +67,7 @@ def test_review_video_presign_returns_upload_contract(client, auth_header, monke
 
 def test_place_search_returns_mocked_results(client, monkeypatch):
     # 장소 검색 provider를 mock 해서 route 응답 shape와 파라미터 연결만 검증한다.
-    from cafemap.api import router
+    from cafemap.api.routes import catalog
 
     expected = [
         {
@@ -89,7 +89,7 @@ def test_place_search_returns_mocked_results(client, monkeypatch):
     ]
 
     monkeypatch.setattr(
-        router.place_search_service,
+        catalog.place_search_service,
         "search_places",
         lambda **_: expected,
     )
@@ -101,7 +101,8 @@ def test_place_search_returns_mocked_results(client, monkeypatch):
 
 
 def test_store_detail_includes_visit_media_items(client, monkeypatch):
-    from cafemap.api import router
+    from cafemap.api.presenters import media_presenter
+    from cafemap.api.routes import stores
 
     fake_row = SimpleNamespace(
         store=SimpleNamespace(
@@ -131,12 +132,12 @@ def test_store_detail_includes_visit_media_items(client, monkeypatch):
     )
 
     monkeypatch.setattr(
-        router.store_service,
+        stores.store_service,
         "get_store_detail",
         lambda db, store_id: fake_row,
     )
     monkeypatch.setattr(
-        router.upload_service,
+        media_presenter.upload_service,
         "is_review_image_public_url",
         lambda raw_url: True,
     )
@@ -160,10 +161,11 @@ def test_store_detail_includes_visit_media_items(client, monkeypatch):
 
 
 def test_store_visit_media_page_returns_cursor_page(client, monkeypatch):
-    from cafemap.api import router
+    from cafemap.api.presenters import media_presenter
+    from cafemap.api.routes import stores
 
     monkeypatch.setattr(
-        router.store_service,
+        stores.store_service,
         "get_store_visit_media_page",
         lambda db, store_id, limit, cursor: SimpleNamespace(
             items=[
@@ -183,7 +185,7 @@ def test_store_visit_media_page_returns_cursor_page(client, monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        router.upload_service,
+        media_presenter.upload_service,
         "is_review_image_public_url",
         lambda raw_url: True,
     )
@@ -205,21 +207,21 @@ def test_thumbnail_asset_endpoint_supports_review_media(
     monkeypatch,
     tmp_path,
 ):
-    from cafemap.api import router
+    from cafemap.api.routes import stores
     from PIL import Image
 
     thumbnail_path = tmp_path / "thumb.jpg"
     Image.new("RGB", (24, 24), (120, 80, 40)).save(thumbnail_path, format="JPEG")
 
     monkeypatch.setattr(
-        router.upload_service,
+        stores.upload_service,
         "is_review_image_public_url",
         lambda raw_url: True,
     )
     monkeypatch.setattr(
-        router.thumbnail_service,
+        stores.thumbnail_service,
         "get_or_create_thumbnail",
-        lambda **_: router.thumbnail_service.ThumbnailAsset(
+        lambda **_: stores.thumbnail_service.ThumbnailAsset(
             local_path=Path(thumbnail_path)
         ),
     )
@@ -238,25 +240,25 @@ def test_thumbnail_asset_endpoint_supports_review_media(
 
 
 def test_thumbnail_asset_endpoint_redirects_to_presigned_thumbnail(client, monkeypatch):
-    from cafemap.api import router
+    from cafemap.api.routes import stores
 
     download_url = "https://download.example.com/presigned-thumb"
     storage_key = "review-thumbnails/test.jpg"
 
     monkeypatch.setattr(
-        router.upload_service,
+        stores.upload_service,
         "is_review_image_public_url",
         lambda raw_url: True,
     )
     monkeypatch.setattr(
-        router.upload_service,
+        stores.upload_service,
         "issue_public_download_url",
         lambda *, key: download_url if key == storage_key else "",
     )
     monkeypatch.setattr(
-        router.thumbnail_service,
+        stores.thumbnail_service,
         "get_or_create_thumbnail",
-        lambda **_: router.thumbnail_service.ThumbnailAsset(storage_key=storage_key),
+        lambda **_: stores.thumbnail_service.ThumbnailAsset(storage_key=storage_key),
     )
 
     response = client.get(

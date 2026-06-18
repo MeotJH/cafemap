@@ -626,10 +626,10 @@ def test_review_video_thumbnail_url_is_derived_for_public_media(
     auth_header,
     monkeypatch,
 ):
-    from cafemap.api import router
+    from cafemap.api.presenters import media_presenter
 
     monkeypatch.setattr(
-        router.upload_service,
+        media_presenter.upload_service,
         "is_review_image_public_url",
         lambda raw_url: True,
     )
