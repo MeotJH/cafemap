@@ -311,7 +311,7 @@ class _AuthButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
           side: const BorderSide(color: AppColors.cardBorder),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(10),
           ),
           minimumSize: const Size.fromHeight(58),
         ),

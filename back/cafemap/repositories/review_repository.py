@@ -52,3 +52,7 @@ def fetch_review(db: Session, review_id: str):
     )
 
     return db.execute(stmt).first()
+
+
+def delete_review(db: Session, review: Review):
+    db.delete(review)

@@ -143,7 +143,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 }
 
-class _PurposeExplorerSection extends StatelessWidget {
+class _PurposeExplorerSection extends StatefulWidget {
   const _PurposeExplorerSection();
 
   static const double _scrollerHeight = 168;
@@ -156,6 +156,49 @@ class _PurposeExplorerSection extends StatelessWidget {
     RankingPurpose.coffee,
     RankingPurpose.longStay,
   ];
+
+  @override
+  State<_PurposeExplorerSection> createState() => _PurposeExplorerSectionState();
+}
+
+class _PurposeExplorerSectionState extends State<_PurposeExplorerSection> {
+  final ScrollController _scrollController = ScrollController();
+  bool _showLeftFade = false;
+  bool _showRightFade = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_syncEdgeFade);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncEdgeFade());
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_syncEdgeFade)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _syncEdgeFade() {
+    if (!_scrollController.hasClients) return;
+
+    final position = _scrollController.position;
+    final showLeftFade = position.pixels > 0.5;
+    final showRightFade =
+        position.maxScrollExtent > 0 &&
+        position.pixels < position.maxScrollExtent - 0.5;
+
+    if (showLeftFade == _showLeftFade && showRightFade == _showRightFade) {
+      return;
+    }
+
+    setState(() {
+      _showLeftFade = showLeftFade;
+      _showRightFade = showRightFade;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -181,41 +224,44 @@ class _PurposeExplorerSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: _scrollerHeight,
+          height: _PurposeExplorerSection._scrollerHeight,
           child: Stack(
             children: [
               ScrollConfiguration(
                 behavior: const _PurposeScrollerBehavior(),
                 child: ListView.separated(
+                  controller: _scrollController,
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.only(right: 20),
-                  itemCount: _purposes.length,
+                  itemCount: _PurposeExplorerSection._purposes.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
-                    final purpose = _purposes[index];
+                    final purpose = _PurposeExplorerSection._purposes[index];
                     return _PurposeCard(purpose: purpose);
                   },
                 ),
               ),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: IgnorePointer(
-                  child: _PurposeEdgeFade(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
+              if (_showLeftFade)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: IgnorePointer(
+                    child: _PurposeEdgeFade(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
                   ),
                 ),
-              ),
-              const Align(
-                alignment: Alignment.centerRight,
-                child: IgnorePointer(
-                  child: _PurposeEdgeFade(
-                    begin: Alignment.centerRight,
-                    end: Alignment.centerLeft,
+              if (_showRightFade)
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: IgnorePointer(
+                    child: _PurposeEdgeFade(
+                      begin: Alignment.centerRight,
+                      end: Alignment.centerLeft,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

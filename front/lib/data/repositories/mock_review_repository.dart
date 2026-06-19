@@ -22,8 +22,10 @@ class MockReviewRepository implements ReviewRepository {
   }
 
   @override
-  Future<Review> createReview(ReviewCreateRequest payload,
-      {AuthContext? auth}) async {
+  Future<Review> createReview(
+    ReviewCreateRequest payload, {
+    AuthContext? auth,
+  }) async {
     return _dataSource.reviews().first;
   }
 
@@ -35,4 +37,7 @@ class MockReviewRepository implements ReviewRepository {
   }) async {
     return _dataSource.reviews().first;
   }
+
+  @override
+  Future<void> deleteReview(String reviewId, {AuthContext? auth}) async {}
 }

@@ -1,13 +1,18 @@
 import 'package:another_flushbar/flushbar.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:front/core/constants/app_colors.dart';
 import 'package:front/core/constants/app_strings.dart';
 import 'package:front/core/constants/rating_dimensions.dart';
 import 'package:front/core/utils/formatters.dart';
 import 'package:front/domain/entities/review.dart';
+import 'package:front/presentation/providers/app_providers.dart';
 import 'package:front/presentation/providers/auth_providers.dart';
+import 'package:front/presentation/providers/ranking_providers.dart';
 import 'package:front/presentation/providers/review_providers.dart';
+import 'package:front/presentation/providers/store_providers.dart';
 import 'package:front/presentation/widgets/review_media_gallery.dart';
 import 'package:front/presentation/widgets/review_temperature_badge.dart';
 import 'package:go_router/go_router.dart';
@@ -129,21 +134,215 @@ class ReviewDetailPage extends ConsumerWidget {
   }
 }
 
-class _ReviewDetailBody extends StatefulWidget {
+class _ReviewDetailBody extends ConsumerStatefulWidget {
   final Review review;
   final bool canEdit;
 
   const _ReviewDetailBody({required this.review, required this.canEdit});
 
   @override
-  State<_ReviewDetailBody> createState() => _ReviewDetailBodyState();
+  ConsumerState<_ReviewDetailBody> createState() => _ReviewDetailBodyState();
 }
 
-class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
+class _ReviewDetailBodyState extends ConsumerState<_ReviewDetailBody> {
   static const String _coffeeSection = 'coffee';
   static const String _storeSection = 'store';
 
   String _selectedSection = _coffeeSection;
+  bool _isDeleting = false;
+
+  Future<void> _deleteReview() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        var isSubmitting = false;
+
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> handleConfirm() async {
+              if (isSubmitting) return;
+
+              setDialogState(() {
+                isSubmitting = true;
+              });
+
+              final deleted = await _performDeleteReview();
+              if (!dialogContext.mounted) return;
+
+              if (deleted) {
+                Navigator.of(dialogContext).pop(true);
+                return;
+              }
+
+              setDialogState(() {
+                isSubmitting = false;
+              });
+            }
+
+            return PopScope(
+              canPop: !isSubmitting,
+              child: AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                title: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: isSubmitting
+                      ? const _DeleteReviewDialogTitleSkeleton()
+                      : const Text(
+                          '리뷰를 삭제할까요?',
+                          key: ValueKey('delete-review-title'),
+                        ),
+                ),
+                content: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: isSubmitting
+                      ? const _DeleteReviewDialogContentSkeleton()
+                      : const Text(
+                          '삭제한 리뷰는 되돌릴 수 없어요.',
+                          key: ValueKey('delete-review-content'),
+                        ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(false),
+                    style: TextButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('취소'),
+                  ),
+                  FilledButton(
+                    onPressed: isSubmitting ? null : handleConfirm,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFDC2626),
+                      disabledForegroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(isSubmitting ? '삭제 중' : '삭제'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    if (context.canPop()) {
+      context.pop(true);
+    } else {
+      context.go('/my');
+    }
+  }
+
+  Future<bool> _performDeleteReview() async {
+    setState(() {
+      _isDeleting = true;
+    });
+    try {
+      final auth = await ref.read(authControllerProvider).getAuthContext();
+      if (auth == null) {
+        throw const _DeleteReviewAuthRequired();
+      }
+
+      try {
+        await ref
+            .read(reviewRepositoryProvider)
+            .deleteReview(widget.review.id, auth: auth);
+      } on DioException catch (error) {
+        if (!_isRecoverableUserSessionError(error)) rethrow;
+        await ref.read(authApiProvider).syncUser(auth);
+        await ref
+            .read(reviewRepositoryProvider)
+            .deleteReview(widget.review.id, auth: auth);
+      }
+
+      _invalidateReviewRelatedProviders();
+      return true;
+    } on _DeleteReviewAuthRequired {
+      if (!mounted) return false;
+      await _showDeleteError('로그인이 필요해요. 다시 로그인해 주세요.');
+      if (mounted) {
+        context.go('/auth');
+      }
+      return false;
+    } on DioException catch (error) {
+      if (!mounted) return false;
+      await _showDeleteError(_messageForDeleteError(error));
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      await _showDeleteError('리뷰 삭제에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
+  }
+
+  void _invalidateReviewRelatedProviders() {
+    ref.invalidate(myReviewsProvider);
+    ref.invalidate(rankingListProvider);
+    ref.invalidate(storeRankingListProvider);
+    ref.invalidate(reviewDetailProvider(widget.review.id));
+    ref.invalidate(storeDetailProvider);
+    ref.invalidate(storeBreakdownProvider);
+    ref.invalidate(storeReviewsProvider);
+    ref.invalidate(rankingReviewsProvider);
+  }
+
+  bool _isRecoverableUserSessionError(DioException error) {
+    if (error.response?.statusCode != 401) return false;
+    final detail = _errorDetail(error.response?.data).toLowerCase();
+    return detail.contains('user session not initialized') ||
+        detail.contains('user_not_synced');
+  }
+
+  String _messageForDeleteError(DioException error) {
+    if (error.response?.statusCode == 401) {
+      return '로그인 정보를 확인하지 못했어요. 다시 로그인해 주세요.';
+    }
+    final detail = _errorDetail(error.response?.data);
+    if (detail.isNotEmpty) {
+      return '리뷰 삭제에 실패했어요. $detail';
+    }
+    return '리뷰 삭제에 실패했어요. 잠시 후 다시 시도해 주세요.';
+  }
+
+  String _errorDetail(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final detail = data['detail'];
+      if (detail is String && detail.isNotEmpty) return detail;
+      final code = data['code'];
+      if (code is String && code.isNotEmpty) return code;
+    }
+    return data?.toString() ?? '';
+  }
+
+  Future<void> _showDeleteError(String message) {
+    return Flushbar<void>(
+      message: message,
+      duration: const Duration(seconds: 2),
+      flushbarPosition: FlushbarPosition.TOP,
+      backgroundColor: const Color(0xFF2A2A2A),
+      margin: const EdgeInsets.all(12),
+      borderRadius: BorderRadius.circular(10),
+      icon: const Icon(Icons.error_outline, color: Colors.white),
+    ).show(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,10 +398,12 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                   if (widget.canEdit) ...[
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
-                      onPressed: () => context.push(
-                        '/review/${widget.review.id}/edit',
-                        extra: widget.review,
-                      ),
+                      onPressed: _isDeleting
+                          ? null
+                          : () => context.push(
+                              '/review/${widget.review.id}/edit',
+                              extra: widget.review,
+                            ),
                       icon: const Icon(Icons.edit_outlined, size: 18),
                       label: const Text('수정'),
                       style: OutlinedButton.styleFrom(
@@ -215,7 +416,32 @@ class _ReviewDetailBodyState extends State<_ReviewDetailBody> {
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: _isDeleting ? null : _deleteReview,
+                      icon: _isDeleting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.delete_outline, size: 18),
+                      label: Text(_isDeleting ? '삭제 중' : '삭제'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(color: Color(0xFFDC2626)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
                     ),
@@ -560,4 +786,90 @@ class _ScoreRow extends StatelessWidget {
       ],
     );
   }
+}
+
+class _DeleteReviewDialogTitleSkeleton extends StatelessWidget {
+  const _DeleteReviewDialogTitleSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _DeleteReviewDialogSkeletonFrame(
+      child: _DeleteReviewSkeletonLine(
+        width: 220,
+        height: 28,
+        borderRadius: 8,
+      ),
+    );
+  }
+}
+
+class _DeleteReviewDialogContentSkeleton extends StatelessWidget {
+  const _DeleteReviewDialogContentSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _DeleteReviewDialogSkeletonFrame(
+      child: Column(
+        key: ValueKey('delete-review-skeleton'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _DeleteReviewSkeletonLine(
+            width: double.infinity,
+            height: 18,
+            borderRadius: 8,
+          ),
+          SizedBox(height: 10),
+          _DeleteReviewSkeletonLine(
+            width: 168,
+            height: 18,
+            borderRadius: 8,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeleteReviewDialogSkeletonFrame extends StatelessWidget {
+  final Widget child;
+
+  const _DeleteReviewDialogSkeletonFrame({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE8DDD2),
+      highlightColor: Colors.white,
+      child: child,
+    );
+  }
+}
+
+class _DeleteReviewSkeletonLine extends StatelessWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
+
+  const _DeleteReviewSkeletonLine({
+    required this.width,
+    required this.height,
+    required this.borderRadius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.chipBackground,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
+  }
+}
+
+class _DeleteReviewAuthRequired implements Exception {
+  const _DeleteReviewAuthRequired();
 }

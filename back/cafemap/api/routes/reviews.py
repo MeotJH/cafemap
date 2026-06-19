@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from cafemap.api.deps import require_auth_user
@@ -161,3 +161,20 @@ def update_review(
         menu_category=menu_category,
         user_email=user_email or user.email or "",
     )
+
+
+@router.delete("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_review(
+    review_id: str,
+    auth_user=Depends(require_auth_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        deleted = review_service.delete_review(db, review_id, auth_user.uid)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
