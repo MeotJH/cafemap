@@ -10,6 +10,7 @@ __pycache__/
 
 .serverless
 node_modules
+.venv-loadtest/
 
 package-lock.json
 package.json
