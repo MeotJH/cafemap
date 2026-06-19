@@ -146,6 +146,7 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
   }
 
   Future<void> _handleSubmit(ReviewWriteState state) async {
+    FocusScope.of(context).unfocus();
     final result = await _controller.submit();
     if (!mounted) return;
 
@@ -469,34 +470,47 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
     final bottomSafeArea = MediaQuery.paddingOf(context).bottom;
     final isKeyboardVisible = viewInsets.bottom > 0;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        title: Text(state.pageTitle),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-              return;
-            }
-            context.go('/rankings');
-          },
+    return PopScope(
+      canPop: !state.isSubmitting,
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        appBar: AppBar(
+          title: Text(state.pageTitle),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: state.isSubmitting
+                ? null
+                : () {
+                    if (context.canPop()) {
+                      context.pop();
+                      return;
+                    }
+                    context.go('/rankings');
+                  },
+          ),
         ),
-      ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: SafeArea(
-          child: state.isBootstrapping
-              ? const Center(child: CircularProgressIndicator())
-              : state.bootstrapError != null
-              ? Center(child: Text(state.bootstrapError!))
-              : ListView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.manual,
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomSafeArea),
-                  children: [
+        body: Stack(
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: SafeArea(
+                child: state.isBootstrapping
+                    ? const Center(child: CircularProgressIndicator())
+                    : state.bootstrapError != null
+                    ? Center(child: Text(state.bootstrapError!))
+                    : AbsorbPointer(
+                        absorbing: state.isSubmitting,
+                        child: ListView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.manual,
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            16,
+                            16,
+                            24 + bottomSafeArea,
+                          ),
+                          children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -985,16 +999,81 @@ class _ReviewWritePageState extends ConsumerState<ReviewWritePage> {
                     if (!isKeyboardVisible)
                       WriteCafeReviewButton(
                         onPressed: state.isSubmitting
-                            ? () {}
+                            ? null
                             : () => _handleSubmit(state),
-                        text: state.isSubmitting
-                            ? state.submittingButtonText
-                            : state.submitButtonText,
+                        text: state.submitButtonText,
+                        isLoading: state.isSubmitting,
                       )
                     else
                       const SizedBox(height: 16),
-                  ],
+                          ],
+                        ),
+                      ),
+              ),
+            ),
+            if (state.isSubmitting) ...[
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: 1,
+                    duration: const Duration(milliseconds: 180),
+                    child: Container(
+                      color: Colors.white.withValues(alpha: 0.55),
+                    ),
+                  ),
                 ),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 96 + bottomSafeArea,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F1EB),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.cardBorder),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '사진/영상 업로드와 리뷰 저장이 진행 중이에요.',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
