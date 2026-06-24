@@ -79,6 +79,10 @@ def resolve_review_media_url(request: Request, raw_url: str | None) -> str:
     if not upload_service.is_review_image_public_url(resolved):
         return resolved
 
+    if is_video_media_url(resolved):
+        storage_key = upload_service.extract_review_image_key(resolved)
+        return upload_service.issue_public_download_url(key=storage_key)
+
     encoded_src = quote(resolved, safe="")
     return f"{public_base_url(request)}/api/cafemap/assets/media?src={encoded_src}"
 

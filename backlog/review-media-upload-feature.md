@@ -68,14 +68,15 @@
 2. 프론트가 영상 처리 API를 호출한다.
 3. 백엔드가 원본을 H.264/AAC MP4로 변환하고 `review-images/<user-id>/processed/media-job-....mp4`에 저장한다.
 4. 리뷰 DB의 `media_items_json`에는 원본이 아닌 `processed` 객체 URL을 저장한다.
-5. 조회 API는 raw S3 URL을 그대로 노출하지 않고 `/api/cafemap/assets/media?src=...` URL로 변환한다.
-6. media endpoint는 객체 권한을 검증한 뒤 presigned S3 GET URL로 redirect한다.
+5. 조회 API는 영상 객체 키를 검증하고 `mediaItems[].url`에 presigned S3 GET URL을 직접 넣는다.
+6. 프론트 영상 플레이어는 중간 backend redirect 없이 presigned S3 URL을 재생한다.
 7. 실제 영상 바이트와 Range 요청은 S3가 직접 처리한다.
 
 ### 반드시 지킬 점
 
-- media endpoint에서 Python/FastAPI가 영상 바이트를 직접 `StreamingResponse`로 중계하지 않는다.
-- iPhone Chrome도 Safari와 같은 WebKit을 사용한다. 백엔드 직접 스트리밍은 데스크톱에서 동작해도 iPhone에서 첫 프레임 후 검은 화면이 될 수 있다.
+- 영상 URL을 backend media endpoint로 감싼 뒤 redirect하지 않는다.
+- Python/FastAPI가 영상 바이트를 직접 `StreamingResponse`로 중계하지 않는다.
+- iPhone Chrome도 Safari와 같은 WebKit을 사용한다. backend streaming 또는 중간 redirect는 데스크톱에서 동작해도 iPhone에서 재생 실패나 검은 화면이 될 수 있다.
 - 최종 S3 응답이 `Accept-Ranges: bytes`를 제공하고 Range 요청에 `206 Partial Content`와 올바른 `Content-Range`를 반환해야 한다.
 - Flutter Web의 `video_player_web`은 직접 의존성으로 유지한다. generated web plugin registrant에 `VideoPlayerPlugin.registerWith(registrar)`가 없으면 `UnimplementedError: init() has not been implemented`가 발생한다.
 - iOS WebKit 자동재생을 위해 재생 전 `setVolume(0)`을 호출하고 `playsInline` 동작을 유지한다.
@@ -84,8 +85,8 @@
 ### 회귀 검증
 
 - 데스크톱 Chrome과 실제 iPhone Chrome/Safari에서 같은 영상을 재생한다.
-- API media URL이 `307`로 presigned S3 URL을 반환하는지 확인한다.
-- redirect를 따라 `Range: bytes=0-1023` 요청 시 최종 S3 응답이 `206`인지 확인한다.
+- 리뷰/매장 API의 영상 `mediaItems[].url`이 presigned S3 URL인지 확인한다.
+- 해당 URL에 `Range: bytes=0-1023` 요청 시 S3 응답이 `206`인지 확인한다.
 - 신규 업로드 후 DB URL이 `/processed/media-job-....mp4`인지 확인한다.
 - `flutter clean && flutter pub get && flutter build web --release` 후 generated registrant에 `VideoPlayerPlugin.registerWith`가 포함되는지 확인한다.
 

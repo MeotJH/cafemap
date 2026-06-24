@@ -25,5 +25,5 @@
   - `VideoPlayerPlugin.registerWith(registrar)`
 - If it is missing, web playback fails with `UnimplementedError: init() has not been implemented`.
 - iPhone Chrome uses WebKit, like Safari. Keep gallery autoplay muted by calling `setVolume(0)` before `play()`.
-- The backend media endpoint must redirect to a presigned S3 GET URL. Do not change it to FastAPI byte streaming; iPhone playback can show the first frame and then turn black.
+- Video `mediaItems[].url` must be a direct presigned S3 GET URL. Do not route video playback through a backend redirect or FastAPI byte streaming; iPhone playback can fail or turn black.
 - Verify production playback on both desktop Chrome and a real iPhone Chrome/Safari after media or deployment changes.

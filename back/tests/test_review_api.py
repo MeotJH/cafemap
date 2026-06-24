@@ -655,6 +655,16 @@ def test_review_video_thumbnail_url_is_derived_for_public_media(
         "is_review_image_public_url",
         lambda raw_url: True,
     )
+    monkeypatch.setattr(
+        media_presenter.upload_service,
+        "extract_review_image_key",
+        lambda raw_url: "review-images/test-video.mp4",
+    )
+    monkeypatch.setattr(
+        media_presenter.upload_service,
+        "issue_public_download_url",
+        lambda *, key: "https://download.example.com/presigned-video",
+    )
 
     suffix = uuid4().hex[:8]
     payload = {
@@ -708,6 +718,10 @@ def test_review_video_thumbnail_url_is_derived_for_public_media(
         assert response.status_code == 200
         created = response.json()
         assert created["mediaItems"][0]["type"] == "video"
+        assert (
+            created["mediaItems"][0]["url"]
+            == "https://download.example.com/presigned-video"
+        )
         assert (
             "/api/cafemap/assets/thumbnail?src="
             in created["mediaItems"][0]["thumbnailUrl"]

@@ -61,7 +61,7 @@ Key rules:
 - Before changing or deploying frontend video/media behavior, read:
   - `backlog/review-media-upload-feature.md`
   - `front/README.md` section `Web Video Build Notes`
-- Web video playback must keep the production flow `backend media endpoint -> presigned S3 redirect -> S3 Range response`. Do not replace it with FastAPI/Python byte streaming; this causes iPhone WebKit playback to show a frame and then turn black.
+- Web video playback must return a presigned S3 GET URL directly in `mediaItems[].url`, so iPhone WebKit reaches S3 without an intermediate redirect. Do not replace it with FastAPI/Python byte streaming or a backend media redirect URL.
 - Keep `video_player_web` as a direct frontend dependency, muted inline autoplay, and verify playback on a real iPhone after frontend media, dependency, Flutter, or deployment changes.
 - The Lightsail SSH key in this workspace is `LightsailDefaultKey-ap-northeast-2.pem`; treat `.pem` files, `.env` files, local databases, deployment config, and serverless artifacts as sensitive surfaces.
 

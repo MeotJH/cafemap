@@ -170,6 +170,16 @@ def test_store_detail_includes_visit_media_items(client, monkeypatch):
         "is_review_image_public_url",
         lambda raw_url: True,
     )
+    monkeypatch.setattr(
+        media_presenter.upload_service,
+        "extract_review_image_key",
+        lambda raw_url: "review-images/b.mp4",
+    )
+    monkeypatch.setattr(
+        media_presenter.upload_service,
+        "issue_public_download_url",
+        lambda *, key: "https://download.example.com/presigned-video",
+    )
 
     response = client.get("/api/cafemap/stores/store-1")
 
@@ -186,6 +196,10 @@ def test_store_detail_includes_visit_media_items(client, monkeypatch):
     assert (
         "/api/cafemap/assets/thumbnail?src="
         in payload["visitMediaItems"][1]["thumbnailUrl"]
+    )
+    assert (
+        payload["visitMediaItems"][1]["url"]
+        == "https://download.example.com/presigned-video"
     )
 
 
@@ -218,6 +232,16 @@ def test_store_visit_media_page_returns_cursor_page(client, monkeypatch):
         "is_review_image_public_url",
         lambda raw_url: True,
     )
+    monkeypatch.setattr(
+        media_presenter.upload_service,
+        "extract_review_image_key",
+        lambda raw_url: "review-images/b.mp4",
+    )
+    monkeypatch.setattr(
+        media_presenter.upload_service,
+        "issue_public_download_url",
+        lambda *, key: "https://download.example.com/presigned-video",
+    )
 
     response = client.get(
         "/api/cafemap/stores/store-1/visit-media",
@@ -229,6 +253,7 @@ def test_store_visit_media_page_returns_cursor_page(client, monkeypatch):
     assert payload["hasMore"] is True
     assert payload["nextCursor"] == "cursor-2"
     assert len(payload["items"]) == 2
+    assert payload["items"][1]["url"] == "https://download.example.com/presigned-video"
 
 
 def test_thumbnail_asset_endpoint_supports_review_media(
