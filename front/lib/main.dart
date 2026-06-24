@@ -61,22 +61,24 @@ Future<void> _loadEnv() async {
   );
 }
 
-// ? ?? ????. Riverpod ????? ???? ????.
+// 앱을 초기화하고 실행하는 메서드이다
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    usePathUrlStrategy(); // ? ???? ??? ????.
-
+    usePathUrlStrategy(); // Remove '#' from URL in Flutter web
     await _loadEnv();
     if (kIsWeb) {
       await Firebase.initializeApp(options: _firebaseOptionsFromEnv());
     } else {
       await Firebase.initializeApp();
     }
+
+    // 구글 애널리틱스를 초기화한다. GA4_MEASUREMENT_ID 환경 변수가 .env에 설정되어 있어야 한다.
     await analyticsService.initialize(
       measurementId: dotenv.env['GA4_MEASUREMENT_ID'],
     );
 
+    // 네이버맵을 초기화한다. NAVER_MAP_CLIENT_ID 환경 변수가 .env에 설정되어 있어야 한다.
     final clientId = dotenv.env['NAVER_MAP_CLIENT_ID'];
     if (clientId == null || clientId.isEmpty) {
       throw StateError('NAVER_MAP_CLIENT_ID is missing in .env');
