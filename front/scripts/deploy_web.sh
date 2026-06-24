@@ -28,7 +28,9 @@ if [[ ! -f ".env.production" ]]; then
   exit 1
 fi
 
+HOSTING_TARGETS="${HOSTING_TARGETS:-hosting:default}"
+
 cp .env.production .env
 $FLUTTER_CMD pub get
 $FLUTTER_CMD build web --release --pwa-strategy=none
-"${FIREBASE_CMD[@]}" deploy --only hosting
+"${FIREBASE_CMD[@]}" deploy --only "$HOSTING_TARGETS"
