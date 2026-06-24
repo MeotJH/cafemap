@@ -58,6 +58,11 @@ Key rules:
 - Backend currently mixes application code with local scripts and data files. Avoid broad cleanup unless requested.
 - Production backend deploys to AWS Lightsail over SSH and Docker, not serverless.
 - S3-backed media retrieval should be mediated by the backend with presigned URLs rather than exposing raw S3 object paths directly.
+- Before changing or deploying frontend video/media behavior, read:
+  - `backlog/review-media-upload-feature.md`
+  - `front/README.md` section `Web Video Build Notes`
+- Web video playback must keep the production flow `backend media endpoint -> presigned S3 redirect -> S3 Range response`. Do not replace it with FastAPI/Python byte streaming; this causes iPhone WebKit playback to show a frame and then turn black.
+- Keep `video_player_web` as a direct frontend dependency, muted inline autoplay, and verify playback on a real iPhone after frontend media, dependency, Flutter, or deployment changes.
 - The Lightsail SSH key in this workspace is `LightsailDefaultKey-ap-northeast-2.pem`; treat `.pem` files, `.env` files, local databases, deployment config, and serverless artifacts as sensitive surfaces.
 
 ## Commands
