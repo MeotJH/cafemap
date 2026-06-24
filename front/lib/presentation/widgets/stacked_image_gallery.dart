@@ -644,6 +644,7 @@ class _GalleryVideoPlayerState extends State<_GalleryVideoPlayer> {
       final controller = VideoPlayerController.networkUrl(Uri.parse(url));
       await controller.initialize();
       await controller.setLooping(true);
+      await controller.setVolume(0);
       await controller.play();
       if (!mounted) {
         await controller.dispose();
