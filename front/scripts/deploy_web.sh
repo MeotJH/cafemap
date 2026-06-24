@@ -28,7 +28,7 @@ if [[ ! -f ".env.production" ]]; then
   exit 1
 fi
 
-HOSTING_TARGETS="${HOSTING_TARGETS:-hosting:default}"
+HOSTING_TARGETS="${HOSTING_TARGETS:-hosting:cafebubu}"
 
 cp .env.production .env
 $FLUTTER_CMD pub get
