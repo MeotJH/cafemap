@@ -40,3 +40,7 @@
 - 프론트 `flutter analyze`
 - 백엔드 리뷰 관련 테스트
 - 대표 수동 시나리오 문서화
+- 실제 iPhone Chrome/Safari에서 processed MP4 재생
+- media endpoint의 presigned S3 redirect 확인
+- 최종 S3 Range 응답의 `206 Partial Content`, `Accept-Ranges`, `Content-Range` 확인
+- clean web build 후 `VideoPlayerPlugin.registerWith(registrar)` 생성 확인

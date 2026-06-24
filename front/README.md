@@ -12,4 +12,18 @@
 `deploy_web.sh` does:
 - copy `.env.production` -> `.env`
 - `flutter build web --release`
-- `firebase deploy --only hosting`
+- deploy only the `cafebubu` Firebase Hosting target by default
+
+## Web Video Build Notes
+
+- Keep both `video_player` and the direct `video_player_web` dependency in `pubspec.yaml`.
+- After dependency or Flutter upgrades, run a clean build:
+  - `flutter clean`
+  - `flutter pub get`
+  - `flutter build web --release --pwa-strategy=none`
+- Confirm the generated web plugin registrant contains:
+  - `VideoPlayerPlugin.registerWith(registrar)`
+- If it is missing, web playback fails with `UnimplementedError: init() has not been implemented`.
+- iPhone Chrome uses WebKit, like Safari. Keep gallery autoplay muted by calling `setVolume(0)` before `play()`.
+- The backend media endpoint must redirect to a presigned S3 GET URL. Do not change it to FastAPI byte streaming; iPhone playback can show the first frame and then turn black.
+- Verify production playback on both desktop Chrome and a real iPhone Chrome/Safari after media or deployment changes.

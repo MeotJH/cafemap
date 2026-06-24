@@ -26,9 +26,7 @@
 ## 제외 범위
 
 - 영상 편집, 자르기, 필터 적용
-- 자동 인코딩 파이프라인 구축
 - 대용량 장문 영상 업로드
-- 리뷰 카드에서 자동재생
 - 신고, 모더레이션, 저작권 탐지
 - 영상 자막/음성 분석
 
@@ -43,6 +41,7 @@
   - `durationMs`: 영상일 때 선택
   - `sortOrder`
 - 업로드 방식은 현재 사진처럼 presigned URL 기반을 유지하는 편이 가장 작다.
+- 영상은 업로드 직후 서버에서 H.264/AAC MP4로 변환하고 `processed` 객체 URL을 리뷰에 저장한다.
 - 영상은 사진보다 용량이 크므로 파일 크기 제한, 허용 확장자, 허용 MIME 타입을 별도로 정의해야 한다.
 - 썸네일은
   - 클라이언트 생성 후 같이 업로드하거나
@@ -58,8 +57,37 @@
   - 예: 최대 30초
 - 1차에서는 허용 포맷을 모바일/웹 공통 분모로 좁힌다.
   - 예: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`
-- 1차에서는 목록/상세에서 영상 자동재생 없이 탭 후 재생으로 간다.
+- 전체 화면 영상은 `muted + playsInline` 조건으로 자동재생한다.
 - 1차에서는 리뷰 정렬/평점/랭킹 로직은 바꾸지 않고 첨부 UX와 저장 모델만 확장한다.
+
+## 현재 운영 영상 흐름
+
+아래 흐름은 영상 재생을 위한 설계 불변조건이다. 임의로 단계를 생략하거나 전달 방식을 바꾸지 않는다.
+
+1. 프론트가 presigned PUT URL을 발급받아 원본 영상을 S3 `review-images/<user-id>/...`에 업로드한다.
+2. 프론트가 영상 처리 API를 호출한다.
+3. 백엔드가 원본을 H.264/AAC MP4로 변환하고 `review-images/<user-id>/processed/media-job-....mp4`에 저장한다.
+4. 리뷰 DB의 `media_items_json`에는 원본이 아닌 `processed` 객체 URL을 저장한다.
+5. 조회 API는 raw S3 URL을 그대로 노출하지 않고 `/api/cafemap/assets/media?src=...` URL로 변환한다.
+6. media endpoint는 객체 권한을 검증한 뒤 presigned S3 GET URL로 redirect한다.
+7. 실제 영상 바이트와 Range 요청은 S3가 직접 처리한다.
+
+### 반드시 지킬 점
+
+- media endpoint에서 Python/FastAPI가 영상 바이트를 직접 `StreamingResponse`로 중계하지 않는다.
+- iPhone Chrome도 Safari와 같은 WebKit을 사용한다. 백엔드 직접 스트리밍은 데스크톱에서 동작해도 iPhone에서 첫 프레임 후 검은 화면이 될 수 있다.
+- 최종 S3 응답이 `Accept-Ranges: bytes`를 제공하고 Range 요청에 `206 Partial Content`와 올바른 `Content-Range`를 반환해야 한다.
+- Flutter Web의 `video_player_web`은 직접 의존성으로 유지한다. generated web plugin registrant에 `VideoPlayerPlugin.registerWith(registrar)`가 없으면 `UnimplementedError: init() has not been implemented`가 발생한다.
+- iOS WebKit 자동재생을 위해 재생 전 `setVolume(0)`을 호출하고 `playsInline` 동작을 유지한다.
+- 기존 `processed` 경로를 원본 URL로 되돌리면 HEVC/HDR 원본이 저장될 수 있어 브라우저 호환성이 깨진다.
+
+### 회귀 검증
+
+- 데스크톱 Chrome과 실제 iPhone Chrome/Safari에서 같은 영상을 재생한다.
+- API media URL이 `307`로 presigned S3 URL을 반환하는지 확인한다.
+- redirect를 따라 `Range: bytes=0-1023` 요청 시 최종 S3 응답이 `206`인지 확인한다.
+- 신규 업로드 후 DB URL이 `/processed/media-job-....mp4`인지 확인한다.
+- `flutter clean && flutter pub get && flutter build web --release` 후 generated registrant에 `VideoPlayerPlugin.registerWith`가 포함되는지 확인한다.
 
 ## 주요 결정 필요 사항
 
