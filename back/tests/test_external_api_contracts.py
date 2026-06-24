@@ -65,6 +65,35 @@ def test_review_video_presign_returns_upload_contract(client, auth_header, monke
     }
 
 
+def test_review_video_process_returns_processed_url(client, auth_header, monkeypatch):
+    from cafemap.api.routes import uploads
+
+    source_url = "https://cdn.example.com/review-images/test-user/source.mp4"
+    processed_url = (
+        "https://cdn.example.com/review-images/test-user/processed/media-job-test.mp4"
+    )
+
+    def fake_transcode_review_video(*, user_id, source_url: str):
+        assert user_id == "test-user"
+        assert source_url.endswith("/review-images/test-user/source.mp4")
+        return processed_url
+
+    monkeypatch.setattr(
+        uploads.video_service,
+        "transcode_review_video",
+        fake_transcode_review_video,
+    )
+
+    response = client.post(
+        "/api/cafemap/uploads/review-videos/process",
+        json={"sourceUrl": source_url},
+        headers=auth_header,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"fileUrl": processed_url}
+
+
 def test_place_search_returns_mocked_results(client, monkeypatch):
     # 장소 검색 provider를 mock 해서 route 응답 shape와 파라미터 연결만 검증한다.
     from cafemap.api.routes import catalog
@@ -152,7 +181,7 @@ def test_store_detail_includes_visit_media_items(client, monkeypatch):
     assert payload["visitMediaNextCursor"] == "cursor-1"
     assert (
         payload["visitMediaItems"][0]["url"]
-        == "https://cdn.example.com/review-images/a.jpg"
+        == "http://testserver/api/cafemap/assets/media?src=https%3A%2F%2Fcdn.example.com%2Freview-images%2Fa.jpg"
     )
     assert (
         "/api/cafemap/assets/thumbnail?src="
@@ -273,3 +302,69 @@ def test_thumbnail_asset_endpoint_redirects_to_presigned_thumbnail(client, monke
 
     assert response.status_code in {302, 307}
     assert response.headers["location"] == download_url
+
+
+def test_media_asset_endpoint_streams_range_from_storage(client, monkeypatch):
+    from cafemap.api.routes import stores
+
+    source_url = "https://cdn.example.com/review-images/test.mp4"
+    storage_key = "review-images/test-user/test.mp4"
+    requested_ranges = []
+
+    class FakeBody:
+        def iter_chunks(self, chunk_size):
+            assert chunk_size == 1024 * 1024
+            yield b"video"
+
+    monkeypatch.setattr(
+        stores.upload_service,
+        "is_review_image_public_url",
+        lambda raw_url: raw_url == source_url,
+    )
+    monkeypatch.setattr(
+        stores.upload_service,
+        "extract_review_image_key",
+        lambda raw_url: storage_key if raw_url == source_url else "",
+    )
+    monkeypatch.setattr(
+        stores.upload_service,
+        "get_public_object",
+        lambda *, key, byte_range=None: (
+            requested_ranges.append(byte_range)
+            or {
+                "Body": FakeBody(),
+                "ContentLength": 5,
+                "ContentRange": "bytes 0-4/10",
+                "ContentType": "video/mp4",
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        stores.upload_service,
+        "head_public_object",
+        lambda *, key: {
+            "ContentLength": 10,
+            "ContentType": "video/mp4",
+        },
+    )
+
+    response = client.get(
+        "/api/cafemap/assets/media",
+        params={"src": source_url},
+        headers={"Range": "bytes=0-4"},
+    )
+
+    assert response.status_code == 206
+    assert response.content == b"video"
+    assert response.headers["content-range"] == "bytes 0-4/10"
+    assert response.headers["accept-ranges"] == "bytes"
+    assert requested_ranges == ["bytes=0-4"]
+
+    head_response = client.head(
+        "/api/cafemap/assets/media",
+        params={"src": source_url},
+    )
+
+    assert head_response.status_code == 200
+    assert head_response.headers["content-length"] == "10"
+    assert head_response.headers["content-type"].startswith("video/mp4")

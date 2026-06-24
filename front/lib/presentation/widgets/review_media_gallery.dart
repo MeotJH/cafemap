@@ -18,10 +18,11 @@ List<GalleryImageItem> reviewGalleryImagesFromMediaItems(
       continue;
     }
 
-    final thumbnailUrl =
-        media.isVideo && media.thumbnailUrl.trim().isNotEmpty
-        ? media.thumbnailUrl.trim()
-        : _thumbnailUrlFor(viewerUrl, width: 320, height: 220);
+    final thumbnailUrl = media.isVideo
+        ? (media.thumbnailUrl.trim().isNotEmpty
+              ? media.thumbnailUrl.trim()
+              : _thumbnailUrlFor(viewerUrl, width: 320, height: 220))
+        : viewerUrl;
     items.add(GalleryImageItem.url(thumbnailUrl, viewerUrl: viewerUrl));
   }
 
@@ -91,17 +92,28 @@ String _thumbnailUrlFor(
 }) {
   final baseUrl = (dotenv.env['API_BASE_URL'] ?? '').trim();
   if (baseUrl.isEmpty) return sourceUrl;
+  final originalSourceUrl = _unwrapMediaProxySource(sourceUrl);
   final baseUri = Uri.parse(baseUrl);
   return baseUri
       .replace(
         path: '/api/cafemap/assets/thumbnail',
         queryParameters: {
-          'src': sourceUrl,
+          'src': originalSourceUrl,
           'w': width.toString(),
           'h': height.toString(),
         },
       )
       .toString();
+}
+
+String _unwrapMediaProxySource(String rawUrl) {
+  final uri = Uri.tryParse(rawUrl.trim());
+  if (uri == null) return rawUrl;
+  final proxiedSource = uri.queryParameters['src']?.trim();
+  if (proxiedSource == null || proxiedSource.isEmpty) {
+    return rawUrl;
+  }
+  return proxiedSource;
 }
 
 class _ReviewPhotoPlaceholder extends StatelessWidget {

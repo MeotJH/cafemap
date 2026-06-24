@@ -1,5 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from sqlalchemy.orm import Session
 
 from cafemap.api.presenters.store_presenter import (
@@ -96,6 +101,54 @@ def get_thumbnail_asset(
         thumbnail_asset.local_path,
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@router.api_route("/assets/media", methods=["GET", "HEAD"])
+def get_review_media_asset(
+    request: Request,
+    src: str = Query(..., min_length=1),
+):
+    if not upload_service.is_review_image_public_url(src):
+        raise HTTPException(status_code=400, detail="Unsupported media source")
+
+    try:
+        storage_key = upload_service.extract_review_image_key(src)
+        if request.method == "HEAD":
+            asset = upload_service.head_public_object(key=storage_key)
+        else:
+            asset = upload_service.get_public_object(
+                key=storage_key,
+                byte_range=request.headers.get("range"),
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=300",
+        "Content-Length": str(asset.get("ContentLength", 0)),
+    }
+    content_range = asset.get("ContentRange")
+    if content_range:
+        headers["Content-Range"] = str(content_range)
+    content_type = asset.get("ContentType") or "application/octet-stream"
+    status_code = 206 if content_range else 200
+
+    if request.method == "HEAD":
+        return Response(
+            status_code=status_code,
+            media_type=content_type,
+            headers=headers,
+        )
+
+    body = asset["Body"]
+    return StreamingResponse(
+        body.iter_chunks(chunk_size=1024 * 1024),
+        status_code=status_code,
+        media_type=content_type,
+        headers=headers,
+        background=None,
     )
 
 

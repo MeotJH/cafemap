@@ -128,16 +128,17 @@ def _should_store_in_s3() -> bool:
 
 
 def _render_thumbnail_bytes(*, source_url: str, width: int, height: int) -> bytes:
+    fetch_url = _source_fetch_url(source_url)
     if _is_video_source(source_url):
         return _render_video_thumbnail_bytes(
-            source_url=source_url,
+            source_url=fetch_url,
             width=width,
             height=height,
         )
 
     try:
         response = requests.get(
-            source_url,
+            fetch_url,
             timeout=_REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
@@ -162,6 +163,17 @@ def _render_thumbnail_bytes(*, source_url: str, width: int, height: int) -> byte
 def _is_video_source(source_url: str) -> bool:
     path = urlparse(source_url).path.lower()
     return any(path.endswith(ext) for ext in _VIDEO_EXTENSIONS)
+
+
+def _source_fetch_url(source_url: str) -> str:
+    if not upload_service.is_review_image_public_url(source_url):
+        return source_url
+
+    try:
+        key = upload_service.extract_review_image_key(source_url)
+        return upload_service.issue_public_download_url(key=key)
+    except ValueError as exc:
+        raise ThumbnailError("Failed to fetch thumbnail source") from exc
 
 
 def _render_video_thumbnail_bytes(

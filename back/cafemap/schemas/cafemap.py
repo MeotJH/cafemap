@@ -219,6 +219,14 @@ class ReviewImagePresignOut(BaseModel):
     fileUrl: str
 
 
+class ReviewVideoProcessIn(BaseModel):
+    sourceUrl: str
+
+
+class ReviewVideoProcessOut(BaseModel):
+    fileUrl: str
+
+
 class AuthOut(BaseModel):
     uid: str
     email: str

@@ -3,8 +3,13 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 
 from cafemap.api.deps import require_auth_user
-from cafemap.schemas.cafemap import ReviewImagePresignIn, ReviewImagePresignOut
-from cafemap.services import upload_service
+from cafemap.schemas.cafemap import (
+    ReviewImagePresignIn,
+    ReviewImagePresignOut,
+    ReviewVideoProcessIn,
+    ReviewVideoProcessOut,
+)
+from cafemap.services import upload_service, video_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -56,3 +61,28 @@ def presign_review_image_upload(
         file_url,
     )
     return ReviewImagePresignOut(uploadUrl=upload_url, fileUrl=file_url)
+
+
+@router.post(
+    "/uploads/review-videos/process",
+    response_model=ReviewVideoProcessOut,
+)
+def process_review_video(
+    payload: ReviewVideoProcessIn,
+    auth_user=Depends(require_auth_user),
+):
+    try:
+        file_url = video_service.transcode_review_video(
+            user_id=auth_user.uid,
+            source_url=payload.sourceUrl,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except video_service.VideoProcessingError as exc:
+        logger.exception(
+            "Video processing failed: user_id=%s source_url=%s",
+            auth_user.uid,
+            payload.sourceUrl,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return ReviewVideoProcessOut(fileUrl=file_url)

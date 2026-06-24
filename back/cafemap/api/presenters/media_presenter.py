@@ -72,6 +72,17 @@ def resolve_thumbnail_url(
     )
 
 
+def resolve_review_media_url(request: Request, raw_url: str | None) -> str:
+    resolved = resolve_asset_url(request, raw_url)
+    if not resolved:
+        return ""
+    if not upload_service.is_review_image_public_url(resolved):
+        return resolved
+
+    encoded_src = quote(resolved, safe="")
+    return f"{public_base_url(request)}/api/cafemap/assets/media?src={encoded_src}"
+
+
 def resolve_media_gallery_url(
     request: Request,
     raw_url: str | None,
@@ -81,7 +92,7 @@ def resolve_media_gallery_url(
 ) -> str:
     if is_video_media_url(raw_url):
         return resolve_thumbnail_url(request, raw_url, width=width, height=height)
-    return resolve_asset_url(request, raw_url)
+    return resolve_review_media_url(request, raw_url)
 
 
 def resolve_video_thumbnail_url(

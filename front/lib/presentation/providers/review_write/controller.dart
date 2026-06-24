@@ -507,10 +507,13 @@ class ReviewWriteController extends Notifier<ReviewWriteState> {
         bytes: item.bytes,
         contentType: item.contentType,
       );
+      final uploadedUrl = item.type == 'video'
+          ? await api.processReviewVideo(presigned.fileUrl, auth: auth)
+          : presigned.fileUrl;
       uploadedItems.add(
         ReviewMediaItem(
           type: item.type,
-          url: presigned.fileUrl,
+          url: uploadedUrl,
           durationMs: item.durationMs,
         ),
       );

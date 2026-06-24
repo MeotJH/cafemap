@@ -1,5 +1,6 @@
 import re
 import uuid
+from pathlib import Path
 from urllib.parse import urlparse
 
 import boto3
@@ -99,11 +100,36 @@ def issue_public_download_url(
     key: str,
     expires_seconds: int | None = None,
 ) -> str:
+    return issue_public_object_url(
+        key=key,
+        client_method="get_object",
+        expires_seconds=expires_seconds,
+    )
+
+
+def issue_public_head_url(
+    *,
+    key: str,
+    expires_seconds: int | None = None,
+) -> str:
+    return issue_public_object_url(
+        key=key,
+        client_method="head_object",
+        expires_seconds=expires_seconds,
+    )
+
+
+def issue_public_object_url(
+    *,
+    key: str,
+    client_method: str,
+    expires_seconds: int | None = None,
+) -> str:
     if not is_public_storage_configured():
         raise ValueError("S3_BUCKET is not configured")
 
     return _s3_client().generate_presigned_url(
-        ClientMethod="get_object",
+        ClientMethod=client_method,
         Params={
             "Bucket": S3_BUCKET,
             "Key": key,
@@ -135,6 +161,50 @@ def upload_public_bytes(
     return key
 
 
+def upload_public_file(
+    *,
+    key: str,
+    file_path: Path,
+    content_type: str,
+    cache_control: str | None = None,
+) -> str:
+    if not is_public_storage_configured():
+        raise ValueError("S3_BUCKET is not configured")
+
+    extra_args = {"ContentType": content_type}
+    if cache_control:
+        extra_args["CacheControl"] = cache_control
+    _s3_client().upload_file(
+        str(file_path),
+        S3_BUCKET,
+        key,
+        ExtraArgs=extra_args,
+    )
+    return key
+
+
+def download_public_file(*, key: str, file_path: Path) -> None:
+    if not is_public_storage_configured():
+        raise ValueError("S3_BUCKET is not configured")
+    _s3_client().download_file(S3_BUCKET, key, str(file_path))
+
+
+def get_public_object(*, key: str, byte_range: str | None = None):
+    if not is_public_storage_configured():
+        raise ValueError("S3_BUCKET is not configured")
+
+    params = {"Bucket": S3_BUCKET, "Key": key}
+    if byte_range:
+        params["Range"] = byte_range
+    return _s3_client().get_object(**params)
+
+
+def head_public_object(*, key: str):
+    if not is_public_storage_configured():
+        raise ValueError("S3_BUCKET is not configured")
+    return _s3_client().head_object(Bucket=S3_BUCKET, Key=key)
+
+
 def is_review_image_public_url(raw_url: str | None) -> bool:
     value = (raw_url or "").strip()
     if not value:
@@ -161,6 +231,27 @@ def is_review_image_public_url(raw_url: str | None) -> bool:
         allowed_prefixes.append(f"https://{S3_BUCKET}.{endpoint_host}/{prefix}/")
 
     return any(value.startswith(item) for item in allowed_prefixes)
+
+
+def extract_review_image_key(raw_url: str | None) -> str:
+    value = (raw_url or "").strip()
+    if not is_review_image_public_url(value):
+        raise ValueError("Unsupported review media URL")
+
+    parsed = urlparse(value)
+    path = (parsed.path or "").lstrip("/")
+    prefix = S3_REVIEW_IMAGE_PREFIX.strip("/")
+    if not prefix:
+        raise ValueError("S3 review image prefix is empty")
+
+    bucket_prefix = f"{S3_BUCKET.strip()}/{prefix}/" if S3_BUCKET.strip() else ""
+    if bucket_prefix and path.startswith(bucket_prefix):
+        return path[len(S3_BUCKET.strip()) + 1 :]
+
+    if path.startswith(f"{prefix}/"):
+        return path
+
+    raise ValueError("Unsupported review media URL")
 
 
 def issue_review_image_upload_url(

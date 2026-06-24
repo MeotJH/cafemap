@@ -100,6 +100,24 @@ class ReviewApi {
     );
   }
 
+  Future<String> processReviewVideo(
+    String sourceUrl, {
+    AuthContext? auth,
+  }) async {
+    final headers = _authHeaders(auth);
+    final response = await _dio.post(
+      '$_baseUrl/api/cafemap/uploads/review-videos/process',
+      data: <String, String>{'sourceUrl': sourceUrl},
+      options: Options(
+        headers: headers.isEmpty ? null : headers,
+        receiveTimeout: const Duration(minutes: 3),
+        sendTimeout: const Duration(seconds: 15),
+      ),
+    );
+    final data = response.data as Map<String, dynamic>;
+    return data['fileUrl'] as String? ?? '';
+  }
+
   Map<String, String> _authHeaders(AuthContext? auth) {
     if (auth == null) return const {};
     return <String, String>{

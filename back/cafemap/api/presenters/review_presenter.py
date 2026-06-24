@@ -7,6 +7,7 @@ from cafemap.schemas.cafemap import ReviewMediaItem, ReviewOut
 
 from .media_presenter import (
     resolve_asset_url,
+    resolve_review_media_url,
     resolve_video_thumbnail_url,
 )
 from .scoring_presenter import scores_from_snapshot
@@ -35,7 +36,7 @@ def review_media_item_from_snapshot(
     duration_ms = item.get("durationMs")
     return ReviewMediaItem(
         type=str(item.get("type", "image")).strip().lower() or "image",
-        url=resolve_asset_url(request, raw_url),
+        url=resolve_review_media_url(request, raw_url),
         thumbnailUrl=(
             resolve_asset_url(request, raw_thumbnail_url)
             if raw_thumbnail_url

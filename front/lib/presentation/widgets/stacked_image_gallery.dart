@@ -721,12 +721,29 @@ class _GalleryVideoPlayerState extends State<_GalleryVideoPlayer> {
 }
 
 bool _isVideoUrl(String rawUrl) {
-  final url = rawUrl.trim().toLowerCase();
-  if (url.isEmpty) return false;
-  final path = Uri.tryParse(url)?.path.toLowerCase() ?? url;
-  return path.endsWith('.mp4') ||
-      path.endsWith('.mov') ||
-      path.endsWith('.webm');
+  final trimmed = rawUrl.trim();
+  if (trimmed.isEmpty) return false;
+
+  bool isVideoPath(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    final path = Uri.tryParse(normalized)?.path.toLowerCase() ?? normalized;
+    return path.endsWith('.mp4') ||
+        path.endsWith('.mov') ||
+        path.endsWith('.webm');
+  }
+
+  if (isVideoPath(trimmed)) {
+    return true;
+  }
+
+  final uri = Uri.tryParse(trimmed);
+  final proxiedSource = uri?.queryParameters['src']?.trim();
+  if (proxiedSource == null || proxiedSource.isEmpty) {
+    return false;
+  }
+
+  return isVideoPath(proxiedSource);
 }
 
 class _DefaultGalleryPlaceholder extends StatelessWidget {
