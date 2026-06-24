@@ -1,10 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import (
-    FileResponse,
-    RedirectResponse,
-    Response,
-    StreamingResponse,
-)
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from cafemap.api.presenters.store_presenter import (
@@ -115,40 +110,15 @@ def get_review_media_asset(
     try:
         storage_key = upload_service.extract_review_image_key(src)
         if request.method == "HEAD":
-            asset = upload_service.head_public_object(key=storage_key)
+            download_url = upload_service.issue_public_head_url(key=storage_key)
         else:
-            asset = upload_service.get_public_object(
-                key=storage_key,
-                byte_range=request.headers.get("range"),
-            )
+            download_url = upload_service.issue_public_download_url(key=storage_key)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "private, max-age=300",
-        "Content-Length": str(asset.get("ContentLength", 0)),
-    }
-    content_range = asset.get("ContentRange")
-    if content_range:
-        headers["Content-Range"] = str(content_range)
-    content_type = asset.get("ContentType") or "application/octet-stream"
-    status_code = 206 if content_range else 200
-
-    if request.method == "HEAD":
-        return Response(
-            status_code=status_code,
-            media_type=content_type,
-            headers=headers,
-        )
-
-    body = asset["Body"]
-    return StreamingResponse(
-        body.iter_chunks(chunk_size=1024 * 1024),
-        status_code=status_code,
-        media_type=content_type,
-        headers=headers,
-        background=None,
+    return RedirectResponse(
+        download_url,
+        headers={"Cache-Control": "private, no-store"},
     )
 
 

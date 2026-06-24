@@ -304,17 +304,13 @@ def test_thumbnail_asset_endpoint_redirects_to_presigned_thumbnail(client, monke
     assert response.headers["location"] == download_url
 
 
-def test_media_asset_endpoint_streams_range_from_storage(client, monkeypatch):
+def test_media_asset_endpoint_redirects_to_presigned_media(client, monkeypatch):
     from cafemap.api.routes import stores
 
     source_url = "https://cdn.example.com/review-images/test.mp4"
     storage_key = "review-images/test-user/test.mp4"
-    requested_ranges = []
-
-    class FakeBody:
-        def iter_chunks(self, chunk_size):
-            assert chunk_size == 1024 * 1024
-            yield b"video"
+    download_url = "https://download.example.com/presigned-media"
+    head_url = "https://download.example.com/presigned-media-head"
 
     monkeypatch.setattr(
         stores.upload_service,
@@ -328,43 +324,29 @@ def test_media_asset_endpoint_streams_range_from_storage(client, monkeypatch):
     )
     monkeypatch.setattr(
         stores.upload_service,
-        "get_public_object",
-        lambda *, key, byte_range=None: (
-            requested_ranges.append(byte_range)
-            or {
-                "Body": FakeBody(),
-                "ContentLength": 5,
-                "ContentRange": "bytes 0-4/10",
-                "ContentType": "video/mp4",
-            }
-        ),
+        "issue_public_download_url",
+        lambda *, key: download_url if key == storage_key else "",
     )
     monkeypatch.setattr(
         stores.upload_service,
-        "head_public_object",
-        lambda *, key: {
-            "ContentLength": 10,
-            "ContentType": "video/mp4",
-        },
+        "issue_public_head_url",
+        lambda *, key: head_url if key == storage_key else "",
     )
 
     response = client.get(
         "/api/cafemap/assets/media",
         params={"src": source_url},
-        headers={"Range": "bytes=0-4"},
+        follow_redirects=False,
     )
 
-    assert response.status_code == 206
-    assert response.content == b"video"
-    assert response.headers["content-range"] == "bytes 0-4/10"
-    assert response.headers["accept-ranges"] == "bytes"
-    assert requested_ranges == ["bytes=0-4"]
+    assert response.status_code in {302, 307}
+    assert response.headers["location"] == download_url
 
     head_response = client.head(
         "/api/cafemap/assets/media",
         params={"src": source_url},
+        follow_redirects=False,
     )
 
-    assert head_response.status_code == 200
-    assert head_response.headers["content-length"] == "10"
-    assert head_response.headers["content-type"].startswith("video/mp4")
+    assert head_response.status_code in {302, 307}
+    assert head_response.headers["location"] == head_url
