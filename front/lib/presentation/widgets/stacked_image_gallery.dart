@@ -1,6 +1,8 @@
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -618,46 +620,180 @@ class GalleryVideoPlayer extends StatelessWidget {
 class _GalleryVideoPlayerState extends State<_GalleryVideoPlayer> {
   VideoPlayerController? _controller;
   String? _error;
+  late final String _diagnosticId;
+  String _lastControllerState = '';
 
   @override
   void initState() {
     super.initState();
+    _diagnosticId = identityHashCode(this).toRadixString(16);
     _initialize();
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    final controller = _controller;
+    if (controller != null) {
+      controller.removeListener(_logControllerState);
+      unawaited(controller.dispose());
+    }
+    _videoLog(_diagnosticId, 'dispose');
     super.dispose();
   }
 
   Future<void> _initialize() async {
     final url = (widget.image.viewerUrl ?? widget.image.url ?? '').trim();
+    _videoLog(
+      _diagnosticId,
+      'initialize start '
+      'platform=${defaultTargetPlatform.name} '
+      'isWeb=$kIsWeb '
+      'url=${_safeVideoUrl(url)}',
+    );
     if (url.isEmpty) {
+      _videoLog(_diagnosticId, 'initialize aborted: empty URL');
       setState(() {
         _error = '영상을 재생할 수 없어요.';
       });
       return;
     }
 
+    await _probeVideoUrl(url);
+    if (!mounted) {
+      _videoLog(
+        _diagnosticId,
+        'initialize aborted after probe: widget unmounted',
+      );
+      return;
+    }
+
+    VideoPlayerController? controller;
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      _controller = controller;
+      controller.addListener(_logControllerState);
+      _videoLog(_diagnosticId, 'controller created; initialize requested');
       await controller.initialize();
+      _videoLog(
+        _diagnosticId,
+        'controller initialized '
+        'durationMs=${controller.value.duration.inMilliseconds} '
+        'size=${controller.value.size.width}x${controller.value.size.height} '
+        'aspectRatio=${controller.value.aspectRatio} '
+        'error=${controller.value.errorDescription}',
+      );
       await controller.setLooping(true);
+      _videoLog(_diagnosticId, 'looping enabled');
       await controller.play();
+      _videoLog(
+        _diagnosticId,
+        'play completed isPlaying=${controller.value.isPlaying} '
+        'positionMs=${controller.value.position.inMilliseconds}',
+      );
       if (!mounted) {
+        controller.removeListener(_logControllerState);
         await controller.dispose();
+        _videoLog(_diagnosticId, 'disposed after initialize: widget unmounted');
         return;
       }
       setState(() {
         _controller = controller;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _videoLog(
+        _diagnosticId,
+        'initialize failed '
+        'errorType=${error.runtimeType} '
+        'error=$error '
+        'controllerError=${controller?.value.errorDescription}',
+      );
+      debugPrintStack(
+        label: '[VideoDiag][$_diagnosticId] initialize stack',
+        stackTrace: stackTrace,
+      );
+      if (controller != null) {
+        controller.removeListener(_logControllerState);
+        await controller.dispose();
+      }
+      _controller = null;
       if (!mounted) return;
       setState(() {
         _error = '영상을 재생할 수 없어요.';
       });
     }
+  }
+
+  Future<void> _probeVideoUrl(String url) async {
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+        validateStatus: (_) => true,
+      ),
+    );
+    try {
+      final head = await dio.head<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      _videoLog(
+        _diagnosticId,
+        'HEAD status=${head.statusCode} '
+        'contentType=${head.headers.value(Headers.contentTypeHeader)} '
+        'contentLength=${head.headers.value(Headers.contentLengthHeader)} '
+        'acceptRanges=${head.headers.value('accept-ranges')}',
+      );
+    } catch (error, stackTrace) {
+      _videoLog(
+        _diagnosticId,
+        'HEAD failed errorType=${error.runtimeType} error=$error',
+      );
+      debugPrintStack(
+        label: '[VideoDiag][$_diagnosticId] HEAD stack',
+        stackTrace: stackTrace,
+      );
+    }
+
+    try {
+      final range = await dio.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: const {'Range': 'bytes=0-0'},
+        ),
+      );
+      _videoLog(
+        _diagnosticId,
+        'RANGE status=${range.statusCode} '
+        'bytes=${range.data?.length ?? 0} '
+        'contentType=${range.headers.value(Headers.contentTypeHeader)} '
+        'contentRange=${range.headers.value('content-range')}',
+      );
+    } catch (error, stackTrace) {
+      _videoLog(
+        _diagnosticId,
+        'RANGE failed errorType=${error.runtimeType} error=$error',
+      );
+      debugPrintStack(
+        label: '[VideoDiag][$_diagnosticId] RANGE stack',
+        stackTrace: stackTrace,
+      );
+    } finally {
+      dio.close(force: true);
+    }
+  }
+
+  void _logControllerState() {
+    final value = _controller?.value;
+    if (value == null) return;
+    final state =
+        'initialized=${value.isInitialized} '
+        'playing=${value.isPlaying} '
+        'buffering=${value.isBuffering} '
+        'error=${value.errorDescription}';
+    if (state == _lastControllerState) return;
+    _lastControllerState = state;
+    _videoLog(_diagnosticId, 'controller state $state');
   }
 
   @override
@@ -698,12 +834,30 @@ class _GalleryVideoPlayerState extends State<_GalleryVideoPlayer> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  setState(() {
-                    controller.value.isPlaying
-                        ? controller.pause()
-                        : controller.play();
-                  });
+                onPressed: () async {
+                  try {
+                    if (controller.value.isPlaying) {
+                      await controller.pause();
+                    } else {
+                      await controller.play();
+                    }
+                    _videoLog(
+                      _diagnosticId,
+                      'manual playback toggle '
+                      'isPlaying=${controller.value.isPlaying}',
+                    );
+                    if (mounted) setState(() {});
+                  } catch (error, stackTrace) {
+                    _videoLog(
+                      _diagnosticId,
+                      'manual playback toggle failed '
+                      'errorType=${error.runtimeType} error=$error',
+                    );
+                    debugPrintStack(
+                      label: '[VideoDiag][$_diagnosticId] toggle stack',
+                      stackTrace: stackTrace,
+                    );
+                  }
                 },
                 icon: Icon(
                   controller.value.isPlaying
@@ -718,6 +872,23 @@ class _GalleryVideoPlayerState extends State<_GalleryVideoPlayer> {
       ),
     );
   }
+}
+
+void _videoLog(String diagnosticId, String message) {
+  debugPrint(
+    '[VideoDiag][$diagnosticId][${DateTime.now().toIso8601String()}] $message',
+  );
+}
+
+String _safeVideoUrl(String rawUrl) {
+  final uri = Uri.tryParse(rawUrl.trim());
+  if (uri == null) return '<invalid-url>';
+
+  final source = Uri.tryParse(uri.queryParameters['src'] ?? '');
+  final sourceLabel = source == null
+      ? ''
+      : ' src=${source.scheme}://${source.host}${source.path}';
+  return '${uri.scheme}://${uri.host}${uri.path}$sourceLabel';
 }
 
 bool _isVideoUrl(String rawUrl) {
